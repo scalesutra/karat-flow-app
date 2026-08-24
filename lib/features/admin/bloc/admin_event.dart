@@ -17,10 +17,15 @@ final class FetchStockInventoryEvent extends AdminEvent {
 
 /// Register a new workshop artisan / goldsmith
 final class AddArtisanEvent extends AdminEvent {
-  const AddArtisanEvent(this.member, {required this.phone});
+  const AddArtisanEvent(
+    this.member, {
+    required this.phone,
+    required this.stageId,
+  });
 
   final TeamMember member;
   final String phone;
+  final String stageId;
 }
 
 /// Send creative or operational governance directive

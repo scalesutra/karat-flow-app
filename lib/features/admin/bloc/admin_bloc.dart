@@ -125,6 +125,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         name: event.member.name,
         email: '$sanitizedName@karratflow.com',
         phone: event.phone,
+        stageId: event.stageId,
         role: 'OTHER_EMPLOYEE',
       );
 

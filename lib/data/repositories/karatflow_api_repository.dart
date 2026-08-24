@@ -63,11 +63,18 @@ class KaratFlowApiRepository {
     required String name,
     required String email,
     required String phone,
+    required String stageId,
     String role = 'OTHER_EMPLOYEE',
   }) async {
     final response = await _api.post(
       ApiEndpoints.employees,
-      data: {'name': name, 'email': email, 'phone': phone, 'role': role},
+      data: {
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'role': role,
+        'stageId': stageId,
+      },
     );
     final data = response.data['data'] as Map<String, dynamic>;
     return ApiEmployee.fromJson(data);
