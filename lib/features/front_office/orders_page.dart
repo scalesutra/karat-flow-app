@@ -42,31 +42,36 @@ class _OrdersPageState extends State<OrdersPage> {
       debugPrint('📦 [OrdersPage] Fetching live orders from GET /orders...');
       final apiRepo = KaratFlowApiRepository();
       final apiOrders = await apiRepo.listOrders(status: '');
-      debugPrint('✅ [OrdersPage] Received ${apiOrders.length} orders from live API!');
+      debugPrint(
+        '✅ [OrdersPage] Received ${apiOrders.length} orders from live API!',
+      );
 
       final mappedOrders = apiOrders.map((ao) {
         final firstPart = ao.parts.isNotEmpty ? ao.parts.first : null;
         final itemsSummaryText = ao.parts.isNotEmpty
             ? ao.parts.map((p) => '${p.quantity}x ${p.designNumber}').join(', ')
-            : 'Custom Order #${ao.orderNumber}';
+            : '';
 
         return CustomerOrder(
           id: ao.orderNumber.isNotEmpty ? ao.orderNumber : ao.id,
-          clientFirmName: ao.customerName.isNotEmpty
-              ? ao.customerName
-              : 'Client Order',
-          clientCity: 'Jaipur',
+          clientFirmName: ao.customerName.isNotEmpty ? ao.customerName : '',
+          clientCity: ao.customerCity,
           itemsCount: ao.parts.fold(0, (sum, p) => sum + p.quantity),
           totalGrossGrams: firstPart?.grossWeight ?? 0.0,
           estimatedTotalAmount: 0.0,
-          status: ao.status == 'CHECKED_OUT' || ao.status == 'READY'
-              ? OrderStatus.ready
-              : ao.status == 'DELIVERED'
-                  ? OrderStatus.delivered
-                  : OrderStatus.inWorkshop,
-          promiseDate: 'Due Date',
-          createdAt: DateTime.now(),
+          status: switch (ao.status.toUpperCase()) {
+            'DRAFT' || 'PENDING' => OrderStatus.pending,
+            'READY' || 'CHECKED_OUT' => OrderStatus.ready,
+            'DISPATCHED' => OrderStatus.dispatched,
+            'DELIVERED' => OrderStatus.delivered,
+            'CANCELLED' || 'CANCELED' => OrderStatus.cancelled,
+            _ => OrderStatus.inWorkshop,
+          },
+          promiseDate: ao.dueDate,
+          createdAt: ao.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
           itemsSummary: itemsSummaryText,
+          currentWorkshopStage: firstPart?.currentStage ?? '',
+          responsibleManager: '',
         );
       }).toList();
 
@@ -107,14 +112,15 @@ class _OrdersPageState extends State<OrdersPage> {
             _ => true,
           };
 
-          final matchesSearch = _searchQuery.isEmpty ||
+          final matchesSearch =
+              _searchQuery.isEmpty ||
               order.id.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-              order.clientFirmName
-                  .toLowerCase()
-                  .contains(_searchQuery.toLowerCase()) ||
-              order.itemsSummary
-                  .toLowerCase()
-                  .contains(_searchQuery.toLowerCase());
+              order.clientFirmName.toLowerCase().contains(
+                _searchQuery.toLowerCase(),
+              ) ||
+              order.itemsSummary.toLowerCase().contains(
+                _searchQuery.toLowerCase(),
+              );
 
           return matchesStatus && matchesSearch;
         }).toList();
@@ -136,7 +142,9 @@ class _OrdersPageState extends State<OrdersPage> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            CommonText.headlineLarge(AppStrings.navOrders.trClean),
+                            CommonText.headlineLarge(
+                              AppStrings.navOrders.trClean,
+                            ),
                             const SizedBox(height: 2),
                             CommonText.bodySmall(
                               '${filteredOrders.length} ${filteredOrders.length == 1 ? "order" : "orders"} listed',

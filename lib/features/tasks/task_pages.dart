@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
@@ -8,6 +9,7 @@ import '../../data/demo_store.dart';
 import '../../domain/models.dart';
 import '../instructions/instruction_composer.dart';
 import '../status/admin_status_page.dart';
+import '../workshop/bloc/workshop_bloc.dart';
 import 'widgets/cad_approval_task_card.dart';
 import 'widgets/instruction_task_card.dart';
 
@@ -621,31 +623,10 @@ class ProcessManagerHome extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: CommonButton.outlined(
-                    height: 38,
-                    label: 'Simulate Lot JO-10482',
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      CommonSnackbar.info(
-                        context,
-                        title: 'Lot Scanned',
-                        message: 'Scanned JO-10482 (Stone Setting · 56 pcs).',
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: CommonButton.primary(
-                    height: 38,
-                    label: 'Close Scanner',
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ),
-              ],
+            CommonButton.primary(
+              height: 38,
+              label: 'Close Scanner',
+              onPressed: () => Navigator.pop(ctx),
             ),
           ],
         ),
@@ -654,26 +635,9 @@ class ProcessManagerHome extends StatelessWidget {
   }
 
   void _showQcLotsModal(BuildContext context) {
-    final qcBatches = [
-      {
-        'id': 'JO-10479',
-        'name': '22K Traditional Choker Necklace',
-        'pcs': '1 pc (64.2g)',
-        'status': 'Assay Passed',
-      },
-      {
-        'id': 'JO-10480',
-        'name': '18K Diamond Solitaire Studs',
-        'pcs': '24 pairs (48.0g)',
-        'status': 'XRF Verified',
-      },
-      {
-        'id': 'JO-10481',
-        'name': '22K Handcrafted Antique Bangles',
-        'pcs': '8 pcs (120.5g)',
-        'status': 'Final Visual Check',
-      },
-    ];
+    final qcBatches = store.lots
+        .where((lot) => lot.stage == WorkshopStage.qualityCheck)
+        .toList();
 
     showModalBottomSheet<void>(
       context: context,
@@ -721,7 +685,7 @@ class ProcessManagerHome extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${q['id']} · ${q['name']}',
+                              '${q.orderId} · ${q.productTitle}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 12,
@@ -729,7 +693,7 @@ class ProcessManagerHome extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${q['pcs']} · ${q['status']}',
+                              '${q.pieces} pcs · ${q.issueWeightGrams}g · ${q.assignedEmployee}',
                               style: const TextStyle(
                                 color: AppColors.muted,
                                 fontSize: 10,
@@ -744,10 +708,8 @@ class ProcessManagerHome extends StatelessWidget {
                         label: 'Approve QC',
                         onPressed: () {
                           Navigator.pop(ctx);
-                          CommonSnackbar.success(
-                            context,
-                            title: 'QC Approved',
-                            message: '${q['id']} moved to Ready for Dispatch.',
+                          context.read<WorkshopBloc>().add(
+                            AdvanceLotStageEvent(q.id),
                           );
                         },
                       ),
@@ -762,6 +724,10 @@ class ProcessManagerHome extends StatelessWidget {
   }
 
   void _showHoldsModal(BuildContext context) {
+    final blockedLots = store.lots
+        .where((lot) => lot.blockerReason?.isNotEmpty ?? false)
+        .toList();
+    final lot = blockedLots.firstOrNull;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -805,14 +771,24 @@ class ProcessManagerHome extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'JO-10482 · Stone Setting',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  Text(
+                    lot == null
+                        ? 'No active holds'
+                        : '${lot.orderId} · ${lot.stage.label}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
                   ),
                   const SizedBox(height: 2),
-                  const Text(
-                    '56 pieces · Blocked by Vikram Rathod (Bench #04)',
-                    style: TextStyle(color: AppColors.muted, fontSize: 11),
+                  Text(
+                    lot == null
+                        ? 'No blocked worker tasks returned by the API.'
+                        : '${lot.pieces} pieces · ${lot.assignedEmployee}',
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 11,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Container(
@@ -821,9 +797,11 @@ class ProcessManagerHome extends StatelessWidget {
                       color: const Color(0xFFFFE7DF),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Text(
-                      'Reason: Shortage of 1.30 mm VS-GH round diamond stones from vault.',
-                      style: TextStyle(
+                    child: Text(
+                      lot == null
+                          ? 'No hold reason.'
+                          : 'Reason: ${lot.blockerReason}',
+                      style: const TextStyle(
                         color: AppColors.danger,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -832,16 +810,8 @@ class ProcessManagerHome extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   CommonButton.primary(
-                    label: 'Request Stone Issuance from Vault',
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      CommonSnackbar.info(
-                        context,
-                        title: 'Vault Request Sent',
-                        message:
-                            'Urgent requisition for 1.30mm diamonds sent to Prakash Soni (Vault).',
-                      );
-                    },
+                    label: 'Close',
+                    onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
               ),

@@ -1343,7 +1343,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                             ),
                             SizedBox(height: 2),
                             CommonText.bodyMedium(
-                              'Vikram Kumar · Senior CAD',
+                              'Live CAD task',
                               fontWeight: FontWeight.bold,
                             ),
                           ],
@@ -1583,11 +1583,10 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final apiStage = apiStages[index];
-        final stage = WorkshopStage.values[
-          (apiStage.stageNumber - 1)
-              .clamp(0, WorkshopStage.values.length - 1)
-              .toInt()
-        ];
+        final stage =
+            WorkshopStage.values[(apiStage.stageNumber - 1)
+                .clamp(0, WorkshopStage.values.length - 1)
+                .toInt()];
         final count = _getPiecesCountForStage(stage);
         final isSelected = _selectedStageFilter == stage;
         final stageColor = _getStageColor(stage);

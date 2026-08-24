@@ -403,14 +403,20 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
                     const CommonText.titleMedium('Optional Details'),
                     const SizedBox(height: 12),
 
-                    // Phone Number (Optional)
+                    // Phone Number
                     CommonTextField(
                       controller: _phoneController,
-                      label: 'Phone Number (Optional)',
+                      label: 'Phone Number',
                       hintText: 'e.g. 98290 12345',
                       prefixIcon: Icons.phone_outlined,
                       keyboardType: TextInputType.phone,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Phone number is required';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 12),
 

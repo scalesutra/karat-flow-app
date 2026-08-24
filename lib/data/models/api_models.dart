@@ -254,13 +254,18 @@ class ApiOrder {
     required this.orderNumber,
     required this.status,
     this.customerName = '',
+    this.customerCity = '',
+    this.dueDate = '',
+    this.createdAt,
     this.parts = const [],
   });
 
   factory ApiOrder.fromJson(Map<String, dynamic> json) {
     String cName = '';
+    String cCity = '';
     if (json['customer'] is Map) {
       cName = json['customer']['name'] as String? ?? '';
+      cCity = json['customer']['city'] as String? ?? '';
     }
     final rawParts = json['parts'] as List? ?? [];
     return ApiOrder(
@@ -268,6 +273,9 @@ class ApiOrder {
       orderNumber: json['orderNumber'] as String? ?? '',
       status: json['status'] as String? ?? 'DRAFT',
       customerName: cName,
+      customerCity: cCity,
+      dueDate: json['dueDate']?.toString() ?? '',
+      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
       parts: rawParts
           .map((p) => ApiOrderPart.fromJson(p as Map<String, dynamic>))
           .toList(),
@@ -278,6 +286,9 @@ class ApiOrder {
   final String orderNumber;
   final String status;
   final String customerName;
+  final String customerCity;
+  final String dueDate;
+  final DateTime? createdAt;
   final List<ApiOrderPart> parts;
 }
 

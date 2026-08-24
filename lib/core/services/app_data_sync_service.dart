@@ -21,6 +21,7 @@ class AppDataSyncService {
       syncWorkshopLots(store),
       syncTeamEmployees(store),
       syncStages(store),
+      syncCadTasks(store),
     ]).catchError((Object err) {
       debugPrint('⚠️ [AppDataSyncService] Error during parallel sync: $err');
       return <void>[];
@@ -68,17 +69,20 @@ class AppDataSyncService {
           clientFirmName: ao.customerName.isNotEmpty
               ? ao.customerName
               : 'Client Order',
-          clientCity: 'Jaipur',
+          clientCity: ao.customerCity,
           itemsCount: ao.parts.fold(0, (sum, p) => sum + p.quantity),
           totalGrossGrams: firstPart?.grossWeight ?? 0.0,
           estimatedTotalAmount: 0.0,
-          status: ao.status == 'CHECKED_OUT' || ao.status == 'READY'
-              ? OrderStatus.ready
-              : ao.status == 'DELIVERED'
-              ? OrderStatus.delivered
-              : OrderStatus.inWorkshop,
-          promiseDate: 'Due Date',
-          createdAt: DateTime.now(),
+          status: switch (ao.status.toUpperCase()) {
+            'DRAFT' || 'PENDING' => OrderStatus.pending,
+            'READY' || 'CHECKED_OUT' => OrderStatus.ready,
+            'DISPATCHED' => OrderStatus.dispatched,
+            'DELIVERED' => OrderStatus.delivered,
+            'CANCELLED' || 'CANCELED' => OrderStatus.cancelled,
+            _ => OrderStatus.inWorkshop,
+          },
+          promiseDate: ao.dueDate,
+          createdAt: ao.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
           itemsSummary: itemsSummaryText,
           currentWorkshopStage: firstPart?.currentStage ?? '',
           responsibleManager: '',
@@ -220,6 +224,44 @@ class AppDataSyncService {
       debugPrint('✅ [Sync] Loaded ${stages.length} production stages.');
     } catch (e) {
       debugPrint('❌ [Sync] Failed to sync production stages: $e');
+    }
+  }
+
+  /// Sync live CAD approval tasks (GET /three-d-designs).
+  static Future<void> syncCadTasks(DemoStore store) async {
+    try {
+      debugPrint('💎 [Sync] Fetching GET /three-d-designs...');
+      final designs = await _api.listThreeDDesigns();
+      final tasks = designs
+          .map(
+            (design) => CadDesignTask(
+              id: design.id,
+              orderId: design.sketchId,
+              designCode: design.id,
+              productTitle: design.sketchId,
+              clientName: '',
+              specs:
+                  'Weight: ${design.totalWeight}g · Vol: ${design.volumeMm3}mm³',
+              notes: '',
+              estimatedWeightGrams: design.totalWeight,
+              status: design.status == 'APPROVED'
+                  ? CadTaskStatus.completed
+                  : design.status == 'REVISION'
+                  ? CadTaskStatus.revision
+                  : CadTaskStatus.newTask,
+              hasVoiceNote: false,
+              hasSketchImage: false,
+              hasStlFile:
+                  design.xtlFileUrl != null && design.xtlFileUrl!.isNotEmpty,
+              assignedTo: '',
+              receivedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            ),
+          )
+          .toList();
+      store.setCadTasks(tasks);
+      debugPrint('✅ [Sync] Loaded ${tasks.length} CAD approval tasks.');
+    } catch (e) {
+      debugPrint('❌ [Sync] Failed to sync CAD approval tasks: $e');
     }
   }
 }

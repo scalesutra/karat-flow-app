@@ -46,15 +46,20 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
           clientFirmName: ao.customerName.isNotEmpty
               ? ao.customerName
               : 'Client Order',
-          clientCity: 'Jaipur',
+          clientCity: ao.customerCity,
           itemsCount: ao.parts.fold(0, (sum, part) => sum + part.quantity),
           totalGrossGrams: firstPart?.grossWeight ?? 0.0,
           estimatedTotalAmount: 0,
-          status: ao.status == 'CHECKED_OUT'
-              ? OrderStatus.ready
-              : OrderStatus.inWorkshop,
-          promiseDate: 'Due Date',
-          createdAt: DateTime.now(),
+          status: switch (ao.status.toUpperCase()) {
+            'DRAFT' || 'PENDING' => OrderStatus.pending,
+            'READY' || 'CHECKED_OUT' => OrderStatus.ready,
+            'DISPATCHED' => OrderStatus.dispatched,
+            'DELIVERED' => OrderStatus.delivered,
+            'CANCELLED' || 'CANCELED' => OrderStatus.cancelled,
+            _ => OrderStatus.inWorkshop,
+          },
+          promiseDate: ao.dueDate,
+          createdAt: ao.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
           itemsSummary: ao.parts
               .map((p) => '${p.quantity}x ${p.designNumber}')
               .join(', '),

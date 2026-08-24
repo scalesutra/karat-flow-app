@@ -41,24 +41,7 @@ class DemoStore extends ChangeNotifier {
   final List<CadDesignTask> _cadTasks;
   final GoldRates _goldRates;
 
-  final List<Map<String, String>> _adminDirectives = [
-    {
-      'id': 'DIR-001',
-      'date': '24-08-2026',
-      'recipient': 'CAD Designer',
-      'content':
-          'Please ensure center prong height is minimum 1.2mm for all rings.',
-      'status': 'Active',
-    },
-    {
-      'id': 'DIR-002',
-      'date': '24-08-2026',
-      'recipient': 'Goldsmith (Artisans)',
-      'content':
-          'Check hallmark stamp visibility under 10x loop before submitting to QC.',
-      'status': 'Active',
-    },
-  ];
+  final List<Map<String, String>> _adminDirectives = [];
 
   List<Map<String, String>> get adminDirectives => _adminDirectives;
 
@@ -144,7 +127,10 @@ class DemoStore extends ChangeNotifier {
               id: order.id,
               pivot: pivot,
               title: order.clientFirmName,
-              subtitle: order.itemsSummary,
+              subtitle: [
+                order.itemsSummary,
+                order.currentWorkshopStage,
+              ].where((value) => value.isNotEmpty).join(' · '),
               status: order.status.label,
               quantity: '${order.itemsCount} pcs',
               owner: order.responsibleManager,
@@ -152,6 +138,7 @@ class DemoStore extends ChangeNotifier {
               metrics: {
                 'Weight': '${order.totalGrossGrams}g',
                 'Due': order.promiseDate,
+                'Stage': order.currentWorkshopStage,
               },
               timeline: const [],
             ),
