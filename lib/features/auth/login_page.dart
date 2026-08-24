@@ -79,7 +79,10 @@ class _LoginPageState extends State<LoginPage> {
 
             // All protected APIs must run after the login token is saved.
             setState(() => _isSyncingApiData = true);
-            await AppDataSyncService.syncAllData(Get.find<DemoStore>());
+            await AppDataSyncService.syncForRole(
+              Get.find<DemoStore>(),
+              targetRole,
+            );
 
             if (!context.mounted) return;
 

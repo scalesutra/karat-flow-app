@@ -455,11 +455,10 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
         const SizedBox(height: 6),
         if (_isLoadingStages)
           const SizedBox(
-            height: 120,
+            height: 72,
             child: Center(
               child: CommonProgressIndicator.medium(
                 theme: IndicatorTheme.workshop,
-                label: 'Loading live skill categories...',
               ),
             ),
           )

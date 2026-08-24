@@ -29,6 +29,37 @@ class AppDataSyncService {
     debugPrint('✨ [AppDataSyncService] Full app data sync complete!');
   }
 
+  /// Sync only the endpoints authorized for the authenticated app role.
+  static Future<void> syncForRole(DemoStore store, AppRole role) async {
+    final operations = switch (role) {
+      AppRole.admin => <Future<void>>[
+          syncCustomers(store),
+          syncOrders(store),
+          syncCatalogue(store),
+          syncWorkshopLots(store),
+          syncTeamEmployees(store),
+          syncStages(store),
+          syncCadTasks(store),
+        ],
+      AppRole.processManager => <Future<void>>[
+          syncOrders(store),
+          syncWorkshopLots(store),
+          syncTeamEmployees(store),
+          syncStages(store),
+        ],
+      AppRole.frontOffice => <Future<void>>[
+          syncCustomers(store),
+          syncOrders(store),
+          syncCatalogue(store),
+        ],
+      AppRole.cadDesigner => <Future<void>>[
+          syncCatalogue(store),
+          syncCadTasks(store),
+        ],
+    };
+    await Future.wait(operations);
+  }
+
   /// Sync Customers (GET /customers)
   static Future<void> syncCustomers(DemoStore store) async {
     try {

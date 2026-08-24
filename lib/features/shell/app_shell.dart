@@ -47,7 +47,7 @@ class _AppShellState extends State<AppShell> {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
     try {
-      await AppDataSyncService.syncAllData(widget.store);
+      await AppDataSyncService.syncForRole(widget.store, widget.role);
     } finally {
       if (mounted) setState(() => _isRefreshing = false);
     }
