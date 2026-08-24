@@ -45,18 +45,10 @@ class _JewelleryOpsAppState extends State<JewelleryOpsApp> {
         BlocProvider<AuthBloc>(
           create: (_) => AuthBloc()..add(const AuthCheckRequested()),
         ),
-        BlocProvider<OrdersBloc>(
-          create: (_) => OrdersBloc(store: _store),
-        ),
-        BlocProvider<WorkshopBloc>(
-          create: (_) => WorkshopBloc(),
-        ),
-        BlocProvider<CadBloc>(
-          create: (_) => CadBloc(store: _store),
-        ),
-        BlocProvider<AdminBloc>(
-          create: (_) => AdminBloc(store: _store),
-        ),
+        BlocProvider<OrdersBloc>(create: (_) => OrdersBloc(store: _store)),
+        BlocProvider<WorkshopBloc>(create: (_) => WorkshopBloc()),
+        BlocProvider<CadBloc>(create: (_) => CadBloc(store: _store)),
+        BlocProvider<AdminBloc>(create: (_) => AdminBloc(store: _store)),
       ],
       child: GetMaterialApp(
         title: 'KaratFlow',
