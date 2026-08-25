@@ -238,9 +238,7 @@ class Instruction {
   final bool hasPhoto;
   final bool hasVoice;
 
-  Instruction copyWith({
-    InstructionStatus? status,
-  }) {
+  Instruction copyWith({InstructionStatus? status}) {
     return Instruction(
       id: id,
       targetId: targetId,
@@ -274,9 +272,10 @@ class JewelleryDesign {
     this.imageUrl = '',
     required this.description,
     this.isPopular = false,
-  })  : grossWeightGrams = grossWeightGrams ?? defaultGrossWeightGrams ?? 0.0,
-        defaultGrossWeightGrams = defaultGrossWeightGrams ?? grossWeightGrams ?? 0.0,
-        _estimatedPrice = estimatedPrice;
+  }) : grossWeightGrams = grossWeightGrams ?? defaultGrossWeightGrams ?? 0.0,
+       defaultGrossWeightGrams =
+           defaultGrossWeightGrams ?? grossWeightGrams ?? 0.0,
+       _estimatedPrice = estimatedPrice;
 
   final String id;
   final String name;
@@ -299,7 +298,8 @@ class JewelleryDesign {
       return _estimatedPrice;
     }
     final ratePerGram = purity.contains('18') ? 5960.0 : 7280.0;
-    return (grossWeightGrams * ratePerGram) + (makingChargesPerGram * grossWeightGrams);
+    return (grossWeightGrams * ratePerGram) +
+        (makingChargesPerGram * grossWeightGrams);
   }
 
   JewelleryDesign copyWith({
@@ -326,7 +326,8 @@ class JewelleryDesign {
       category: category ?? this.category,
       purity: purity ?? this.purity,
       grossWeightGrams: grossWeightGrams ?? this.grossWeightGrams,
-      defaultGrossWeightGrams: defaultGrossWeightGrams ?? this.defaultGrossWeightGrams,
+      defaultGrossWeightGrams:
+          defaultGrossWeightGrams ?? this.defaultGrossWeightGrams,
       netGoldWeightGrams: netGoldWeightGrams ?? this.netGoldWeightGrams,
       diamondCarats: diamondCarats ?? this.diamondCarats,
       makingChargesPerGram: makingChargesPerGram ?? this.makingChargesPerGram,
@@ -353,10 +354,7 @@ class CartItem {
   double get totalGrossWeight => design.grossWeightGrams * quantity;
   double get totalEstimatedPrice => design.estimatedPrice * quantity;
 
-  CartItem copyWith({
-    int? quantity,
-    String? selectedPurity,
-  }) {
+  CartItem copyWith({int? quantity, String? selectedPurity}) {
     return CartItem(
       design: design,
       quantity: quantity ?? this.quantity,
@@ -612,6 +610,7 @@ class CadDesignTask {
     this.revisionNotes,
     this.hasRevisionVoice = false,
     this.volumeCubicMm,
+    this.modelFileUrl,
   });
 
   final String id;
@@ -632,6 +631,7 @@ class CadDesignTask {
   String? revisionNotes;
   bool hasRevisionVoice;
   double? volumeCubicMm;
+  final String? modelFileUrl;
 
   CadDesignTask copyWith({
     CadTaskStatus? status,
@@ -643,6 +643,7 @@ class CadDesignTask {
     bool? hasRevisionVoice,
     double? volumeCubicMm,
     String? specs,
+    String? modelFileUrl,
   }) {
     return CadDesignTask(
       id: id,
@@ -663,6 +664,7 @@ class CadDesignTask {
       revisionNotes: revisionNotes ?? this.revisionNotes,
       hasRevisionVoice: hasRevisionVoice ?? this.hasRevisionVoice,
       volumeCubicMm: volumeCubicMm ?? this.volumeCubicMm,
+      modelFileUrl: modelFileUrl ?? this.modelFileUrl,
     );
   }
 }

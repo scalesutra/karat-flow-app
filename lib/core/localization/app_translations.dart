@@ -3,10 +3,7 @@ import 'app_strings.dart';
 
 class AppTranslations extends Translations {
   @override
-  Map<String, Map<String, String>> get keys => {
-        'en_US': enUS,
-        'en': enUS,
-      };
+  Map<String, Map<String, String>> get keys => {'en_US': enUS, 'en': enUS};
 
   static const Map<String, String> enUS = {
     // 1. General
@@ -137,7 +134,8 @@ class AppTranslations extends Translations {
     // 6. CAD
     AppStrings.cadDesigner: 'CAD Designer Studio',
     AppStrings.cadDashboard: 'CAD Dashboard',
-    AppStrings.cadSubtitle: '3D STL modeling, block uploads and weight calculation',
+    AppStrings.cadSubtitle:
+        '3D STL modeling, block uploads and weight calculation',
     AppStrings.cadDesignLibrary: 'CAD Design Library',
     AppStrings.uploadStl: 'Upload 3D STL',
     AppStrings.uploadBlock: 'Upload Block File',

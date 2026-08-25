@@ -13,9 +13,21 @@ class HealthToneBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, bgColor, label) = switch (tone) {
-      HealthTone.healthy => (AppColors.success, AppColors.successLight, 'Healthy'),
-      HealthTone.warning => (AppColors.warning, AppColors.warningLight, 'Warning'),
-      HealthTone.critical => (AppColors.danger, AppColors.dangerLight, 'Critical'),
+      HealthTone.healthy => (
+        AppColors.success,
+        AppColors.successLight,
+        'Healthy',
+      ),
+      HealthTone.warning => (
+        AppColors.warning,
+        AppColors.warningLight,
+        'Warning',
+      ),
+      HealthTone.critical => (
+        AppColors.danger,
+        AppColors.dangerLight,
+        'Critical',
+      ),
     };
 
     return Container(
@@ -61,7 +73,10 @@ class UrgencyBadge extends StatelessWidget {
       InstructionUrgency.routine => (AppColors.muted, AppColors.outlineLight),
       InstructionUrgency.today => (AppColors.warning, AppColors.warningLight),
       InstructionUrgency.urgent => (AppColors.danger, AppColors.dangerLight),
-      InstructionUrgency.upcoming => (AppColors.emerald, AppColors.emeraldLight),
+      InstructionUrgency.upcoming => (
+        AppColors.emerald,
+        AppColors.emeraldLight,
+      ),
       InstructionUrgency.delayed => (AppColors.danger, AppColors.dangerLight),
     };
 
@@ -102,7 +117,10 @@ class StatusPill extends StatelessWidget {
     final (color, bgColor) = switch (status) {
       InstructionStatus.sent => (AppColors.muted, AppColors.outlineLight),
       InstructionStatus.acknowledged => (AppColors.gold, AppColors.goldLight),
-      InstructionStatus.inProgress => (AppColors.warning, AppColors.warningLight),
+      InstructionStatus.inProgress => (
+        AppColors.warning,
+        AppColors.warningLight,
+      ),
       InstructionStatus.resolved => (AppColors.success, AppColors.successLight),
     };
 

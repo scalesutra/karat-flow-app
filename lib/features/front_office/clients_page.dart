@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/localization.dart';
@@ -7,6 +8,7 @@ import '../../data/demo_store.dart';
 import '../../data/repositories/karatflow_api_repository.dart';
 import '../../domain/models.dart';
 import 'client_detail_page.dart';
+import 'bloc/orders_bloc.dart';
 
 class ClientsPage extends StatefulWidget {
   const ClientsPage({super.key, required this.store});
@@ -20,7 +22,6 @@ class ClientsPage extends StatefulWidget {
 class _ClientsPageState extends State<ClientsPage> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -29,36 +30,7 @@ class _ClientsPageState extends State<ClientsPage> {
   }
 
   Future<void> _fetchLiveCustomers() async {
-    if (mounted) setState(() => _isLoading = true);
-    try {
-      debugPrint(
-        '🏢 [ClientsPage] Fetching live customers from GET /customers...',
-      );
-      final apiRepo = KaratFlowApiRepository();
-      final apiCustomers = await apiRepo.listCustomers(limit: 100);
-      debugPrint(
-        '✅ [ClientsPage] Received ${apiCustomers.length} customers from live API!',
-      );
-
-      final mappedClients = apiCustomers.map((c) {
-        return ClientInfo(
-          id: c.id,
-          firmName: c.name,
-          city: c.city,
-          contactPerson: c.contactPerson,
-          phone: c.phone,
-          creditLimitLakhs: c.creditLimitLakhs,
-          outstandingBalance: c.outstandingLakhs,
-          activeOrdersCount: c.activeOrdersCount,
-        );
-      }).toList();
-
-      widget.store.setClients(mappedClients);
-    } catch (e) {
-      debugPrint('❌ [ClientsPage] Error fetching customers from API: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    context.read<OrdersBloc>().add(const FetchFrontOfficeDataEvent());
   }
 
   @override
@@ -135,7 +107,7 @@ class _ClientsPageState extends State<ClientsPage> {
                   ),
                 ),
                 Expanded(
-                  child: _isLoading
+                  child: context.watch<OrdersBloc>().state is OrdersLoading
                       ? const Center(
                           child: Padding(
                             padding: EdgeInsets.symmetric(vertical: 40),
@@ -204,7 +176,7 @@ class _ClientsPageState extends State<ClientsPage> {
     final cityController = TextEditingController();
     final contactController = TextEditingController();
     final phoneController = TextEditingController();
-    final limitController = TextEditingController(text: '50');
+    final limitController = TextEditingController();
 
     showModalBottomSheet<void>(
       context: context,
@@ -256,7 +228,7 @@ class _ClientsPageState extends State<ClientsPage> {
                 Expanded(
                   child: CommonTextField(
                     controller: limitController,
-                    label: 'Credit Limit (₹ Lakhs)',
+                    label: 'Credit Limit (â‚¹ Lakhs)',
                     hintText: 'e.g. 50',
                     keyboardType: TextInputType.number,
                   ),
@@ -279,89 +251,34 @@ class _ClientsPageState extends State<ClientsPage> {
             const SizedBox(height: 18),
             CommonButton.primary(
               label: 'Save & Open Account',
-              onPressed: () async {
-                if (firmController.text.trim().isEmpty) {
+              onPressed: () {
+                final firm = firmController.text.trim();
+                final city = cityController.text.trim();
+                final contact = contactController.text.trim();
+                final phone = phoneController.text.trim();
+                final limit = double.tryParse(limitController.text.trim());
+                if (firm.isEmpty ||
+                    city.isEmpty ||
+                    contact.isEmpty ||
+                    phone.isEmpty ||
+                    limit == null) {
                   CommonSnackbar.error(
                     context,
                     title: 'Validation Error',
-                    message: 'Firm Name is required.',
+                    message: 'Please enter all required client details.',
                   );
                   return;
                 }
-                final firm = firmController.text.trim();
-                final city = cityController.text.trim().isEmpty
-                    ? 'India'
-                    : cityController.text.trim();
-                final contact = contactController.text.trim().isEmpty
-                    ? 'Owner'
-                    : contactController.text.trim();
-                final phone = phoneController.text.trim().isEmpty
-                    ? '+91 98000 00000'
-                    : phoneController.text.trim();
-                final limit = double.tryParse(limitController.text) ?? 50.0;
-
-                try {
-                  debugPrint(
-                    '🏢 [ClientsPage] Sending POST /customers for $firm...',
-                  );
-                  final apiRepo = KaratFlowApiRepository();
-                  final createdCustomer = await apiRepo.registerCustomer(
+                context.read<OrdersBloc>().add(
+                  RegisterFrontOfficeCustomerEvent(
                     name: firm,
                     city: city,
                     contactPerson: contact,
                     phone: phone,
                     creditLimitLakhs: limit,
-                  );
-                  debugPrint(
-                    '✅ [ClientsPage] Customer created on live API: ${createdCustomer.id}',
-                  );
-
-                  final newClient = ClientInfo(
-                    id: createdCustomer.id.isNotEmpty
-                        ? createdCustomer.id
-                        : 'CLI-${(widget.store.clients.length + 1).toString().padLeft(2, '0')}',
-                    firmName: createdCustomer.name.isNotEmpty
-                        ? createdCustomer.name
-                        : firm,
-                    city: createdCustomer.city.isNotEmpty
-                        ? createdCustomer.city
-                        : city,
-                    contactPerson: createdCustomer.contactPerson.isNotEmpty
-                        ? createdCustomer.contactPerson
-                        : contact,
-                    phone: createdCustomer.phone.isNotEmpty
-                        ? createdCustomer.phone
-                        : phone,
-                    creditLimitLakhs: createdCustomer.creditLimitLakhs > 0
-                        ? createdCustomer.creditLimitLakhs
-                        : limit,
-                    outstandingBalance: 0.0,
-                    activeOrdersCount: 0,
-                  );
-                  widget.store.addClient(newClient);
-                  _fetchLiveCustomers();
-                  if (ctx.mounted) Navigator.pop(ctx);
-                  if (context.mounted) {
-                    CommonSnackbar.success(
-                      context,
-                      title: 'Client Registered',
-                      message:
-                          '${newClient.firmName} created on server successfully!',
-                    );
-                  }
-                } catch (e) {
-                  debugPrint(
-                    '❌ [ClientsPage] Error calling POST /customers: $e',
-                  );
-                  if (context.mounted) {
-                    CommonSnackbar.error(
-                      context,
-                      title: 'API Error',
-                      message:
-                          'Failed to create client on server: ${e.toString()}',
-                    );
-                  }
-                }
+                  ),
+                );
+                Navigator.pop(ctx);
               },
             ),
           ],
@@ -424,7 +341,7 @@ class _ClientCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${client.city} · ${client.contactPerson}',
+                            '${client.city} Â· ${client.contactPerson}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -471,12 +388,12 @@ class _ClientCard extends StatelessWidget {
             children: [
               _financeStat(
                 'Credit Limit',
-                '₹${client.creditLimitLakhs.toStringAsFixed(0)} L',
+                'â‚¹${client.creditLimitLakhs.toStringAsFixed(0)} L',
               ),
               _financeStat(
                 'Outstanding',
                 client.outstandingBalance > 0
-                    ? '₹${(client.outstandingBalance / 100000).toStringAsFixed(2)} L'
+                    ? 'â‚¹${(client.outstandingBalance / 100000).toStringAsFixed(2)} L'
                     : 'Clear',
                 color: client.outstandingBalance > 0
                     ? (percent > 0.8 ? AppColors.danger : AppColors.warning)

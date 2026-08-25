@@ -44,7 +44,9 @@ class CommonMetricTile extends StatelessWidget {
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                    borderRadius: BorderRadius.circular(
+                      AppDimensions.radiusSmall,
+                    ),
                   ),
                   child: Icon(icon, size: 16, color: color),
                 ),

@@ -1,5 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../../../core/network/token_storage_service.dart';
+import '../../../data/demo_store.dart';
+import '../../../data/mappers/api_domain_mapper.dart';
 import '../../../data/repositories/karatflow_api_repository.dart';
 import '../../../domain/models.dart';
 import 'workshop_event.dart';
@@ -8,95 +11,71 @@ import 'workshop_state.dart';
 export 'workshop_event.dart';
 export 'workshop_state.dart';
 
-/// Workshop BLoC with Strict Live Production Floor & Worker Task APIs (/production, /worker-tasks, /stages) & Debug Logs
 class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
-  WorkshopBloc({KaratFlowApiRepository? apiRepository})
-    : _api = apiRepository ?? KaratFlowApiRepository(),
-      super(const WorkshopInitial()) {
+  WorkshopBloc({
+    required DemoStore store,
+    KaratFlowApiRepository? apiRepository,
+    TokenStorageService? tokenStorage,
+  }) : _store = store,
+       _api = apiRepository ?? KaratFlowApiRepository(),
+       _tokenStorage = tokenStorage ?? TokenStorageService(),
+       super(const WorkshopInitial()) {
     on<FetchWorkshopLotsEvent>(_onFetchLots);
     on<AdvanceLotStageEvent>(_onAdvanceLotStage);
     on<AllocateLotArtisanEvent>(_onAllocateArtisan);
+    on<RollbackLotStageEvent>(_onRollbackStage);
+    on<StartWorkerTaskEvent>(_onStartWorkerTask);
+    on<CompleteWorkerTaskEvent>(_onCompleteWorkerTask);
+    on<ReportWorkerFailureEvent>(_onReportWorkerFailure);
     on<FilterWorkshopLotsEvent>(_onFilterLots);
   }
 
+  final DemoStore _store;
   final KaratFlowApiRepository _api;
+  final TokenStorageService _tokenStorage;
 
   Future<void> _onFetchLots(
     FetchWorkshopLotsEvent event,
     Emitter<WorkshopState> emit,
   ) async {
     emit(const WorkshopLoading());
-    debugPrint(
-      '🏭 [WorkshopBloc] Fetching tasks (GET /worker-tasks), employees (GET /employees) & stages (GET /stages)...',
-    );
     try {
-      final workerTasks = await _api.listWorkerTasks();
-      final employees = await _api.listEmployees();
-      final liveStages = await _api.listStages();
+      final role = (await _tokenStorage.getUserRole() ?? '').toUpperCase();
+      final stages = await _api.listStages();
+      final isWorker = role == 'OTHER_EMPLOYEE';
+      final lots = isWorker
+          ? (await _api.listWorkerTasks())
+                .map(ApiDomainMapper.workerTask)
+                .toList()
+          : (await _api.listPendingProductionFloor())
+                .map(
+                  (item) => ApiDomainMapper.pendingPart(
+                    Map<String, dynamic>.from(item as Map),
+                  ),
+                )
+                .toList();
+      final canManageAssignments =
+          role == 'ADMIN' ||
+          role == 'PRODUCTION_MANAGER' ||
+          role == 'PROCESS_MANAGER';
+      final team = canManageAssignments
+          ? (await _api.listEmployees()).map(ApiDomainMapper.employee).toList()
+          : <TeamMember>[];
 
-      debugPrint(
-        '✅ [WorkshopBloc] Received ${workerTasks.length} worker tasks, ${employees.length} artisans & ${liveStages.length} dynamic stages from server.',
-      );
-
-      final mappedLots = workerTasks.map((wt) {
-        final stageEnum = switch (wt.stageName.toLowerCase()) {
-          'waxing' || 'cad & wax' => WorkshopStage.cadAndWax,
-          'casting' => WorkshopStage.casting,
-          'filing & assembly' || 'filing' => WorkshopStage.filingAndAssembly,
-          'stone setting' || 'setting' => WorkshopStage.stoneSetting,
-          'polishing' => WorkshopStage.polishing,
-          _ => WorkshopStage.qualityCheck,
-        };
-
-        return WorkshopLot(
-          id: wt.id,
-          orderId: wt.orderId.isNotEmpty ? wt.orderId : wt.id,
-          designCode: wt.designNumber,
-          productTitle: wt.designNumber.isNotEmpty
-              ? wt.designNumber
-              : 'Lot #${wt.id}',
-          stage: stageEnum,
-          assignedEmployee: wt.assignedEmployeeName,
-          assignedEmployeeRole: wt.status,
-          pieces: wt.quantity,
-          issueWeightGrams: wt.grossWeight,
-          targetWeightGrams: wt.grossWeight,
-          tone: wt.status == 'FAILED'
-              ? HealthTone.critical
-              : HealthTone.healthy,
-          blockerReason: wt.status == 'FAILED' ? wt.instructions : null,
-          lastUpdatedTime: wt.stageName,
-        );
-      }).toList();
-
-      final mappedTeam = employees.map((emp) {
-        return TeamMember(
-          id: emp.id,
-          name: emp.name,
-          craft: emp.role,
-          shift: emp.role,
-          activeLotsCount: emp.workerAssignmentsCount,
-          status: emp.isActive
-              ? EmployeeStatus.available
-              : EmployeeStatus.blocked,
-          todayEfficiencyPercent: emp.isActive ? 100 : 0,
-          currentAssignment: '${emp.workerAssignmentsCount} active tasks',
-        );
-      }).toList();
-
+      _store
+        ..setLots(lots)
+        ..setTeam(team)
+        ..setStages(stages);
       emit(
         WorkshopLoaded(
-          lots: mappedLots,
-          filteredLots: mappedLots,
-          team: mappedTeam,
-          apiStages: liveStages,
+          lots: lots,
+          filteredLots: lots,
+          team: team,
+          apiStages: stages,
         ),
       );
-    } catch (e) {
-      debugPrint('❌ [WorkshopBloc] Failed to fetch live workshop data: $e');
-      emit(
-        WorkshopError('Failed to fetch live workshop data: ${e.toString()}'),
-      );
+    } catch (error) {
+      emit(WorkshopError('Failed to load live workshop data: $error'));
     }
   }
 
@@ -104,26 +83,15 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     AdvanceLotStageEvent event,
     Emitter<WorkshopState> emit,
   ) async {
-    debugPrint(
-      '⏭️ [WorkshopBloc] Advancing part ${event.lotId} stage on POST /production/parts/${event.lotId}/transition...',
-    );
     try {
       await _api.transitionPartNextStage(
         partId: event.lotId,
         notes: 'Stage advanced from KaratFlow mobile app',
       );
-      debugPrint('✅ [WorkshopBloc] Part advanced successfully on server.');
-      emit(
-        WorkshopStageUpdated(
-          'Lot ${event.lotId} moved to next stage on server.',
-        ),
-      );
-      add(const FetchWorkshopLotsEvent());
-    } catch (e) {
-      debugPrint('❌ [WorkshopBloc] Failed to advance stage: $e');
-      emit(
-        WorkshopError('Failed to advance stage on live API: ${e.toString()}'),
-      );
+      _store.advanceLotStage(event.lotId);
+      emit(const WorkshopStageUpdated('Part advanced successfully.'));
+    } catch (error) {
+      emit(WorkshopError('Failed to advance part: $error'));
     }
   }
 
@@ -131,35 +99,86 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     AllocateLotArtisanEvent event,
     Emitter<WorkshopState> emit,
   ) async {
-    debugPrint(
-      '👨‍🏭 [WorkshopBloc] Assigning part ${event.lotId} to artisan ${event.artisanName} on POST /production/assign...',
-    );
+    if (event.artisanId?.isEmpty ?? true) {
+      emit(const WorkshopError('A valid artisan ID is required.'));
+      return;
+    }
+    if (event.stageId?.isEmpty ?? true) {
+      emit(const WorkshopError('A valid production stage ID is required.'));
+      return;
+    }
     try {
       await _api.assignPartToArtisan(
         partIds: [event.lotId],
-        stageId: (event.stageId != null && event.stageId!.isNotEmpty)
-            ? event.stageId!
-            : event.lotId,
-        assignedEmployeeId:
-            (event.artisanId != null && event.artisanId!.isNotEmpty)
-            ? event.artisanId!
-            : event.artisanName,
+        stageId: event.stageId!,
+        assignedEmployeeId: event.artisanId!,
         instructions: 'Assigned to ${event.artisanName}',
       );
-      debugPrint('✅ [WorkshopBloc] Part allocated successfully on server.');
-      emit(
-        WorkshopStageUpdated(
-          'Lot ${event.lotId} assigned to ${event.artisanName} on server.',
-        ),
+      final targetStage = _stageForId(event.stageId!);
+      _store.updateLotStage(
+        event.lotId,
+        targetStage,
+        assignedEmployee: event.artisanName,
       );
+      emit(const WorkshopStageUpdated('Part assigned successfully.'));
+    } catch (error) {
+      emit(WorkshopError('Failed to assign part: $error'));
+    }
+  }
+
+  Future<void> _onRollbackStage(
+    RollbackLotStageEvent event,
+    Emitter<WorkshopState> emit,
+  ) async {
+    try {
+      await _api.rollbackPartStage(
+        partId: event.lotId,
+        targetStageId: event.targetStageId,
+        reason: event.reason,
+      );
+      _store.updateLotStage(event.lotId, _stageForId(event.targetStageId));
+      emit(const WorkshopStageUpdated('Part rolled back successfully.'));
+    } catch (error) {
+      emit(WorkshopError('Failed to rollback part: $error'));
+    }
+  }
+
+  Future<void> _onStartWorkerTask(
+    StartWorkerTaskEvent event,
+    Emitter<WorkshopState> emit,
+  ) async {
+    try {
+      await _api.startWorkerTask(event.taskId);
+      emit(const WorkshopStageUpdated('Task started successfully.'));
       add(const FetchWorkshopLotsEvent());
-    } catch (e) {
-      debugPrint('❌ [WorkshopBloc] Failed to allocate artisan: $e');
-      emit(
-        WorkshopError(
-          'Failed to allocate artisan on live API: ${e.toString()}',
-        ),
-      );
+    } catch (error) {
+      emit(WorkshopError('Failed to start task: $error'));
+    }
+  }
+
+  Future<void> _onCompleteWorkerTask(
+    CompleteWorkerTaskEvent event,
+    Emitter<WorkshopState> emit,
+  ) async {
+    try {
+      await _api.completeWorkerTask(event.taskId);
+      emit(const WorkshopStageUpdated('Task completed successfully.'));
+      add(const FetchWorkshopLotsEvent());
+    } catch (error) {
+      emit(WorkshopError('Failed to complete task: $error'));
+    }
+  }
+
+  Future<void> _onReportWorkerFailure(
+    ReportWorkerFailureEvent event,
+    Emitter<WorkshopState> emit,
+  ) async {
+    try {
+      await _api.reportWorkerTaskFailure(event.taskId, event.reason);
+      emit(const WorkshopStageUpdated('Task failure reported.'));
+      add(const FetchWorkshopLotsEvent());
+    } catch (error) {
+      emit(WorkshopError('Failed to report task failure: $error'));
     }
   }
 
@@ -167,32 +186,42 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     FilterWorkshopLotsEvent event,
     Emitter<WorkshopState> emit,
   ) {
-    if (state is WorkshopLoaded) {
-      final current = state as WorkshopLoaded;
-      final filtered = current.lots.where((lot) {
-        final matchesStage = event.stage == null || lot.stage == event.stage;
-        final matchesQuery =
-            event.query.isEmpty ||
-            lot.id.toLowerCase().contains(event.query.toLowerCase()) ||
-            lot.productTitle.toLowerCase().contains(
-              event.query.toLowerCase(),
-            ) ||
-            lot.assignedEmployee.toLowerCase().contains(
-              event.query.toLowerCase(),
-            );
+    final current = state;
+    if (current is! WorkshopLoaded) return;
+    final query = event.query.toLowerCase();
+    final filtered = current.lots.where((lot) {
+      final matchesStage = event.stage == null || lot.stage == event.stage;
+      final matchesQuery =
+          query.isEmpty ||
+          lot.id.toLowerCase().contains(query) ||
+          lot.productTitle.toLowerCase().contains(query) ||
+          lot.assignedEmployee.toLowerCase().contains(query);
+      return matchesStage && matchesQuery;
+    }).toList();
+    emit(
+      WorkshopLoaded(
+        lots: current.lots,
+        filteredLots: filtered,
+        team: current.team,
+        apiStages: current.apiStages,
+        selectedStage: event.stage,
+        searchQuery: event.query,
+      ),
+    );
+  }
 
-        return matchesStage && matchesQuery;
-      }).toList();
-
-      emit(
-        WorkshopLoaded(
-          lots: current.lots,
-          filteredLots: filtered,
-          team: current.team,
-          selectedStage: event.stage,
-          searchQuery: event.query,
-        ),
-      );
+  WorkshopStage _stageForId(String stageId) {
+    final index = _store.stages.indexWhere((stage) => stage.id == stageId);
+    if (index < 0) return WorkshopStage.inQueue;
+    final apiStage = _store.stages[index];
+    final byName = ApiDomainMapper.stage(apiStage.name);
+    if (byName != WorkshopStage.inQueue ||
+        apiStage.name.trim().toLowerCase().contains('queue')) {
+      return byName;
     }
+    final stageIndex = (apiStage.stageNumber - 1)
+        .clamp(0, WorkshopStage.values.length - 1)
+        .toInt();
+    return WorkshopStage.values[stageIndex];
   }
 }

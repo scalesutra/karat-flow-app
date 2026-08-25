@@ -35,7 +35,8 @@ class Responsive extends StatelessWidget {
   }
 
   static double width(BuildContext context) => MediaQuery.sizeOf(context).width;
-  static double height(BuildContext context) => MediaQuery.sizeOf(context).height;
+  static double height(BuildContext context) =>
+      MediaQuery.sizeOf(context).height;
 
   static double widthPercent(BuildContext context, double percent) =>
       MediaQuery.sizeOf(context).width * (percent / 100);

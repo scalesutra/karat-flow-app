@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../../domain/models.dart';
 
 /// Base CAD Event
@@ -12,10 +14,7 @@ final class FetchCadTasksEvent extends CadEvent {
 
 /// Update CAD workflow task status
 final class UpdateCadTaskStatusEvent extends CadEvent {
-  const UpdateCadTaskStatusEvent({
-    required this.taskId,
-    required this.status,
-  });
+  const UpdateCadTaskStatusEvent({required this.taskId, required this.status});
 
   final String taskId;
   final CadTaskStatus status;
@@ -27,8 +26,11 @@ final class UploadCadFilesEvent extends CadEvent {
     required this.taskId,
     required this.volumeCubicMm,
     required this.specsNote,
-    this.stlFileUrl,
-    this.bomFileUrl,
+    required this.stlFileName,
+    required this.stlBytes,
+    required this.bomFileName,
+    required this.bomBytes,
+    this.isRevision = false,
     this.gemQuantity,
     this.goldQuantity,
   });
@@ -36,10 +38,19 @@ final class UploadCadFilesEvent extends CadEvent {
   final String taskId;
   final double volumeCubicMm;
   final String specsNote;
-  final String? stlFileUrl;
-  final String? bomFileUrl;
+  final String stlFileName;
+  final Uint8List stlBytes;
+  final String bomFileName;
+  final Uint8List bomBytes;
+  final bool isRevision;
   final int? gemQuantity;
   final double? goldQuantity;
+}
+
+final class DownloadCadFileEvent extends CadEvent {
+  const DownloadCadFileEvent(this.fileKey);
+
+  final String fileKey;
 }
 
 /// Approve 3D CAD model for casting

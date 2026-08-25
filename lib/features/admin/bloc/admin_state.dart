@@ -1,4 +1,5 @@
 import '../../../domain/models.dart';
+import '../../../data/models/api_models.dart';
 
 /// Base Admin State (Minimal, readable and clean)
 sealed class AdminState {
@@ -35,6 +36,12 @@ final class AdminActionSuccess extends AdminState {
   const AdminActionSuccess(this.message);
 
   final String message;
+}
+
+final class AdminHealthLoaded extends AdminState {
+  const AdminHealthLoaded(this.health);
+
+  final ApiHealthStatus health;
 }
 
 /// Admin error occurred

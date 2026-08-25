@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/widgets/common_3d_viewer.dart';
@@ -8,6 +9,7 @@ import '../../../../core/widgets/common_snackbar.dart';
 import '../../../../data/demo_store.dart';
 import '../../../../domain/models.dart';
 import '../../instructions/instruction_composer.dart';
+import '../../cad_designer/bloc/cad_bloc.dart';
 
 /// Modular Admin CAD 3D Sign-off & Inspection Card
 class CadApprovalTaskCard extends StatelessWidget {
@@ -20,6 +22,10 @@ class CadApprovalTaskCard extends StatelessWidget {
   final CadDesignTask task;
   final DemoStore store;
 
+  void _approve(BuildContext context) {
+    context.read<CadBloc>().add(ApproveCadTaskEvent(task.id));
+  }
+
   @override
   Widget build(BuildContext context) {
     final isApproved = task.specs.contains('(Approved)');
@@ -29,23 +35,33 @@ class CadApprovalTaskCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.ink,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  task.designCode,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11,
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.ink,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      task.designCode,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -154,6 +170,7 @@ class CadApprovalTaskCard extends StatelessWidget {
                         builder: (ctx) => Common3DViewer(
                           designCode: task.designCode,
                           productTitle: task.productTitle,
+                          modelUrl: task.modelFileUrl,
                         ),
                       );
                     },
@@ -168,15 +185,7 @@ class CadApprovalTaskCard extends StatelessWidget {
                     backgroundColor: AppColors.emerald,
                     icon: Icons.check_circle_outline,
                     label: 'Approve',
-                    onPressed: () {
-                      store.approveCadTask(task.id);
-                      CommonSnackbar.success(
-                        context,
-                        title: 'Design Approved',
-                        message:
-                            'Approved 3D Model & CAD for ${task.productTitle}.',
-                      );
-                    },
+                    onPressed: () => _approve(context),
                   ),
                 ),
                 const SizedBox(width: 8),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'api_endpoints.dart';
@@ -6,26 +7,25 @@ import 'token_storage_service.dart';
 
 /// Centralized HTTP API Client with Zero-Caching Policy, Background Token Refresh, and Detailed Debug Logging
 class ApiClient {
-  ApiClient({
-    Dio? dio,
-    TokenStorageService? tokenStorage,
-  })  : _tokenStorage = tokenStorage ?? TokenStorageService(),
-        _dio = dio ??
-            Dio(
-              BaseOptions(
-                baseUrl: ApiEndpoints.baseUrl,
-                connectTimeout: ApiEndpoints.connectTimeout,
-                receiveTimeout: ApiEndpoints.receiveTimeout,
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json',
-                  // Zero Caching Policy: Always fetch fresh state directly from server
-                  'Cache-Control': 'no-cache, no-store, must-revalidate',
-                  'Pragma': 'no-cache',
-                  'Expires': '0',
-                },
-              ),
-            ) {
+  ApiClient({Dio? dio, TokenStorageService? tokenStorage})
+    : _tokenStorage = tokenStorage ?? TokenStorageService(),
+      _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              baseUrl: ApiEndpoints.baseUrl,
+              connectTimeout: ApiEndpoints.connectTimeout,
+              receiveTimeout: ApiEndpoints.receiveTimeout,
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                // Zero Caching Policy: Always fetch fresh state directly from server
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+              },
+            ),
+          ) {
     _setupInterceptors();
   }
 
@@ -68,7 +68,9 @@ class ApiClient {
                   ? jsonEncode(response.data)
                   : response.data.toString();
               // Print up to 1000 chars to avoid console truncation
-              final preview = resStr.length > 1000 ? '${resStr.substring(0, 1000)}... (truncated)' : resStr;
+              final preview = resStr.length > 1000
+                  ? '${resStr.substring(0, 1000)}... (truncated)'
+                  : resStr;
               debugPrint('📄 [API RES DATA] $preview');
             } catch (_) {
               debugPrint('📄 [API RES DATA] ${response.data}');
@@ -85,13 +87,18 @@ class ApiClient {
             debugPrint('⚠️ [API ERR DATA] ${error.response?.data}');
           }
 
-          final isAuthEndpoint = error.requestOptions.path.contains('/auth/login') ||
+          final isAuthEndpoint =
+              error.requestOptions.path.contains('/auth/login') ||
               error.requestOptions.path.contains('/auth/refresh-token');
 
           // Handle 401 Unauthorized with Automatic Silent Token Refresh in Background
-          if (error.response?.statusCode == 401 && !isAuthEndpoint && !_isRefreshing) {
+          if (error.response?.statusCode == 401 &&
+              !isAuthEndpoint &&
+              !_isRefreshing) {
             _isRefreshing = true;
-            debugPrint('🔄 [TOKEN REFRESH] Received 401 Unauthorized. Attempting background token refresh...');
+            debugPrint(
+              '🔄 [TOKEN REFRESH] Received 401 Unauthorized. Attempting background token refresh...',
+            );
             try {
               final refreshToken = await _tokenStorage.getRefreshToken();
               if (refreshToken != null && refreshToken.isNotEmpty) {
@@ -103,7 +110,8 @@ class ApiClient {
                 );
 
                 if (refreshResponse.statusCode == 200) {
-                  final data = refreshResponse.data['data'] as Map<String, dynamic>;
+                  final data =
+                      refreshResponse.data['data'] as Map<String, dynamic>;
                   final newToken = data['token'] as String? ?? '';
                   final newRefreshToken = data['refreshToken'] as String? ?? '';
 
@@ -113,11 +121,14 @@ class ApiClient {
                       await _tokenStorage.saveRefreshToken(newRefreshToken);
                     }
 
-                    debugPrint('🎉 [TOKEN REFRESH SUCCESS] Successfully refreshed access token! Retrying original request...');
+                    debugPrint(
+                      '🎉 [TOKEN REFRESH SUCCESS] Successfully refreshed access token! Retrying original request...',
+                    );
 
                     // Retry original request seamlessly with the newly acquired token
                     final originalOptions = error.requestOptions;
-                    originalOptions.headers['Authorization'] = 'Bearer $newToken';
+                    originalOptions.headers['Authorization'] =
+                        'Bearer $newToken';
 
                     _isRefreshing = false;
                     final retryResponse = await _dio.fetch(originalOptions);
@@ -125,10 +136,14 @@ class ApiClient {
                   }
                 }
               } else {
-                debugPrint('⚠️ [TOKEN REFRESH] No refresh token found in storage.');
+                debugPrint(
+                  '⚠️ [TOKEN REFRESH] No refresh token found in storage.',
+                );
               }
             } catch (refreshErr) {
-              debugPrint('🚨 [TOKEN REFRESH FAILED] Error refreshing token: $refreshErr');
+              debugPrint(
+                '🚨 [TOKEN REFRESH FAILED] Error refreshing token: $refreshErr',
+              );
               await _tokenStorage.clearAll();
             } finally {
               _isRefreshing = false;
@@ -221,6 +236,23 @@ class ApiClient {
       queryParameters: queryParameters,
       options: options,
       cancelToken: cancelToken,
+    );
+  }
+
+  /// Uploads bytes to a presigned external URL without JWT interceptors.
+  Future<Response<void>> putAbsoluteBytes(
+    String url, {
+    required Uint8List bytes,
+    required String contentType,
+  }) {
+    final uploadDio = Dio();
+    return uploadDio.putUri<void>(
+      Uri.parse(url),
+      data: bytes,
+      options: Options(
+        contentType: contentType,
+        headers: {'Content-Length': bytes.length},
+      ),
     );
   }
 }

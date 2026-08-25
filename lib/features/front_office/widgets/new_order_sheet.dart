@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/widgets/common_button.dart';
-import '../../../../core/widgets/common_snackbar.dart';
 import '../../../../core/widgets/common_text.dart';
 import '../../../../core/widgets/common_text_field.dart';
 import '../../../../data/demo_store.dart';
-import '../../../../data/repositories/karatflow_api_repository.dart';
 import '../../../../domain/models.dart';
+import '../bloc/orders_bloc.dart';
 
 /// New Order creation modal with Client, Designs, Quantity, and Due Date
 class NewOrderSheet extends StatefulWidget {
@@ -34,12 +34,12 @@ class NewOrderSheet extends StatefulWidget {
 class _NewOrderSheetState extends State<NewOrderSheet> {
   ClientInfo? _selectedClient;
   final Map<String, int> _selectedQuantities = {};
-  String _dueDate = 'Due Today · 6:00 PM';
+  String _dueDate = 'Due Today Â· 6:00 PM';
   final _notesController = TextEditingController();
 
   final List<String> _dueDatePresets = const [
-    'Due Today · 6:00 PM',
-    'Due Tomorrow · 12:00 PM',
+    'Due Today Â· 6:00 PM',
+    'Due Tomorrow Â· 12:00 PM',
     'Due in 3 Days',
     'Due Friday',
     'Due next Monday',
@@ -109,15 +109,16 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
             children: [
               const CommonText.headlineMedium('Create New Order'),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.emeraldLight,
-                  borderRadius:
-                      BorderRadius.circular(AppDimensions.radiusFull),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
                 ),
                 child: Text(
-                  '$totalPcs pcs · ${totalWeight.toStringAsFixed(1)}g',
+                  '$totalPcs pcs Â· ${totalWeight.toStringAsFixed(1)}g',
                   style: const TextStyle(
                     color: AppColors.emerald,
                     fontWeight: FontWeight.w800,
@@ -142,31 +143,39 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.canvas,
-                    borderRadius:
-                        BorderRadius.circular(AppDimensions.radiusSmall),
+                    borderRadius: BorderRadius.circular(
+                      AppDimensions.radiusSmall,
+                    ),
                     border: Border.all(color: AppColors.outline),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<ClientInfo>(
                       value: _selectedClient,
                       isExpanded: true,
-                      icon: const Icon(Icons.arrow_drop_down,
-                          color: AppColors.ink),
+                      icon: const Icon(
+                        Icons.arrow_drop_down,
+                        color: AppColors.ink,
+                      ),
                       items: clients.map((c) {
                         return DropdownMenuItem<ClientInfo>(
                           value: c,
                           child: Row(
                             children: [
-                              const Icon(Icons.storefront_outlined,
-                                  size: 16, color: AppColors.emerald),
+                              const Icon(
+                                Icons.storefront_outlined,
+                                size: 16,
+                                color: AppColors.emerald,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  '${c.firmName} · ${c.city}',
+                                  '${c.firmName} Â· ${c.city}',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 13,
@@ -204,8 +213,9 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: isSelected ? AppColors.paper : AppColors.canvas,
-                      borderRadius:
-                          BorderRadius.circular(AppDimensions.radiusSmall),
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusSmall,
+                      ),
                       border: Border.all(
                         color: isSelected
                             ? AppColors.emerald
@@ -245,7 +255,7 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '${design.code} · ${design.purity} · ${design.grossWeightGrams}g/pc',
+                                '${design.code} Â· ${design.purity} Â· ${design.grossWeightGrams}g/pc',
                                 style: const TextStyle(
                                   color: AppColors.muted,
                                   fontSize: 11,
@@ -264,8 +274,7 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                                       _selectedQuantities[design.code] =
                                           qty - 1;
                                     } else {
-                                      _selectedQuantities
-                                          .remove(design.code);
+                                      _selectedQuantities.remove(design.code);
                                     }
                                   });
                                 },
@@ -280,7 +289,8 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                               ),
                               Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 10),
+                                  horizontal: 10,
+                                ),
                                 child: Text(
                                   '$qty',
                                   style: const TextStyle(
@@ -301,8 +311,11 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                                     color: AppColors.emeraldLight,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
-                                  child: const Icon(Icons.add,
-                                      size: 14, color: AppColors.emerald),
+                                  child: const Icon(
+                                    Icons.add,
+                                    size: 14,
+                                    color: AppColors.emerald,
+                                  ),
                                 ),
                               ),
                             ],
@@ -331,26 +344,27 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                     final isSel = _dueDate == preset;
                     return InkWell(
                       onTap: () => setState(() => _dueDate = preset),
-                      borderRadius:
-                          BorderRadius.circular(AppDimensions.radiusFull),
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusFull,
+                      ),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: isSel ? AppColors.ink : AppColors.canvas,
-                          borderRadius:
-                              BorderRadius.circular(AppDimensions.radiusFull),
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusFull,
+                          ),
                           border: Border.all(
-                            color:
-                                isSel ? AppColors.ink : AppColors.outline,
+                            color: isSel ? AppColors.ink : AppColors.outline,
                           ),
                         ),
                         child: Text(
                           preset,
                           style: TextStyle(
-                            color: isSel
-                                ? AppColors.pureWhite
-                                : AppColors.ink,
+                            color: isSel ? AppColors.pureWhite : AppColors.ink,
                             fontWeight: isSel
                                 ? FontWeight.w700
                                 : FontWeight.w500,
@@ -367,8 +381,7 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                 // 4. NOTES
                 CommonTextField(
                   controller: _notesController,
-                  label:
-                      'Special Instructions / Karigar Note (Optional)',
+                  label: 'Special Instructions / Karigar Note (Optional)',
                   hintText:
                       'e.g. Urgent bridal delivery, 22K antique polish...',
                   maxLines: 2,
@@ -381,20 +394,16 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
           // CONFIRM BUTTON
           CommonButton.primary(
             label: totalPcs > 0
-                ? 'Confirm Order ($totalPcs pcs · ${totalWeight.toStringAsFixed(1)}g)'
+                ? 'Confirm Order ($totalPcs pcs Â· ${totalWeight.toStringAsFixed(1)}g)'
                 : 'Select at least 1 design',
             onPressed: totalPcs > 0 && _selectedClient != null
-                ? () async {
-                    final List<Map<String, dynamic>> orderItems = [];
+                ? () {
                     final List<Map<String, dynamic>> apiParts = [];
                     for (final entry in _selectedQuantities.entries) {
                       if (entry.value > 0) {
                         final d = designs.firstWhere(
-                            (item) => item.code == entry.key);
-                        orderItems.add({
-                          'design': d,
-                          'quantity': entry.value,
-                        });
+                          (item) => item.code == entry.key,
+                        );
                         apiParts.add({
                           'designNumber': d.code,
                           'quantity': entry.value,
@@ -404,51 +413,40 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                       }
                     }
 
-                    try {
-                      debugPrint(
-                          '📦 [NewOrderSheet] Calling POST /orders via createMultiDesignOrder API for ${_selectedClient!.firmName}...');
-                      final apiRepo = KaratFlowApiRepository();
-                      await apiRepo.createMultiDesignOrder(
+                    context.read<OrdersBloc>().add(
+                      CreateAndCheckoutOrderEvent(
                         customerId: _selectedClient!.id,
-                        dueDate: _dueDate,
+                        dueDate: _apiDueDate().toUtc().toIso8601String(),
                         specialInstructions: _notesController.text.trim(),
                         parts: apiParts,
-                      );
-                      debugPrint(
-                          '✅ [NewOrderSheet] Order created on live API successfully!');
-
-                      final newOrder = widget.store.createDirectOrder(
-                        client: _selectedClient!,
-                        items: orderItems,
-                        dueDate: _dueDate,
-                        notes: _notesController.text.trim(),
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        CommonSnackbar.success(
-                          context,
-                          title: 'Order Created',
-                          message:
-                              'Order ${newOrder.id} placed for ${_selectedClient!.firmName} on server.',
-                        );
-                      }
-                    } catch (e) {
-                      debugPrint(
-                          '❌ [NewOrderSheet] Failed to call POST /orders API: $e');
-                      if (context.mounted) {
-                        CommonSnackbar.error(
-                          context,
-                          title: 'Order Placement Failed',
-                          message: 'Server error: ${e.toString()}',
-                        );
-                      }
-                    }
+                      ),
+                    );
+                    Navigator.pop(context);
                   }
                 : null,
           ),
         ],
       ),
     );
+  }
+
+  DateTime _apiDueDate() {
+    final now = DateTime.now();
+    if (_dueDate.startsWith('Due Today')) {
+      return DateTime(now.year, now.month, now.day, 18);
+    }
+    if (_dueDate.startsWith('Due Tomorrow')) {
+      final tomorrow = now.add(const Duration(days: 1));
+      return DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 12);
+    }
+    if (_dueDate == 'Due in 3 Days') {
+      return now.add(const Duration(days: 3));
+    }
+    if (_dueDate == 'Due Friday') {
+      final days = (DateTime.friday - now.weekday + 7) % 7;
+      return now.add(Duration(days: days == 0 ? 7 : days));
+    }
+    final days = (DateTime.monday - now.weekday + 7) % 7;
+    return now.add(Duration(days: days == 0 ? 7 : days));
   }
 }

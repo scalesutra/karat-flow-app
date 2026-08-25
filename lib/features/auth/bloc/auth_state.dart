@@ -18,12 +18,18 @@ final class AuthAuthenticated extends AuthState {
   const AuthAuthenticated({
     required this.token,
     required this.role,
-    this.userName = 'Operator',
+    this.userName = '',
+    this.userEmail = '',
+    this.userPhone = '',
+    this.isActive = true,
   });
 
   final String token;
   final String role;
   final String userName;
+  final String userEmail;
+  final String userPhone;
+  final bool isActive;
 }
 
 /// Logged out / unauthenticated

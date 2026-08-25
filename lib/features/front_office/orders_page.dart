@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/localization/localization.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../data/repositories/karatflow_api_repository.dart';
 import '../../domain/models.dart';
+import 'bloc/orders_bloc.dart';
 import 'widgets/front_office_order_card.dart';
 import 'widgets/new_order_sheet.dart';
 import 'widgets/order_detail_sheet.dart';
@@ -21,7 +23,6 @@ class _OrdersPageState extends State<OrdersPage> {
   final _searchController = TextEditingController();
   String _selectedStatusFilter = 'All';
   String _searchQuery = '';
-  bool _isLoading = false;
 
   final List<String> _statusFilters = const [
     'All',
@@ -37,50 +38,7 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   Future<void> _fetchLiveOrders() async {
-    if (mounted) setState(() => _isLoading = true);
-    try {
-      debugPrint('📦 [OrdersPage] Fetching live orders from GET /orders...');
-      final apiRepo = KaratFlowApiRepository();
-      final apiOrders = await apiRepo.listOrders(status: '');
-      debugPrint(
-        '✅ [OrdersPage] Received ${apiOrders.length} orders from live API!',
-      );
-
-      final mappedOrders = apiOrders.map((ao) {
-        final firstPart = ao.parts.isNotEmpty ? ao.parts.first : null;
-        final itemsSummaryText = ao.parts.isNotEmpty
-            ? ao.parts.map((p) => '${p.quantity}x ${p.designNumber}').join(', ')
-            : '';
-
-        return CustomerOrder(
-          id: ao.orderNumber.isNotEmpty ? ao.orderNumber : ao.id,
-          clientFirmName: ao.customerName.isNotEmpty ? ao.customerName : '',
-          clientCity: ao.customerCity,
-          itemsCount: ao.parts.fold(0, (sum, p) => sum + p.quantity),
-          totalGrossGrams: firstPart?.grossWeight ?? 0.0,
-          estimatedTotalAmount: 0.0,
-          status: switch (ao.status.toUpperCase()) {
-            'DRAFT' || 'PENDING' => OrderStatus.pending,
-            'READY' || 'CHECKED_OUT' => OrderStatus.ready,
-            'DISPATCHED' => OrderStatus.dispatched,
-            'DELIVERED' => OrderStatus.delivered,
-            'CANCELLED' || 'CANCELED' => OrderStatus.cancelled,
-            _ => OrderStatus.inWorkshop,
-          },
-          promiseDate: ao.dueDate,
-          createdAt: ao.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-          itemsSummary: itemsSummaryText,
-          currentWorkshopStage: firstPart?.currentStage ?? '',
-          responsibleManager: '',
-        );
-      }).toList();
-
-      widget.store.setOrders(mappedOrders);
-    } catch (e) {
-      debugPrint('❌ [OrdersPage] Error fetching live orders from API: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    context.read<OrdersBloc>().add(const FetchOrdersEvent());
   }
 
   @override
@@ -147,7 +105,7 @@ class _OrdersPageState extends State<OrdersPage> {
                             ),
                             const SizedBox(height: 2),
                             CommonText.bodySmall(
-                              '${filteredOrders.length} ${filteredOrders.length == 1 ? "order" : "orders"} listed',
+                              '${filteredOrders.length} ${filteredOrders.length == 1 ? 'order' : 'orders'} listed',
                             ),
                           ],
                         ),
@@ -177,7 +135,7 @@ class _OrdersPageState extends State<OrdersPage> {
               ),
               const SizedBox(height: 10),
               Expanded(
-                child: _isLoading
+                child: context.watch<OrdersBloc>().state is OrdersLoading
                     ? const Center(
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),

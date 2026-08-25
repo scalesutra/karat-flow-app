@@ -2,16 +2,19 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'common_button.dart';
+import 'remote_cad_mesh.dart';
 
 class Common3DViewer extends StatefulWidget {
   const Common3DViewer({
     super.key,
     required this.designCode,
     required this.productTitle,
+    this.modelUrl,
   });
 
   final String designCode;
   final String productTitle;
+  final String? modelUrl;
 
   @override
   State<Common3DViewer> createState() => _Common3DViewerState();
@@ -37,16 +40,15 @@ class _Common3DViewerState extends State<Common3DViewer>
   @override
   void initState() {
     super.initState();
-    _autoRotateController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    )..addListener(() {
-        if (_isAutoRotating) {
-          setState(() {
-            _rotationY += 0.015;
+    _autoRotateController =
+        AnimationController(vsync: this, duration: const Duration(seconds: 10))
+          ..addListener(() {
+            if (_isAutoRotating) {
+              setState(() {
+                _rotationY += 0.015;
+              });
+            }
           });
-        }
-      });
 
     _autoRotateController.repeat();
   }
@@ -143,15 +145,26 @@ class _Common3DViewerState extends State<Common3DViewer>
               ),
               child: Stack(
                 children: [
-                  CustomPaint(
-                    painter: Ring3DPainter(
-                      rotationX: _rotationX,
-                      rotationY: _rotationY,
-                      metalColor: ringColor,
-                      isWireframe: _isWireframe,
+                  if (widget.modelUrl?.isNotEmpty ?? false)
+                    Positioned.fill(
+                      child: RemoteCadMesh(
+                        modelUrl: widget.modelUrl!,
+                        rotationX: _rotationX,
+                        rotationY: _rotationY,
+                        metalColor: ringColor,
+                        isWireframe: _isWireframe,
+                      ),
+                    )
+                  else
+                    CustomPaint(
+                      painter: Ring3DPainter(
+                        rotationX: _rotationX,
+                        rotationY: _rotationY,
+                        metalColor: ringColor,
+                        isWireframe: _isWireframe,
+                      ),
+                      size: Size.infinite,
                     ),
-                    size: Size.infinite,
-                  ),
                   Positioned(
                     bottom: 12,
                     right: 12,
@@ -166,7 +179,11 @@ class _Common3DViewerState extends State<Common3DViewer>
                       ),
                       child: const Row(
                         children: [
-                          Icon(Icons.touch_app, size: 12, color: AppColors.muted),
+                          Icon(
+                            Icons.touch_app,
+                            size: 12,
+                            color: AppColors.muted,
+                          ),
                           SizedBox(width: 4),
                           Text(
                             'Drag to rotate 3D mesh',

@@ -26,12 +26,10 @@ class CommonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveRadius = borderRadius ?? BorderRadius.circular(AppDimensions.radiusLarge);
+    final effectiveRadius =
+        borderRadius ?? BorderRadius.circular(AppDimensions.radiusLarge);
 
-    Widget cardContent = Padding(
-      padding: padding,
-      child: child,
-    );
+    Widget cardContent = Padding(padding: padding, child: child);
 
     if (onTap != null) {
       cardContent = InkWell(

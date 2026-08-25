@@ -13,9 +13,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({
     TokenStorageService? tokenStorage,
     KaratFlowApiRepository? apiRepository,
-  })  : _tokenStorage = tokenStorage ?? TokenStorageService(),
-        _api = apiRepository ?? KaratFlowApiRepository(),
-        super(const AuthInitial()) {
+  }) : _tokenStorage = tokenStorage ?? TokenStorageService(),
+       _api = apiRepository ?? KaratFlowApiRepository(),
+       super(const AuthInitial()) {
     on<AuthCheckRequested>(_onAuthCheckRequested);
     on<AuthLoginSubmitted>(_onAuthLoginSubmitted);
     on<AuthRoleChanged>(_onAuthRoleChanged);
@@ -39,17 +39,26 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
 
-      debugPrint('👤 [AuthBloc] Fetching profile for existing token from GET /auth/me...');
+      debugPrint(
+        '👤 [AuthBloc] Fetching profile for existing token from GET /auth/me...',
+      );
       final profile = await _api.getProfile();
       final role = profile.role.toLowerCase();
       await _tokenStorage.saveUserRole(role);
 
-      debugPrint('✅ [AuthBloc] Session verified. User: ${profile.name}, Role: $role');
-      emit(AuthAuthenticated(
-        token: token,
-        role: role,
-        userName: profile.name,
-      ));
+      debugPrint(
+        '✅ [AuthBloc] Session verified. User: ${profile.name}, Role: $role',
+      );
+      emit(
+        AuthAuthenticated(
+          token: token,
+          role: role,
+          userName: profile.name,
+          userEmail: profile.email,
+          userPhone: profile.phone,
+          isActive: profile.isActive,
+        ),
+      );
     } catch (e) {
       debugPrint('⚠️ [AuthBloc] Stored session invalid or expired: $e');
       await _tokenStorage.clearAll();
@@ -62,7 +71,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(const AuthLoading());
-    debugPrint('🔐 [AuthBloc] Submitting login request for ${event.username} to POST /auth/login...');
+    debugPrint(
+      '🔐 [AuthBloc] Submitting login request for ${event.username} to POST /auth/login...',
+    );
     try {
       final authData = await _api.login(
         email: event.username.trim(),
@@ -72,16 +83,26 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await _tokenStorage.saveAccessToken(authData.token);
       await _tokenStorage.saveRefreshToken(authData.refreshToken);
 
-      final userRole = (authData.user?.role ?? 'ADMIN').toLowerCase();
+      // Some login responses omit the user object. Load /auth/me in that
+      // case instead of inventing a local profile.
+      final profile = authData.user ?? await _api.getProfile();
+      final userRole = profile.role.toLowerCase();
       await _tokenStorage.saveUserRole(userRole);
 
-      debugPrint('🎉 [AuthBloc] Login success! Name: ${authData.user?.name}, Role: $userRole, JWT Token length: ${authData.token.length}');
+      debugPrint(
+        '🎉 [AuthBloc] Login success! Name: ${profile.name}, Role: $userRole, JWT Token length: ${authData.token.length}',
+      );
 
-      emit(AuthAuthenticated(
-        token: authData.token,
-        role: userRole,
-        userName: authData.user?.name ?? event.username,
-      ));
+      emit(
+        AuthAuthenticated(
+          token: authData.token,
+          role: userRole,
+          userName: profile.name,
+          userEmail: profile.email,
+          userPhone: profile.phone,
+          isActive: profile.isActive,
+        ),
+      );
     } catch (e) {
       debugPrint('❌ [AuthBloc] Login failed with error: $e');
       emit(AuthError('Login failed: ${e.toString()}'));
@@ -96,11 +117,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final current = state as AuthAuthenticated;
       debugPrint('🔄 [AuthBloc] Switching role to: ${event.role}');
       await _tokenStorage.saveUserRole(event.role);
-      emit(AuthAuthenticated(
-        token: current.token,
-        role: event.role,
-        userName: current.userName,
-      ));
+      emit(
+        AuthAuthenticated(
+          token: current.token,
+          role: event.role,
+          userName: current.userName,
+          userEmail: current.userEmail,
+          userPhone: current.userPhone,
+          isActive: current.isActive,
+        ),
+      );
     }
   }
 

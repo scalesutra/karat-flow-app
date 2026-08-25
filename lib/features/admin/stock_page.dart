@@ -169,7 +169,10 @@ class _AdminStockPageState extends State<AdminStockPage> {
           ),
         ),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 11),
+        ),
       ],
     );
   }
@@ -225,13 +228,11 @@ class _AdminStockPageState extends State<AdminStockPage> {
             CommonButton.primary(
               label: 'Save Physical Count',
               onPressed: () {
-                final diff = double.tryParse(diffController.text) ?? 0.0;
-                widget.store.updateStockDiscrepancy(item.id, diff);
                 Navigator.pop(ctx);
-                CommonSnackbar.success(
+                CommonSnackbar.error(
                   context,
-                  title: 'Audit Saved',
-                  message: 'Stock count updated for ${item.name}.',
+                  title: 'Stock API Unavailable',
+                  message: 'The backend does not expose a stock endpoint.',
                 );
               },
             ),

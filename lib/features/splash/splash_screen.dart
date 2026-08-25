@@ -58,13 +58,13 @@ class _SplashScreenState extends State<SplashScreen>
       curve: const Interval(0.0, 0.7, curve: Curves.easeIn),
     );
 
-    _titleSlide = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _textController,
-      curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic),
-    ));
+    _titleSlide = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _textController,
+            curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic),
+          ),
+        );
 
     _subtitleOpacity = CurvedAnimation(
       parent: _textController,

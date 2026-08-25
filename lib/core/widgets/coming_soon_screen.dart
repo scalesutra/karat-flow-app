@@ -232,11 +232,7 @@ class ComingSoonWidget extends StatelessWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ).createShader(bounds),
-                            child: Icon(
-                              icon,
-                              size: 48,
-                              color: Colors.white,
-                            ),
+                            child: Icon(icon, size: 48, color: Colors.white),
                           ),
                         ),
                       ),
@@ -369,7 +365,9 @@ class ComingSoonWidget extends StatelessWidget {
               child: Column(
                 children: [
                   CommonButton.primary(
-                    label: isNotified ? 'Notification Enabled ✓' : 'Notify Me When Ready',
+                    label: isNotified
+                        ? 'Notification Enabled ✓'
+                        : 'Notify Me When Ready',
                     icon: isNotified
                         ? Icons.notifications_active_rounded
                         : Icons.notifications_none_rounded,

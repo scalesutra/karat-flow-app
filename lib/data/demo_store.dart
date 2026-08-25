@@ -3,10 +3,11 @@ import 'models/api_models.dart';
 import '../domain/models.dart';
 
 class DemoStore extends ChangeNotifier {
-  static final DemoStore _instance = DemoStore.seeded();
+  static final DemoStore _instance = DemoStore.empty();
   static DemoStore get instance => _instance;
 
-  DemoStore.seeded()
+  /// Empty presentation cache. Data is populated only by successful API BLoCs.
+  DemoStore.empty()
     : _workItems = [],
       _instructions = [],
       _designs = [],
@@ -20,11 +21,11 @@ class DemoStore extends ChangeNotifier {
       _stock = [],
       _cadTasks = [],
       _goldRates = const GoldRates(
-        gold24KPerGram: 7920.0,
-        gold22KPerGram: 7280.0,
-        gold18KPerGram: 5960.0,
-        silverPerKg: 91400.0,
-        lastUpdatedTime: 'Live IBJA Server',
+        gold24KPerGram: 0,
+        gold22KPerGram: 0,
+        gold18KPerGram: 0,
+        silverPerKg: 0,
+        lastUpdatedTime: '',
       );
 
   final List<WorkItem> _workItems;

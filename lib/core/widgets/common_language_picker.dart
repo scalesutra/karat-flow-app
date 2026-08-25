@@ -98,14 +98,17 @@ abstract final class CommonLanguagePicker {
                         currentLocale.languageCode == lang['code'];
                     return InkWell(
                       onTap: () {
-                        final newLocale =
-                            Locale(lang['code']!, lang['country']!);
+                        final newLocale = Locale(
+                          lang['code']!,
+                          lang['country']!,
+                        );
                         Get.updateLocale(newLocale);
                         Navigator.pop(ctx);
                         CommonSnackbar.success(
                           context,
                           title: 'Language Updated',
-                          message: 'Switched to ${lang['title']} (${lang['native']}).',
+                          message:
+                              'Switched to ${lang['title']} (${lang['native']}).',
                         );
                       },
                       borderRadius: BorderRadius.circular(12),

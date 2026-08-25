@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../data/demo_store.dart';
+import '../../../data/mappers/api_domain_mapper.dart';
 import '../../../data/repositories/karatflow_api_repository.dart';
 import '../../../domain/models.dart';
 import 'orders_event.dart';
@@ -16,7 +17,14 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
       _api = apiRepository ?? KaratFlowApiRepository(),
       super(const OrdersInitial()) {
     on<FetchOrdersEvent>(_onFetchOrders);
+    on<FetchFrontOfficeDataEvent>(_onFetchFrontOfficeData);
     on<CreateOrderEvent>(_onCreateOrder);
+    on<CreateLiveOrderEvent>(_onCreateLiveOrder);
+    on<CreateAndCheckoutOrderEvent>(_onCreateAndCheckoutOrder);
+    on<AddOrderPartsEvent>(_onAddOrderParts);
+    on<CheckoutOrderEvent>(_onCheckoutOrder);
+    on<TrackOrderEvent>(_onTrackOrder);
+    on<RegisterFrontOfficeCustomerEvent>(_onRegisterCustomer);
     on<UpdateOrderStatusEvent>(_onUpdateOrderStatus);
     on<FilterOrdersEvent>(_onFilterOrders);
   }
@@ -39,35 +47,9 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
         '✅ [OrdersBloc] Received ${apiOrders.length} orders from live API.',
       );
 
-      final mappedOrders = apiOrders.map((ao) {
-        final firstPart = ao.parts.isNotEmpty ? ao.parts.first : null;
-        return CustomerOrder(
-          id: ao.orderNumber,
-          clientFirmName: ao.customerName.isNotEmpty
-              ? ao.customerName
-              : 'Client Order',
-          clientCity: ao.customerCity,
-          itemsCount: ao.parts.fold(0, (sum, part) => sum + part.quantity),
-          totalGrossGrams: firstPart?.grossWeight ?? 0.0,
-          estimatedTotalAmount: 0,
-          status: switch (ao.status.toUpperCase()) {
-            'DRAFT' || 'PENDING' => OrderStatus.pending,
-            'READY' || 'CHECKED_OUT' => OrderStatus.ready,
-            'DISPATCHED' => OrderStatus.dispatched,
-            'DELIVERED' => OrderStatus.delivered,
-            'CANCELLED' || 'CANCELED' => OrderStatus.cancelled,
-            _ => OrderStatus.inWorkshop,
-          },
-          promiseDate: ao.dueDate,
-          createdAt: ao.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-          itemsSummary: ao.parts
-              .map((p) => '${p.quantity}x ${p.designNumber}')
-              .join(', '),
-          currentWorkshopStage: firstPart?.currentStage ?? '',
-          responsibleManager: '',
-        );
-      }).toList();
+      final mappedOrders = apiOrders.map(ApiDomainMapper.order).toList();
 
+      _store.setOrders(mappedOrders);
       emit(OrdersLoaded(orders: mappedOrders, filteredOrders: mappedOrders));
     } catch (e) {
       debugPrint('❌ [OrdersBloc] Failed to fetch orders: $e');
@@ -77,62 +59,158 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     }
   }
 
+  Future<void> _onFetchFrontOfficeData(
+    FetchFrontOfficeDataEvent event,
+    Emitter<OrdersState> emit,
+  ) async {
+    emit(const OrdersLoading());
+    try {
+      final orders = await _api.listOrders(status: '', limit: 100);
+      final customers = await _api.listCustomers(limit: 100);
+      final sketches = await _api.listSketches(limit: 100);
+      final threeD = await _api.listThreeDDesigns(limit: 100);
+      final mappedOrders = orders.map(ApiDomainMapper.order).toList();
+      _store
+        ..setOrders(mappedOrders)
+        ..setClients(customers.map(ApiDomainMapper.customer).toList())
+        ..setDesigns([
+          ...sketches.map(ApiDomainMapper.sketch),
+          ...threeD.map(ApiDomainMapper.threeDDesign),
+        ]);
+      emit(OrdersLoaded(orders: mappedOrders, filteredOrders: mappedOrders));
+    } catch (error) {
+      emit(OrdersError('Failed to load live front-office data: $error'));
+    }
+  }
+
+  Future<void> _onCreateLiveOrder(
+    CreateLiveOrderEvent event,
+    Emitter<OrdersState> emit,
+  ) async {
+    emit(const OrdersLoading());
+    try {
+      await _api.createMultiDesignOrder(
+        customerId: event.customerId,
+        dueDate: event.dueDate,
+        specialInstructions: event.specialInstructions,
+        parts: event.parts,
+      );
+      emit(const OrderOperationSuccess('Order created successfully.'));
+      add(const FetchFrontOfficeDataEvent());
+    } catch (error) {
+      emit(OrdersError('Failed to create order: $error'));
+    }
+  }
+
+  Future<void> _onCreateAndCheckoutOrder(
+    CreateAndCheckoutOrderEvent event,
+    Emitter<OrdersState> emit,
+  ) async {
+    emit(const OrdersLoading());
+    try {
+      final order = await _api.createMultiDesignOrder(
+        customerId: event.customerId,
+        dueDate: event.dueDate,
+        specialInstructions: event.specialInstructions,
+        parts: event.parts,
+      );
+      if (order.id.isEmpty) {
+        throw const FormatException('Order API returned an empty ID.');
+      }
+      await _api.checkoutOrder(order.id);
+      if (event.clearCart) _store.clearCart();
+      emit(
+        OrderOperationSuccess(
+          'Order ${order.orderNumber} created and checked out.',
+        ),
+      );
+      add(const FetchFrontOfficeDataEvent());
+    } catch (error) {
+      emit(OrdersError('Failed to create and checkout order: $error'));
+    }
+  }
+
+  Future<void> _onAddOrderParts(
+    AddOrderPartsEvent event,
+    Emitter<OrdersState> emit,
+  ) async {
+    try {
+      await _api.addOrderParts(orderId: event.orderId, parts: event.parts);
+      emit(const OrderOperationSuccess('Designs added to order.'));
+      add(const FetchFrontOfficeDataEvent());
+    } catch (error) {
+      emit(OrdersError('Failed to add order designs: $error'));
+    }
+  }
+
+  Future<void> _onCheckoutOrder(
+    CheckoutOrderEvent event,
+    Emitter<OrdersState> emit,
+  ) async {
+    try {
+      await _api.checkoutOrder(event.orderId);
+      emit(const OrderOperationSuccess('Order checked out successfully.'));
+      add(const FetchFrontOfficeDataEvent());
+    } catch (error) {
+      emit(OrdersError('Failed to checkout order: $error'));
+    }
+  }
+
+  Future<void> _onTrackOrder(
+    TrackOrderEvent event,
+    Emitter<OrdersState> emit,
+  ) async {
+    emit(const OrdersLoading());
+    try {
+      emit(OrderTrackingLoaded(await _api.trackOrder(event.orderNumber)));
+    } catch (error) {
+      emit(OrdersError('Failed to track order: $error'));
+    }
+  }
+
+  Future<void> _onRegisterCustomer(
+    RegisterFrontOfficeCustomerEvent event,
+    Emitter<OrdersState> emit,
+  ) async {
+    emit(const OrdersLoading());
+    try {
+      await _api.registerCustomer(
+        name: event.name,
+        city: event.city,
+        contactPerson: event.contactPerson,
+        phone: event.phone,
+        email: event.email,
+        creditLimitLakhs: event.creditLimitLakhs,
+        notes: event.notes,
+      );
+      emit(const OrderOperationSuccess('Customer registered successfully.'));
+      add(const FetchFrontOfficeDataEvent());
+    } catch (error) {
+      emit(OrdersError('Failed to register customer: $error'));
+    }
+  }
+
   Future<void> _onCreateOrder(
     CreateOrderEvent event,
     Emitter<OrdersState> emit,
   ) async {
-    emit(const OrdersLoading());
-    debugPrint(
-      '📝 [OrdersBloc] Creating multi-design order on POST /orders for ${event.order.clientFirmName}...',
+    emit(
+      const OrdersError(
+        'This legacy order action has no reliable customer ID or part data. '
+        'Use the live order form instead.',
+      ),
     );
-    try {
-      final designName = event.order.itemsSummary.isNotEmpty
-          ? event.order.itemsSummary
-          : 'Custom Design';
-      await _api.createMultiDesignOrder(
-        customerId: event.order.clientFirmName.isNotEmpty
-            ? event.order.clientFirmName
-            : 'client-general',
-        dueDate: event.order.promiseDate,
-        specialInstructions: event.order.itemsSummary,
-        parts: [
-          {
-            'designNumber': designName,
-            'quantity': event.order.itemsCount > 0 ? event.order.itemsCount : 1,
-            'grossWeight': event.order.totalGrossGrams,
-            'notes': event.order.itemsSummary,
-          },
-        ],
-      );
-
-      debugPrint('🎉 [OrdersBloc] Order placed successfully on live backend!');
-      emit(
-        OrderOperationSuccess(
-          'Order ${event.order.id} placed successfully on server.',
-        ),
-      );
-      add(const FetchOrdersEvent());
-    } catch (e) {
-      debugPrint('❌ [OrdersBloc] Failed to create order: $e');
-      emit(OrdersError('Failed to create order on live API: ${e.toString()}'));
-    }
   }
 
   Future<void> _onUpdateOrderStatus(
     UpdateOrderStatusEvent event,
     Emitter<OrdersState> emit,
   ) async {
-    try {
-      _store.updateOrderStatus(event.orderId, event.status);
-      emit(
-        OrderOperationSuccess(
-          'Order ${event.orderId} updated to ${event.status.label}.',
-        ),
-      );
-      add(const FetchOrdersEvent());
-    } catch (e) {
-      emit(OrdersError('Failed to update status: ${e.toString()}'));
-    }
+    emit(
+      const OrdersError(
+        'The backend does not expose a generic order status endpoint.',
+      ),
+    );
   }
 
   void _onFilterOrders(FilterOrdersEvent event, Emitter<OrdersState> emit) {

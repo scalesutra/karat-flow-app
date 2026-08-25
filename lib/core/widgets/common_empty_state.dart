@@ -38,10 +38,7 @@ class CommonEmptyState extends StatelessWidget {
               child: Icon(icon, color: AppColors.emerald, size: 32),
             ),
             const SizedBox(height: AppDimensions.space16),
-            CommonText.titleLarge(
-              title,
-              textAlign: TextAlign.center,
-            ),
+            CommonText.titleLarge(title, textAlign: TextAlign.center),
             const SizedBox(height: AppDimensions.space8),
             CommonText.bodyMedium(
               description,

@@ -33,9 +33,7 @@ abstract final class CommonSnackbar {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         backgroundColor: backgroundColor,
         elevation: 6,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         action: action,
         content: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -47,11 +45,7 @@ abstract final class CommonSnackbar {
                   color: AppColors.pureWhite.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  icon,
-                  color: iconColor ?? textColor,
-                  size: 20,
-                ),
+                child: Icon(icon, color: iconColor ?? textColor, size: 20),
               ),
               const SizedBox(width: 12),
             ],

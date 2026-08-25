@@ -29,9 +29,9 @@ class CommonTextField extends StatelessWidget {
     this.obscureText = false,
     this.onTap,
     this.focusNode,
-  })  : hintText = hintText ?? hint,
-        _effectiveLabel = labelText ?? label,
-        _isSearch = false;
+  }) : hintText = hintText ?? hint,
+       _effectiveLabel = labelText ?? label,
+       _isSearch = false;
 
   const CommonTextField.search({
     super.key,
@@ -42,22 +42,22 @@ class CommonTextField extends StatelessWidget {
     this.onTap,
     this.autofocus = false,
     this.focusNode,
-  })  : initialValue = null,
-        labelText = null,
-        _effectiveLabel = null,
-        errorText = null,
-        prefixIcon = Icons.search,
-        suffixIcon = null,
-        validator = null,
-        keyboardType = TextInputType.text,
-        inputFormatters = null,
-        textCapitalization = TextCapitalization.none,
-        maxLines = 1,
-        minLines = null,
-        readOnly = false,
-        enabled = true,
-        obscureText = false,
-        _isSearch = true;
+  }) : initialValue = null,
+       labelText = null,
+       _effectiveLabel = null,
+       errorText = null,
+       prefixIcon = Icons.search,
+       suffixIcon = null,
+       validator = null,
+       keyboardType = TextInputType.text,
+       inputFormatters = null,
+       textCapitalization = TextCapitalization.none,
+       maxLines = 1,
+       minLines = null,
+       readOnly = false,
+       enabled = true,
+       obscureText = false,
+       _isSearch = true;
 
   final TextEditingController? controller;
   final String? initialValue;

@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/widgets/common_button.dart';
 import '../../../../core/widgets/common_snackbar.dart';
 import '../../../../data/demo_store.dart';
 import '../../../../domain/models.dart';
+import '../bloc/workshop_bloc.dart';
 
 /// Modal bottom sheet displaying active lots in a specific workshop stage
 class StageLotsModal extends StatelessWidget {
-  const StageLotsModal({
-    super.key,
-    required this.stage,
-    required this.store,
-  });
+  const StageLotsModal({super.key, required this.stage, required this.store});
 
   final Map<String, dynamic> stage;
   final DemoStore store;
@@ -65,15 +63,10 @@ class StageLotsModal extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.emeraldLight,
-                  borderRadius: BorderRadius.circular(
-                    AppDimensions.radiusFull,
-                  ),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
                 ),
                 child: Text(
                   '${lots.length} lots',
@@ -174,7 +167,9 @@ class StageLotsModal extends StatelessWidget {
                         children: [
                           InkWell(
                             onTap: () {
-                              store.advanceLotStage(lot.id);
+                              context.read<WorkshopBloc>().add(
+                                AdvanceLotStageEvent(lot.id),
+                              );
                               Navigator.pop(context);
                               CommonSnackbar.success(
                                 context,

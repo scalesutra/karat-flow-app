@@ -63,8 +63,7 @@ abstract final class ApiEndpoints {
 
   // ── SECTION 10: AWS S3 Cloud Storage (/storage) ──────────────────
   static const String storageUploadUrl = '/storage/upload-url';
-  static String storageDownloadUrl(String fileKey) =>
-      '/storage/download-url?fileKey=$fileKey';
+  static const String storageDownloadUrl = '/storage/download-url';
 
   // ── SECTION 11: System & Database Health (/health) ───────────────
   static const String health = '/health';

@@ -276,9 +276,9 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
               Expanded(
                 child: switch (_activePivot) {
                   StatusPivot.orders => LiveOrdersTab(
-                      store: widget.store,
-                      searchQuery: _searchQuery,
-                    ),
+                    store: widget.store,
+                    searchQuery: _searchQuery,
+                  ),
                   StatusPivot.people => ArtisansPeopleTab(store: widget.store),
                   StatusPivot.stages => StagesPipelineTab(store: widget.store),
                 },

@@ -418,3 +418,112 @@ class ApiPresignedUrl {
   final String fileUrl;
   final int expiresInSeconds;
 }
+
+class ApiPresignedDownloadUrl {
+  const ApiPresignedDownloadUrl({
+    required this.downloadUrl,
+    required this.fileKey,
+    required this.expiresInSeconds,
+  });
+
+  factory ApiPresignedDownloadUrl.fromJson(Map<String, dynamic> json) {
+    return ApiPresignedDownloadUrl(
+      downloadUrl: json['downloadUrl'] as String? ?? '',
+      fileKey: json['fileKey'] as String? ?? '',
+      expiresInSeconds: json['expiresInSeconds'] as int? ?? 0,
+    );
+  }
+
+  final String downloadUrl;
+  final String fileKey;
+  final int expiresInSeconds;
+}
+
+class ApiOrderTracking {
+  const ApiOrderTracking({
+    required this.orderNumber,
+    required this.customer,
+    required this.orderStatus,
+    required this.parts,
+  });
+
+  factory ApiOrderTracking.fromJson(Map<String, dynamic> json) {
+    final rawParts = json['parts'] as List? ?? const [];
+    return ApiOrderTracking(
+      orderNumber: json['orderNumber'] as String? ?? '',
+      customer: json['customer'] as String? ?? '',
+      orderStatus: json['orderStatus'] as String? ?? '',
+      parts: rawParts
+          .map(
+            (part) =>
+                ApiTrackedOrderPart.fromJson(part as Map<String, dynamic>),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  final String orderNumber;
+  final String customer;
+  final String orderStatus;
+  final List<ApiTrackedOrderPart> parts;
+}
+
+class ApiTrackedOrderPart {
+  const ApiTrackedOrderPart({
+    required this.partId,
+    required this.designNumber,
+    required this.currentStage,
+    required this.status,
+    required this.history,
+  });
+
+  factory ApiTrackedOrderPart.fromJson(Map<String, dynamic> json) {
+    return ApiTrackedOrderPart(
+      partId: json['partId'] as String? ?? '',
+      designNumber: json['designNumber'] as String? ?? '',
+      currentStage: json['currentStage'] as String? ?? '',
+      status: json['status'] as String? ?? '',
+      history: List<Map<String, dynamic>>.from(
+        (json['history'] as List? ?? const []).map(
+          (item) => Map<String, dynamic>.from(item as Map),
+        ),
+      ),
+    );
+  }
+
+  final String partId;
+  final String designNumber;
+  final String currentStage;
+  final String status;
+  final List<Map<String, dynamic>> history;
+}
+
+class ApiHealthStatus {
+  const ApiHealthStatus({
+    required this.status,
+    required this.uptime,
+    required this.databaseStatus,
+    required this.cacheStatus,
+  });
+
+  factory ApiHealthStatus.fromJson(Map<String, dynamic> json) {
+    final database = json['database'] as Map?;
+    final cache = json['cache'] as Map?;
+    return ApiHealthStatus(
+      status: json['status'] as String? ?? '',
+      uptime: (json['uptime'] as num?)?.toDouble() ?? 0,
+      databaseStatus: database?['status'] as String? ?? '',
+      cacheStatus: cache?['status'] as String? ?? '',
+    );
+  }
+
+  final String status;
+  final double uptime;
+  final String databaseStatus;
+  final String cacheStatus;
+
+  bool get isHealthy =>
+      status.toLowerCase() == 'ok' &&
+      databaseStatus.toLowerCase() == 'healthy' &&
+      cacheStatus.toLowerCase() == 'healthy';
+}

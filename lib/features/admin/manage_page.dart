@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/localization/localization.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../domain/models.dart';
+import '../auth/widgets/authenticated_profile_card.dart';
 import 'widgets/add_artisan_sheet.dart';
 import 'widgets/admin_manage_item.dart';
 import 'widgets/admin_review_cad_sheet.dart';
 import 'widgets/admin_review_sketches_sheet.dart';
+import 'bloc/admin_bloc.dart';
 
 class AdminManagePage extends StatelessWidget {
   const AdminManagePage({super.key, required this.store});
@@ -28,6 +31,9 @@ class AdminManagePage extends StatelessWidget {
             color: AppColors.muted,
           ),
           const SizedBox(height: 12),
+
+          const AuthenticatedProfileCard(),
+          const SizedBox(height: 14),
 
           AdminManageSection(
             title: '1. Human Resources & Crafts',
@@ -904,18 +910,13 @@ class AdminManagePage extends StatelessWidget {
               label: 'Send Directive',
               onPressed: () {
                 if (textController.text.isNotEmpty) {
-                  store.addAdminDirective(
-                    recipient,
-                    '[ $contextTag ] ${textController.text}',
-                  );
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      behavior: SnackBarBehavior.floating,
-                      content: Text('Directive sent to $recipient!'),
-                      backgroundColor: AppColors.emerald,
+                  context.read<AdminBloc>().add(
+                    SendDirectiveEvent(
+                      recipient: recipient,
+                      directive: '[ $contextTag ] ${textController.text}',
                     ),
                   );
+                  Navigator.pop(ctx);
                 }
               },
             ),

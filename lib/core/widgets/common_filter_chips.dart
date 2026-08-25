@@ -10,7 +10,9 @@ class CommonFilterChips<T> extends StatelessWidget {
     required this.onSelected,
     required this.labelBuilder,
     this.iconBuilder,
-    this.padding = const EdgeInsets.symmetric(horizontal: AppDimensions.space20),
+    this.padding = const EdgeInsets.symmetric(
+      horizontal: AppDimensions.space20,
+    ),
   });
 
   final List<T> options;

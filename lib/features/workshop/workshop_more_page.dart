@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
+import '../auth/bloc/auth_bloc.dart';
+import '../auth/widgets/authenticated_profile_card.dart';
 
 class WorkshopMorePage extends StatefulWidget {
   const WorkshopMorePage({super.key, required this.store});
@@ -39,6 +42,9 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                 color: AppColors.muted,
               ),
               const SizedBox(height: 10),
+
+              const AuthenticatedProfileCard(),
+              const SizedBox(height: 14),
 
               // 1. SHIFT CARD
               CommonCard(
@@ -89,7 +95,7 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'Shift Time: 08:00 AM – 05:00 PM · Supervisor: Arjun Mehta',
+                      'Shift Time: 08:00 AM – 05:00 PM',
                       style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                     const SizedBox(height: 4),
@@ -1109,6 +1115,11 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
   // 2. SHIFT HANDOVER MODAL
   // ==========================================
   void _showShiftHandoverModal(BuildContext context) {
+    final authState = context.read<AuthBloc>().state;
+    final supervisorName =
+        authState is AuthAuthenticated && authState.userName.trim().isNotEmpty
+        ? authState.userName.trim()
+        : 'Profile unavailable';
     final noteCtrl = TextEditingController(
       text:
           'All 14 benches operational. 3 lots in stone setting require urgent handover.',
@@ -1158,7 +1169,7 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                 Expanded(
                   child: _metricMini(
                     'Morning Shift',
-                    'Arjun Mehta',
+                    supervisorName,
                     Icons.wb_sunny_outlined,
                   ),
                 ),
@@ -1166,7 +1177,7 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                 Expanded(
                   child: _metricMini(
                     'Incoming Shift',
-                    'Vikram Joshi',
+                    'Not assigned',
                     Icons.nights_stay_outlined,
                   ),
                 ),

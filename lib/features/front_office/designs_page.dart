@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/localization.dart';
@@ -6,6 +7,7 @@ import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../data/repositories/karatflow_api_repository.dart';
 import '../../domain/models.dart';
+import 'bloc/orders_bloc.dart';
 
 class DesignsPage extends StatefulWidget {
   const DesignsPage({super.key, required this.store});
@@ -20,7 +22,6 @@ class _DesignsPageState extends State<DesignsPage> {
   JewelleryCategory _category = JewelleryCategory.all;
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -29,55 +30,7 @@ class _DesignsPageState extends State<DesignsPage> {
   }
 
   Future<void> _fetchLiveCatalogue() async {
-    if (mounted) setState(() => _isLoading = true);
-    try {
-      debugPrint('🎨 [DesignsPage] Fetching catalogue from GET /sketches & GET /three-d-designs...');
-      final apiRepo = KaratFlowApiRepository();
-      final sketches = await apiRepo.listSketches();
-      final threeD = await apiRepo.listThreeDDesigns();
-
-      debugPrint('✅ [DesignsPage] Received ${sketches.length} sketches & ${threeD.length} 3D designs from server.');
-
-      final List<JewelleryDesign> catalogue = [];
-
-      for (final sk in sketches) {
-        catalogue.add(
-          JewelleryDesign(
-            id: sk.id,
-            name: sk.title.isNotEmpty ? sk.title : 'Design #${sk.designNumber}',
-            code: sk.designNumber.isNotEmpty ? sk.designNumber : sk.id,
-            category: JewelleryCategory.all,
-            purity: '22KT',
-            grossWeightGrams: 25.0,
-            imageUrl: sk.sketchUrl,
-            description: sk.adminInstructions ?? '2D Pencil Sketch Model',
-            isPopular: true,
-          ),
-        );
-      }
-
-      for (final td in threeD) {
-        catalogue.add(
-          JewelleryDesign(
-            id: td.id,
-            name: '3D CAD (${td.sketchId})',
-            code: 'CAD-${td.id}',
-            category: JewelleryCategory.rings,
-            purity: '22KT',
-            grossWeightGrams: td.totalWeight > 0 ? td.totalWeight : 18.5,
-            imageUrl: td.xtlFileUrl ?? '',
-            description: '3D CAD Model (Vol: ${td.volumeMm3}mm³)',
-            isPopular: true,
-          ),
-        );
-      }
-
-      widget.store.setDesigns(catalogue);
-    } catch (e) {
-      debugPrint('❌ [DesignsPage] Error fetching catalogue from API: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    context.read<OrdersBloc>().add(const FetchFrontOfficeDataEvent());
   }
 
   @override
@@ -91,14 +44,16 @@ class _DesignsPageState extends State<DesignsPage> {
     return AnimatedBuilder(
       animation: widget.store,
       builder: (context, _) {
-        final filteredDesigns =
-            widget.store.designsForCategory(_category).where((d) {
-          if (_searchQuery.isEmpty) return true;
-          final q = _searchQuery.toLowerCase();
-          return d.name.toLowerCase().contains(q) ||
-              d.code.toLowerCase().contains(q) ||
-              d.description.toLowerCase().contains(q);
-        }).toList();
+        final filteredDesigns = widget.store
+            .designsForCategory(_category)
+            .where((d) {
+              if (_searchQuery.isEmpty) return true;
+              final q = _searchQuery.toLowerCase();
+              return d.name.toLowerCase().contains(q) ||
+                  d.code.toLowerCase().contains(q) ||
+                  d.description.toLowerCase().contains(q);
+            })
+            .toList();
 
         return SafeArea(
           top: false,
@@ -131,14 +86,23 @@ class _DesignsPageState extends State<DesignsPage> {
                         ),
                         if (widget.store.cartItemsCount > 0)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.emeraldLight,
-                              borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                              borderRadius: BorderRadius.circular(
+                                AppDimensions.radiusFull,
+                              ),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.shopping_bag, size: 16, color: AppColors.emerald),
+                                const Icon(
+                                  Icons.shopping_bag,
+                                  size: 16,
+                                  color: AppColors.emerald,
+                                ),
                                 const SizedBox(width: 6),
                                 CommonText.labelSmall(
                                   '${widget.store.cartItemsCount} in cart',
@@ -153,7 +117,8 @@ class _DesignsPageState extends State<DesignsPage> {
                     const SizedBox(height: 10),
                     CommonSearchBar(
                       controller: _searchController,
-                      hintText: 'Search by code (e.g. NK-842) or design name...',
+                      hintText:
+                          'Search by code (e.g. NK-842) or design name...',
                       onChanged: (val) => setState(() => _searchQuery = val),
                       onClear: () => setState(() => _searchQuery = ''),
                     ),
@@ -169,7 +134,7 @@ class _DesignsPageState extends State<DesignsPage> {
               ),
               const SizedBox(height: 12),
               Expanded(
-                child: _isLoading
+                child: context.watch<OrdersBloc>().state is OrdersLoading
                     ? const Center(
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),
@@ -184,52 +149,67 @@ class _DesignsPageState extends State<DesignsPage> {
                         theme: IndicatorTheme.cad,
                         onRefresh: _fetchLiveCatalogue,
                         child: filteredDesigns.isEmpty
-                      ? SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          child: CommonEmptyState(
-                            icon: Icons.search_off,
-                            title: 'No designs found',
-                            description: 'Try adjusting your category or search terms.',
-                            actionLabel: 'Show All Designs',
-                            onAction: () {
-                              setState(() {
-                                _category = JewelleryCategory.all;
-                                _searchController.clear();
-                                _searchQuery = '';
-                              });
-                            },
-                          ),
-                        )
-                      : GridView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 14,
-                            childAspectRatio: 0.62,
-                          ),
-                          itemCount: filteredDesigns.length,
-                          itemBuilder: (context, index) {
-                            final design = filteredDesigns[index];
-                            final cartItem = widget.store.cart
-                                .where((item) => item.design.id == design.id)
-                                .firstOrNull;
+                            ? SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: CommonEmptyState(
+                                  icon: Icons.search_off,
+                                  title: 'No designs found',
+                                  description:
+                                      'Try adjusting your category or search terms.',
+                                  actionLabel: 'Show All Designs',
+                                  onAction: () {
+                                    setState(() {
+                                      _category = JewelleryCategory.all;
+                                      _searchController.clear();
+                                      _searchQuery = '';
+                                    });
+                                  },
+                                ),
+                              )
+                            : GridView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  4,
+                                  20,
+                                  28,
+                                ),
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 2,
+                                      crossAxisSpacing: 12,
+                                      mainAxisSpacing: 14,
+                                      childAspectRatio: 0.62,
+                                    ),
+                                itemCount: filteredDesigns.length,
+                                itemBuilder: (context, index) {
+                                  final design = filteredDesigns[index];
+                                  final cartItem = widget.store.cart
+                                      .where(
+                                        (item) => item.design.id == design.id,
+                                      )
+                                      .firstOrNull;
 
-                            return _DesignCard(
-                              design: design,
-                              cartQuantity: cartItem?.quantity ?? 0,
-                              onAddToCart: () => widget.store.addToCart(design),
-                              onIncrease: () => widget.store.addToCart(design),
-                              onDecrease: () => widget.store.updateCartQuantity(
-                                design.id,
-                                (cartItem?.quantity ?? 1) - 1,
+                                  return _DesignCard(
+                                    design: design,
+                                    cartQuantity: cartItem?.quantity ?? 0,
+                                    onAddToCart: () =>
+                                        widget.store.addToCart(design),
+                                    onIncrease: () =>
+                                        widget.store.addToCart(design),
+                                    onDecrease: () =>
+                                        widget.store.updateCartQuantity(
+                                          design.id,
+                                          (cartItem?.quantity ?? 1) - 1,
+                                        ),
+                                    onTap: () => _showDesignDetailsSheet(
+                                      context,
+                                      design,
+                                    ),
+                                  );
+                                },
                               ),
-                              onTap: () => _showDesignDetailsSheet(context, design),
-                            );
-                          },
-                        ),
-                ),
+                      ),
               ),
             ],
           ),
@@ -243,10 +223,7 @@ class _DesignsPageState extends State<DesignsPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _DesignDetailModal(
-        design: design,
-        store: widget.store,
-      ),
+      builder: (ctx) => _DesignDetailModal(design: design, store: widget.store),
     );
   }
 }
@@ -299,10 +276,15 @@ class _DesignCard extends StatelessWidget {
                   top: 8,
                   left: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.ink,
-                      borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusSmall,
+                      ),
                     ),
                     child: Text(
                       design.purity,
@@ -319,10 +301,15 @@ class _DesignCard extends StatelessWidget {
                     top: 8,
                     right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.gold,
-                        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                        borderRadius: BorderRadius.circular(
+                          AppDimensions.radiusSmall,
+                        ),
                       ),
                       child: const Text(
                         'TRENDING',
@@ -366,7 +353,11 @@ class _DesignCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.scale, size: 12, color: AppColors.muted),
+                          const Icon(
+                            Icons.scale,
+                            size: 12,
+                            color: AppColors.muted,
+                          ),
                           const SizedBox(width: 4),
                           CommonText.bodySmall(
                             '${design.grossWeightGrams.toStringAsFixed(1)}g GW',
@@ -390,7 +381,7 @@ class _DesignCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '₹${_formatPrice(design.estimatedPrice)}',
+                        'â‚¹${_formatPrice(design.estimatedPrice)}',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -410,7 +401,9 @@ class _DesignCard extends StatelessWidget {
                           height: 34,
                           decoration: BoxDecoration(
                             color: AppColors.emeraldLight,
-                            borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                            borderRadius: BorderRadius.circular(
+                              AppDimensions.radiusMedium,
+                            ),
                             border: Border.all(color: AppColors.emerald),
                           ),
                           child: Row(
@@ -420,7 +413,11 @@ class _DesignCard extends StatelessWidget {
                                 onTap: onDecrease,
                                 child: const Padding(
                                   padding: EdgeInsets.symmetric(horizontal: 8),
-                                  child: Icon(Icons.remove, size: 16, color: AppColors.emerald),
+                                  child: Icon(
+                                    Icons.remove,
+                                    size: 16,
+                                    color: AppColors.emerald,
+                                  ),
                                 ),
                               ),
                               CommonText.labelMedium(
@@ -432,7 +429,11 @@ class _DesignCard extends StatelessWidget {
                                 onTap: onIncrease,
                                 child: const Padding(
                                   padding: EdgeInsets.symmetric(horizontal: 8),
-                                  child: Icon(Icons.add, size: 16, color: AppColors.emerald),
+                                  child: Icon(
+                                    Icons.add,
+                                    size: 16,
+                                    color: AppColors.emerald,
+                                  ),
                                 ),
                               ),
                             ],
@@ -496,7 +497,11 @@ class _DesignDetailModal extends StatelessWidget {
                   color: design.accentColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(design.category.icon, size: 36, color: design.accentColor),
+                child: Icon(
+                  design.category.icon,
+                  size: 36,
+                  color: design.accentColor,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -506,18 +511,36 @@ class _DesignDetailModal extends StatelessWidget {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.ink,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             design.purity,
-                            style: const TextStyle(color: AppColors.pureWhite, fontSize: 10, fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                              color: AppColors.pureWhite,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
-                        CommonText.labelMedium(design.code, color: AppColors.muted),
+                        Expanded(
+                          child: Text(
+                            design.code,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -538,11 +561,23 @@ class _DesignDetailModal extends StatelessWidget {
                 const Divider(height: 14),
                 _specRow('Net Gold Weight', '${design.netGoldWeightGrams} g'),
                 const Divider(height: 14),
-                _specRow('Diamond Carat Weight', design.diamondCarats > 0 ? '${design.diamondCarats} cts' : 'None'),
+                _specRow(
+                  'Diamond Carat Weight',
+                  design.diamondCarats > 0
+                      ? '${design.diamondCarats} cts'
+                      : 'None',
+                ),
                 const Divider(height: 14),
-                _specRow('Making Charges', '₹${design.makingChargesPerGram}/g'),
+                _specRow(
+                  'Making Charges',
+                  'â‚¹${design.makingChargesPerGram}/g',
+                ),
                 const Divider(height: 14),
-                _specRow('Est. Total (Approx)', '₹${design.estimatedPrice.toStringAsFixed(0)}', isBold: true),
+                _specRow(
+                  'Est. Total (Approx)',
+                  'â‚¹${design.estimatedPrice.toStringAsFixed(0)}',
+                  isBold: true,
+                ),
               ],
             ),
           ),

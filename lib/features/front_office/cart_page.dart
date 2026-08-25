@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/localization.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../domain/models.dart';
+import '../front_office/bloc/orders_bloc.dart';
+import '../workshop/bloc/workshop_bloc.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key, required this.store, this.onBrowseDesigns});
@@ -18,13 +21,13 @@ class CartPage extends StatefulWidget {
 
 class _CartPageState extends State<CartPage> {
   ClientInfo? _selectedClient;
-  String _promiseOption = 'Due Tomorrow · 6 PM';
+  String _promiseOption = 'Due Tomorrow Â· 6 PM';
   final _notesController = TextEditingController();
   bool _isSubmitting = false;
 
   final List<String> _promiseOptions = const [
-    'Due Today · Urgent',
-    'Due Tomorrow · 6 PM',
+    'Due Today Â· Urgent',
+    'Due Tomorrow Â· 6 PM',
     'Due in 3 Days',
     'Due Next Monday',
     'Custom Date',
@@ -46,294 +49,316 @@ class _CartPageState extends State<CartPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.store,
-      builder: (context, _) {
-        final cartItems = widget.store.cart;
-
-        if (cartItems.isEmpty) {
-          return SafeArea(
-            top: false,
-            child: CommonEmptyState(
-              icon: Icons.shopping_bag_outlined,
-              title: AppStrings.cartEmpty.trClean,
-              description:
-                  'Browse our wholesale jewellery designs and select pieces for commitment.',
-              actionLabel: 'Browse Catalogue',
-              onAction: widget.onBrowseDesigns,
-            ),
+    return BlocListener<OrdersBloc, OrdersState>(
+      listener: (context, state) {
+        if (!_isSubmitting) return;
+        if (state is OrderOperationSuccess) {
+          setState(() => _isSubmitting = false);
+          context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent());
+          CommonSnackbar.success(
+            context,
+            title: 'Order Committed',
+            message: state.message,
+          );
+        } else if (state is OrdersError) {
+          setState(() => _isSubmitting = false);
+          CommonSnackbar.error(
+            context,
+            title: 'Order Placement Failed',
+            message: '${state.message} Cart was kept unchanged.',
           );
         }
+      },
+      child: AnimatedBuilder(
+        animation: widget.store,
+        builder: (context, _) {
+          final cartItems = widget.store.cart;
 
-        return SafeArea(
-          top: false,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          if (cartItems.isEmpty) {
+            return SafeArea(
+              top: false,
+              child: CommonEmptyState(
+                icon: Icons.shopping_bag_outlined,
+                title: AppStrings.cartEmpty.trClean,
+                description:
+                    'Browse our wholesale jewellery designs and select pieces for commitment.',
+                actionLabel: 'Browse Catalogue',
+                onAction: widget.onBrowseDesigns,
+              ),
+            );
+          }
+
+          return SafeArea(
+            top: false,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CommonText.headlineLarge(AppStrings.orderCart.trClean),
+                        const SizedBox(height: 2),
+                        CommonText.bodySmall(
+                          '${widget.store.cartItemsCount} designs selected',
+                          color: AppColors.muted,
+                        ),
+                      ],
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        widget.store.clearCart();
+                        CommonSnackbar.info(
+                          context,
+                          title: 'Cart Cleared',
+                          message: 'All items removed from cart.',
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.delete_sweep,
+                        size: 18,
+                        color: AppColors.danger,
+                      ),
+                      label: const Text(
+                        'Clear',
+                        style: TextStyle(color: AppColors.danger),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // 1. Client Selection Card
+                const _SectionHeader(
+                  title: '1. Select Client Firm',
+                  icon: Icons.storefront,
+                ),
+                const SizedBox(height: 8),
+                CommonCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  onTap: () => _openClientPicker(context),
+                  child: Row(
                     children: [
-                      CommonText.headlineLarge(AppStrings.orderCart.trClean),
-                      const SizedBox(height: 2),
-                      CommonText.bodySmall(
-                        '${widget.store.cartItemsCount} designs selected',
+                      const CircleAvatar(
+                        backgroundColor: AppColors.emeraldLight,
+                        radius: 20,
+                        child: Icon(
+                          Icons.business,
+                          color: AppColors.emerald,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _selectedClient?.firmName ?? 'Select Client',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _selectedClient != null
+                                  ? '${_selectedClient!.city} Â· ${_selectedClient!.contactPerson}'
+                                  : 'Tap to assign this order to a client',
+                              style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.keyboard_arrow_down,
                         color: AppColors.muted,
                       ),
                     ],
                   ),
-                  TextButton.icon(
-                    onPressed: () {
-                      widget.store.clearCart();
-                      CommonSnackbar.info(
-                        context,
-                        title: 'Cart Cleared',
-                        message: 'All items removed from cart.',
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.delete_sweep,
-                      size: 18,
-                      color: AppColors.danger,
-                    ),
-                    label: const Text(
-                      'Clear',
-                      style: TextStyle(color: AppColors.danger),
+                ),
+
+                const SizedBox(height: 20),
+
+                // 2. Selected Items
+                const _SectionHeader(
+                  title: '2. Jewellery Items',
+                  icon: Icons.diamond_outlined,
+                ),
+                const SizedBox(height: 8),
+                for (final item in cartItems)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _CartItemCard(
+                      item: item,
+                      onIncrease: () => widget.store.addToCart(item.design),
+                      onDecrease: () => widget.store.updateCartQuantity(
+                        item.design.id,
+                        item.quantity - 1,
+                      ),
+                      onRemove: () =>
+                          widget.store.removeFromCart(item.design.id),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
 
-              // 1. Client Selection Card
-              const _SectionHeader(
-                title: '1. Select Client Firm',
-                icon: Icons.storefront,
-              ),
-              const SizedBox(height: 8),
-              CommonCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                const SizedBox(height: 20),
+
+                // 3. Due Date / Dispatch Deadline
+                const _SectionHeader(
+                  title: '3. Due Date / Dispatch Deadline',
+                  icon: Icons.event_available,
                 ),
-                onTap: () => _openClientPicker(context),
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      backgroundColor: AppColors.emeraldLight,
-                      radius: 20,
-                      child: Icon(
-                        Icons.business,
-                        color: AppColors.emerald,
-                        size: 20,
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _promiseOptions.map((opt) {
+                    final isSelected = _promiseOption == opt;
+                    return InkWell(
+                      onTap: () => setState(() => _promiseOption = opt),
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusFull,
                       ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _selectedClient?.firmName ?? 'Select Client',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _selectedClient != null
-                                ? '${_selectedClient!.city} · ${_selectedClient!.contactPerson}'
-                                : 'Tap to assign this order to a client',
-                            style: const TextStyle(
-                              color: AppColors.muted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(
-                      Icons.keyboard_arrow_down,
-                      color: AppColors.muted,
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // 2. Selected Items
-              const _SectionHeader(
-                title: '2. Jewellery Items',
-                icon: Icons.diamond_outlined,
-              ),
-              const SizedBox(height: 8),
-              for (final item in cartItems)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _CartItemCard(
-                    item: item,
-                    onIncrease: () => widget.store.addToCart(item.design),
-                    onDecrease: () => widget.store.updateCartQuantity(
-                      item.design.id,
-                      item.quantity - 1,
-                    ),
-                    onRemove: () => widget.store.removeFromCart(item.design.id),
-                  ),
-                ),
-
-              const SizedBox(height: 20),
-
-              // 3. Due Date / Dispatch Deadline
-              const _SectionHeader(
-                title: '3. Due Date / Dispatch Deadline',
-                icon: Icons.event_available,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _promiseOptions.map((opt) {
-                  final isSelected = _promiseOption == opt;
-                  return InkWell(
-                    onTap: () => setState(() => _promiseOption = opt),
-                    borderRadius: BorderRadius.circular(
-                      AppDimensions.radiusFull,
-                    ),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.emeraldLight
-                            : AppColors.paper,
-                        borderRadius: BorderRadius.circular(
-                          AppDimensions.radiusFull,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7,
                         ),
-                        border: Border.all(
+                        decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.emerald
-                              : AppColors.outline,
-                          width: isSelected ? 1.5 : 1.0,
+                              ? AppColors.emeraldLight
+                              : AppColors.paper,
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusFull,
+                          ),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.emerald
+                                : AppColors.outline,
+                            width: isSelected ? 1.5 : 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSelected) ...[
+                              const Icon(
+                                Icons.check_circle,
+                                size: 14,
+                                color: AppColors.emerald,
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              opt,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? AppColors.emeraldDark
+                                    : AppColors.ink,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                CommonTextField(
+                  controller: _notesController,
+                  hintText:
+                      'Special instructions for workshop (e.g. Rhodium polish, BIS hallmark)...',
+                  maxLines: 2,
+                ),
+
+                const SizedBox(height: 24),
+
+                // 4. Weight & Financial Summary
+                CommonCard(
+                  backgroundColor: AppColors.ink,
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          if (isSelected) ...[
-                            const Icon(
-                              Icons.check_circle,
-                              size: 14,
-                              color: AppColors.emerald,
-                            ),
-                            const SizedBox(width: 6),
-                          ],
+                          const CommonText.bodyMedium(
+                            'Total Items Count',
+                            color: Colors.white70,
+                          ),
+                          CommonText.bodyLarge(
+                            '${widget.store.cartItemsCount} pcs',
+                            color: AppColors.pureWhite,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ],
+                      ),
+                      const Divider(color: Colors.white12, height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const CommonText.bodyMedium(
+                            'Total Gross Weight',
+                            color: Colors.white70,
+                          ),
                           Text(
-                            opt,
-                            style: TextStyle(
-                              color: isSelected
-                                  ? AppColors.emeraldDark
-                                  : AppColors.ink,
-                              fontWeight: isSelected
-                                  ? FontWeight.w800
-                                  : FontWeight.w600,
-                              fontSize: 12,
+                            '${widget.store.cartTotalGrossWeight.toStringAsFixed(2)} g',
+                            style: const TextStyle(
+                              color: Color(0xFFFFD18A),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 12),
-              CommonTextField(
-                controller: _notesController,
-                hintText:
-                    'Special instructions for workshop (e.g. Rhodium polish, BIS hallmark)...',
-                maxLines: 2,
-              ),
-
-              const SizedBox(height: 24),
-
-              // 4. Weight & Financial Summary
-              CommonCard(
-                backgroundColor: AppColors.ink,
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const CommonText.bodyMedium(
-                          'Total Items Count',
-                          color: Colors.white70,
-                        ),
-                        CommonText.bodyLarge(
-                          '${widget.store.cartItemsCount} pcs',
-                          color: AppColors.pureWhite,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ],
-                    ),
-                    const Divider(color: Colors.white12, height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const CommonText.bodyMedium(
-                          'Total Gross Weight',
-                          color: Colors.white70,
-                        ),
-                        Text(
-                          '${widget.store.cartTotalGrossWeight.toStringAsFixed(2)} g',
-                          style: const TextStyle(
-                            color: Color(0xFFFFD18A),
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
+                      const Divider(color: Colors.white12, height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const CommonText.bodyMedium(
+                            'Est. Total Value',
+                            color: Colors.white70,
                           ),
-                        ),
-                      ],
-                    ),
-                    const Divider(color: Colors.white12, height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const CommonText.bodyMedium(
-                          'Est. Total Value',
-                          color: Colors.white70,
-                        ),
-                        Text(
-                          '₹${widget.store.cartTotalEstimatedPrice.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                            color: AppColors.pureWhite,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18,
+                          Text(
+                            'â‚¹${widget.store.cartTotalEstimatedPrice.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              color: AppColors.pureWhite,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              CommonButton.primary(
-                isLoading: _isSubmitting,
-                icon: Icons.check_circle_outline,
-                label: 'Commit & Place Order',
-                onPressed: _placeOrder,
-              ),
-            ],
-          ),
-        );
-      },
+                CommonButton.primary(
+                  isLoading: _isSubmitting,
+                  icon: Icons.check_circle_outline,
+                  label: 'Commit & Place Order',
+                  onPressed: _placeOrder,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -375,7 +400,7 @@ class _CartPageState extends State<CartPage> {
                   client.firmName,
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
-                subtitle: Text('${client.city} · ${client.contactPerson}'),
+                subtitle: Text('${client.city} Â· ${client.contactPerson}'),
                 trailing: _selectedClient?.id == client.id
                     ? const Icon(Icons.check, color: AppColors.emerald)
                     : null,
@@ -391,7 +416,8 @@ class _CartPageState extends State<CartPage> {
   }
 
   Future<void> _placeOrder() async {
-    if (_selectedClient == null) {
+    final client = _selectedClient;
+    if (client == null) {
       CommonSnackbar.error(
         context,
         title: 'Client Required',
@@ -399,19 +425,61 @@ class _CartPageState extends State<CartPage> {
       );
       return;
     }
-
+    final cartItems = widget.store.cart;
+    if (cartItems.isEmpty) return;
+    if (cartItems.any((item) => item.design.code.trim().isEmpty)) {
+      CommonSnackbar.error(
+        context,
+        title: 'Invalid Design',
+        message: 'Every cart item must have a backend design number.',
+      );
+      return;
+    }
+    final notes = _notesController.text.trim();
+    final parts = cartItems
+        .map(
+          (item) => <String, dynamic>{
+            'designNumber': item.design.code,
+            'quantity': item.quantity,
+            'grossWeight': double.parse(
+              item.totalGrossWeight.toStringAsFixed(3),
+            ),
+            'notes': [
+              item.selectedPurity,
+              if (notes.isNotEmpty) notes,
+            ].join(' · '),
+          },
+        )
+        .toList(growable: false);
     setState(() => _isSubmitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-
-    final placedOrder = widget.store.placeOrder(
-      client: _selectedClient!,
-      promiseDate: _promiseOption,
-      notes: _notesController.text,
+    context.read<OrdersBloc>().add(
+      CreateAndCheckoutOrderEvent(
+        customerId: client.id,
+        dueDate: _apiDueDate().toUtc().toIso8601String(),
+        specialInstructions: notes,
+        parts: parts,
+        clearCart: true,
+      ),
     );
+  }
 
-    setState(() => _isSubmitting = false);
-
-    _showOrderSuccessDialog(placedOrder);
+  DateTime _apiDueDate() {
+    final now = DateTime.now();
+    if (_promiseOption.startsWith('Due Today')) {
+      return DateTime(now.year, now.month, now.day, 23, 59);
+    }
+    if (_promiseOption.startsWith('Due Tomorrow')) {
+      final tomorrow = now.add(const Duration(days: 1));
+      return DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 18);
+    }
+    if (_promiseOption == 'Due in 3 Days') {
+      return now.add(const Duration(days: 3));
+    }
+    if (_promiseOption == 'Due Next Monday') {
+      final days = (DateTime.monday - now.weekday + 7) % 7;
+      return now.add(Duration(days: days == 0 ? 7 : days));
+    }
+    return now.add(const Duration(days: 7));
   }
 
   void _showOrderSuccessDialog(CustomerOrder order) {
@@ -644,7 +712,7 @@ class _CartItemCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 CommonText.bodySmall(
-                  '${item.totalGrossWeight.toStringAsFixed(1)}g GW · ₹${item.totalEstimatedPrice.toStringAsFixed(0)}',
+                  '${item.totalGrossWeight.toStringAsFixed(1)}g GW Â· â‚¹${item.totalEstimatedPrice.toStringAsFixed(0)}',
                   color: AppColors.muted,
                 ),
               ],

@@ -3,6 +3,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
+import '../auth/widgets/authenticated_profile_card.dart';
 
 class CadMorePage extends StatefulWidget {
   const CadMorePage({super.key, required this.store});
@@ -44,99 +45,7 @@ class _CadMorePageState extends State<CadMorePage> {
               // ═══════════════════════════════════════════════════
               // 1. PROFILE CARD
               // ═══════════════════════════════════════════════════
-              CommonCard(
-                backgroundColor: AppColors.ink,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: AppColors.emerald,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'VK',
-                              style: TextStyle(
-                                color: AppColors.pureWhite,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Vikram Kumar',
-                                style: TextStyle(
-                                  color: AppColors.pureWhite,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              Text(
-                                'Senior CAD Designer · Morning Shift',
-                                style: TextStyle(
-                                  color: Color(0xFFFFD18A),
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.success.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(
-                              AppDimensions.radiusFull,
-                            ),
-                          ),
-                          child: const Text(
-                            'Active',
-                            style: TextStyle(
-                              color: AppColors.successLight,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.schedule,
-                          color: Color(0xFFFFD18A),
-                          size: 14,
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          '8:00 AM - 5:00 PM · Floor 2, Station C-04',
-                          style: TextStyle(
-                            color: Color(0xFFFFD18A),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+              const AuthenticatedProfileCard(),
 
               const SizedBox(height: 14),
 
@@ -311,7 +220,8 @@ class _CadMorePageState extends State<CadMorePage> {
                                         CommonSnackbar.success(
                                           context,
                                           title: 'Directive Acknowledged',
-                                          message: 'Marked ${directive['id']} as read.',
+                                          message:
+                                              'Marked ${directive['id']} as read.',
                                           duration: const Duration(seconds: 2),
                                         );
                                       },
@@ -323,8 +233,9 @@ class _CadMorePageState extends State<CadMorePage> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: AppColors.emerald,
-                                          borderRadius:
-                                              BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
                                         ),
                                         child: const Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -471,8 +382,7 @@ class _CadMorePageState extends State<CadMorePage> {
                       subtitle: 'Auto-import STL from MatrixGold',
                       icon: Icons.view_in_ar,
                       isConnected: _matrixGoldConnected,
-                      onToggle: (v) =>
-                          setState(() => _matrixGoldConnected = v),
+                      onToggle: (v) => setState(() => _matrixGoldConnected = v),
                     ),
                     const Divider(height: 20),
                     _SyncToggleRow(
@@ -480,8 +390,7 @@ class _CadMorePageState extends State<CadMorePage> {
                       subtitle: 'Sync .3dm files to KaratFlow',
                       icon: Icons.hub_outlined,
                       isConnected: _rhinoGoldConnected,
-                      onToggle: (v) =>
-                          setState(() => _rhinoGoldConnected = v),
+                      onToggle: (v) => setState(() => _rhinoGoldConnected = v),
                     ),
                   ],
                 ),
@@ -520,8 +429,7 @@ class _CadMorePageState extends State<CadMorePage> {
                       subtitle: '38×25mm CAD pouch labels',
                       icon: Icons.print,
                       isConnected: _printerConnected,
-                      onToggle: (v) =>
-                          setState(() => _printerConnected = v),
+                      onToggle: (v) => setState(() => _printerConnected = v),
                     ),
                   ],
                 ),
@@ -649,9 +557,7 @@ class _SyncToggleRow extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: isConnected
-                ? AppColors.emeraldLight
-                : AppColors.canvas,
+            color: isConnected ? AppColors.emeraldLight : AppColors.canvas,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
@@ -675,10 +581,7 @@ class _SyncToggleRow extends StatelessWidget {
               ),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 11,
-                ),
+                style: const TextStyle(color: AppColors.muted, fontSize: 11),
               ),
             ],
           ),

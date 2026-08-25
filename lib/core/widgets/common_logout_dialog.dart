@@ -22,7 +22,11 @@ abstract final class CommonLogoutDialog {
                 color: AppColors.dangerLight,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.logout_rounded, color: AppColors.danger, size: 22),
+              child: const Icon(
+                Icons.logout_rounded,
+                color: AppColors.danger,
+                size: 22,
+              ),
             ),
             const SizedBox(width: 12),
             const Text(
@@ -37,11 +41,7 @@ abstract final class CommonLogoutDialog {
         ),
         content: const Text(
           'Are you sure you want to sign out of KaratFlow? All active sessions and factory tokens will be cleared.',
-          style: TextStyle(
-            color: AppColors.muted,
-            fontSize: 13,
-            height: 1.45,
-          ),
+          style: TextStyle(color: AppColors.muted, fontSize: 13, height: 1.45),
         ),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
@@ -61,7 +61,9 @@ abstract final class CommonLogoutDialog {
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             icon: const Icon(Icons.logout, size: 16),
             label: const Text(

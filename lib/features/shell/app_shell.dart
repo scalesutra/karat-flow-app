@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/services/app_data_sync_service.dart';
+import '../../core/services/live_data_bloc_coordinator.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/localization/localization.dart';
 import '../../core/utils/responsive.dart';
@@ -41,22 +41,21 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
-  bool _isRefreshing = false;
-
   Future<void> _refreshApiData() async {
-    if (_isRefreshing) return;
-    setState(() => _isRefreshing = true);
-    try {
-      await AppDataSyncService.syncForRole(widget.store, widget.role);
-    } finally {
-      if (mounted) setState(() => _isRefreshing = false);
-    }
+    LiveDataBlocCoordinator.refreshForRole(context, widget.role);
   }
 
   @override
   void didUpdateWidget(covariant AppShell oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.role != widget.role) _selectedIndex = 0;
+    if (oldWidget.role != widget.role) {
+      _selectedIndex = 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          LiveDataBlocCoordinator.refreshForRole(context, widget.role);
+        }
+      });
+    }
   }
 
   @override
@@ -111,20 +110,7 @@ class _AppShellState extends State<AppShell> {
                 const VerticalDivider(width: 1),
               ],
               Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(child: body),
-                    if (_isRefreshing)
-                      Positioned.fill(
-                        child: ColoredBox(
-                          color: AppColors.canvas.withValues(alpha: 0.92),
-                          child: CommonLoadingState(
-                            theme: _indicatorTheme(widget.role),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                child: Stack(children: [Positioned.fill(child: body)]),
               ),
             ],
           ),

@@ -1,4 +1,5 @@
 import '../../../domain/models.dart';
+import '../../../data/models/api_models.dart';
 
 /// Base Orders State (Minimal, readable and clear)
 sealed class OrdersState {
@@ -35,6 +36,12 @@ final class OrderOperationSuccess extends OrdersState {
   const OrderOperationSuccess(this.message);
 
   final String message;
+}
+
+final class OrderTrackingLoaded extends OrdersState {
+  const OrderTrackingLoaded(this.tracking);
+
+  final ApiOrderTracking tracking;
 }
 
 /// Orders error occurred

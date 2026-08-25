@@ -20,19 +20,34 @@ class ClientDetailPage extends StatefulWidget {
 }
 
 class _ClientDetailPageState extends State<ClientDetailPage> {
-  int _selectedTab = 0; // 0: Financials & Orders, 1: Ledger Statement, 2: KYC & Profile
+  int _selectedTab =
+      0; // 0: Financials & Orders, 1: Ledger Statement, 2: KYC & Profile
 
   @override
   Widget build(BuildContext context) {
     final client = widget.client;
     final limitRupees = client.creditLimitLakhs * 100000;
-    final availableCredit = (limitRupees - client.outstandingBalance).clamp(0.0, limitRupees);
-    final percent = (client.outstandingBalance / (limitRupees > 0 ? limitRupees : 1)).clamp(0.0, 1.0);
+    final availableCredit = (limitRupees - client.outstandingBalance).clamp(
+      0.0,
+      limitRupees,
+    );
+    final percent =
+        (client.outstandingBalance / (limitRupees > 0 ? limitRupees : 1)).clamp(
+          0.0,
+          1.0,
+        );
 
     // Filter orders matching client or seed realistic client orders
     final clientOrders = widget.store.orders
-        .where((o) => o.clientFirmName.toLowerCase().contains(client.firmName.toLowerCase()) ||
-            client.firmName.toLowerCase().contains(o.clientFirmName.toLowerCase()))
+        .where(
+          (o) =>
+              o.clientFirmName.toLowerCase().contains(
+                client.firmName.toLowerCase(),
+              ) ||
+              client.firmName.toLowerCase().contains(
+                o.clientFirmName.toLowerCase(),
+              ),
+        )
         .toList();
 
     return Scaffold(
@@ -50,7 +65,9 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
           IconButton(
             tooltip: 'Share Ledger via WhatsApp',
             icon: const Icon(Icons.share_outlined, color: AppColors.emerald),
-            onPressed: () => _showContactSnackbar('Exporting statement PDF for ${client.firmName}...'),
+            onPressed: () => _showContactSnackbar(
+              'Exporting statement PDF for ${client.firmName}...',
+            ),
           ),
         ],
       ),
@@ -86,30 +103,49 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                           children: [
                             Text(
                               client.firmName,
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               '${client.city} · GSTIN: 24AAACR${client.id.replaceAll(RegExp(r'[^0-9]'), '')}92Z4',
-                              style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                              style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 11,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               'Key Person: ${client.contactPerson} (${client.phone})',
-                              style: const TextStyle(color: AppColors.ink, fontSize: 12, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                color: AppColors.ink,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.emeraldLight,
-                          borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusFull,
+                          ),
                         ),
                         child: const Text(
                           'Tier 1 Wholesale',
-                          style: TextStyle(color: AppColors.emeraldDark, fontWeight: FontWeight.w800, fontSize: 10),
+                          style: TextStyle(
+                            color: AppColors.emeraldDark,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 10,
+                          ),
                         ),
                       ),
                     ],
@@ -122,7 +158,9 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                           height: 36,
                           icon: Icons.phone,
                           label: 'Call Direct',
-                          onPressed: () => _showContactSnackbar('Dialing ${client.phone}...'),
+                          onPressed: () => _showContactSnackbar(
+                            'Dialing ${client.phone}...',
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -131,7 +169,9 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                           height: 36,
                           icon: Icons.chat_bubble_outline,
                           label: 'WhatsApp',
-                          onPressed: () => _showContactSnackbar('Opening WhatsApp chat for ${client.contactPerson}...'),
+                          onPressed: () => _showContactSnackbar(
+                            'Opening WhatsApp chat for ${client.contactPerson}...',
+                          ),
                         ),
                       ),
                     ],
@@ -156,19 +196,32 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                           'Credit Allocation & Ledger Balance',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Color(0xFFFFD18A), fontWeight: FontWeight.w800, fontSize: 13),
+                          style: TextStyle(
+                            color: Color(0xFFFFD18A),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
-                          color: percent > 0.8 ? AppColors.danger : AppColors.emerald,
+                          color: percent > 0.8
+                              ? AppColors.danger
+                              : AppColors.emerald,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           percent > 0.8 ? 'Near Cap' : 'Good Standing',
-                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ],
@@ -179,21 +232,24 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                       Expanded(
                         child: _darkStat(
                           label: 'Outstanding Due',
-                          value: '₹${(client.outstandingBalance / 100000).toStringAsFixed(2)} L',
+                          value:
+                              '₹${(client.outstandingBalance / 100000).toStringAsFixed(2)} L',
                           color: const Color(0xFFFFA88D),
                         ),
                       ),
                       Expanded(
                         child: _darkStat(
                           label: 'Credit Limit',
-                          value: '₹${client.creditLimitLakhs.toStringAsFixed(1)} L',
+                          value:
+                              '₹${client.creditLimitLakhs.toStringAsFixed(1)} L',
                           color: Colors.white,
                         ),
                       ),
                       Expanded(
                         child: _darkStat(
                           label: 'Free Headroom',
-                          value: '₹${(availableCredit / 100000).toStringAsFixed(2)} L',
+                          value:
+                              '₹${(availableCredit / 100000).toStringAsFixed(2)} L',
                           color: const Color(0xFFA9DDD0),
                         ),
                       ),
@@ -207,7 +263,9 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                       minHeight: 6,
                       backgroundColor: Colors.white24,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        percent > 0.8 ? const Color(0xFFFFA88D) : const Color(0xFFA9DDD0),
+                        percent > 0.8
+                            ? const Color(0xFFFFA88D)
+                            : const Color(0xFFA9DDD0),
                       ),
                     ),
                   ),
@@ -226,7 +284,11 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                       SizedBox(width: 8),
                       Text(
                         'Last: 18 Aug (₹12.5L)',
-                        style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -246,7 +308,10 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
               ),
               child: Row(
                 children: [
-                  _tabButton(0, 'Orders (${clientOrders.isNotEmpty ? clientOrders.length : client.activeOrdersCount})'),
+                  _tabButton(
+                    0,
+                    'Orders (${clientOrders.isNotEmpty ? clientOrders.length : client.activeOrdersCount})',
+                  ),
                   _tabButton(1, 'Ledger'),
                   _tabButton(2, 'Terms & KYC'),
                 ],
@@ -263,16 +328,26 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                   child: Center(
                     child: Column(
                       children: [
-                        const Icon(Icons.inventory_2_outlined, color: AppColors.muted, size: 40),
+                        const Icon(
+                          Icons.inventory_2_outlined,
+                          color: AppColors.muted,
+                          size: 40,
+                        ),
                         const SizedBox(height: 10),
                         Text(
                           'No ongoing workshop orders for ${client.firmName}',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         const Text(
                           'All prior batches have been dispatched and settled.',
-                          style: TextStyle(color: AppColors.muted, fontSize: 11),
+                          style: TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),
@@ -318,7 +393,8 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                     CommonSnackbar.info(
                       context,
                       title: 'Create Order',
-                      message: 'Opening catalogue with client ${client.firmName} pre-selected.',
+                      message:
+                          'Opening catalogue with client ${client.firmName} pre-selected.',
                     );
                   },
                 ),
@@ -357,23 +433,61 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
     );
   }
 
-  Widget _darkStat({required String label, required String value, required Color color}) {
+  Widget _darkStat({
+    required String label,
+    required String value,
+    required Color color,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 16)),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.w900,
+            fontSize: 16,
+          ),
+        ),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 10),
+        ),
       ],
     );
   }
 
   Widget _buildLedgerStatement(ClientInfo client) {
     final transactions = [
-      {'date': '18 Aug 2026', 'type': 'Payment Received (RTGS)', 'amount': '₹12,50,000', 'isCredit': true, 'ref': 'UTR: HDFC8492049'},
-      {'date': '12 Aug 2026', 'type': 'Invoice #INV-10479 (Necklace Batch)', 'amount': '₹18,40,000', 'isCredit': false, 'ref': '248.5 g 22K Finished'},
-      {'date': '04 Aug 2026', 'type': 'Gold Bar Deposit (24K Bullion)', 'amount': '200.000 g', 'isCredit': true, 'ref': 'Assay Voucher #AV-892'},
-      {'date': '28 Jul 2026', 'type': 'Invoice #INV-10452 (Bangle Batch)', 'amount': '₹14,20,000', 'isCredit': false, 'ref': '190.0 g 22K Finished'},
+      {
+        'date': '18 Aug 2026',
+        'type': 'Payment Received (RTGS)',
+        'amount': '₹12,50,000',
+        'isCredit': true,
+        'ref': 'UTR: HDFC8492049',
+      },
+      {
+        'date': '12 Aug 2026',
+        'type': 'Invoice #INV-10479 (Necklace Batch)',
+        'amount': '₹18,40,000',
+        'isCredit': false,
+        'ref': '248.5 g 22K Finished',
+      },
+      {
+        'date': '04 Aug 2026',
+        'type': 'Gold Bar Deposit (24K Bullion)',
+        'amount': '200.000 g',
+        'isCredit': true,
+        'ref': 'Assay Voucher #AV-892',
+      },
+      {
+        'date': '28 Jul 2026',
+        'type': 'Invoice #INV-10452 (Bangle Batch)',
+        'amount': '₹14,20,000',
+        'isCredit': false,
+        'ref': '190.0 g 22K Finished',
+      },
     ];
 
     return Column(
@@ -389,12 +503,18 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: (tx['isCredit'] as bool) ? AppColors.emeraldLight : AppColors.dangerLight,
+                      color: (tx['isCredit'] as bool)
+                          ? AppColors.emeraldLight
+                          : AppColors.dangerLight,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
-                      (tx['isCredit'] as bool) ? Icons.arrow_downward : Icons.arrow_upward,
-                      color: (tx['isCredit'] as bool) ? AppColors.emerald : AppColors.danger,
+                      (tx['isCredit'] as bool)
+                          ? Icons.arrow_downward
+                          : Icons.arrow_upward,
+                      color: (tx['isCredit'] as bool)
+                          ? AppColors.emerald
+                          : AppColors.danger,
                       size: 18,
                     ),
                   ),
@@ -403,9 +523,21 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(tx['type'] as String, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                        Text(
+                          tx['type'] as String,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
                         const SizedBox(height: 2),
-                        Text('${tx['date']} · ${tx['ref']}', style: const TextStyle(color: AppColors.muted, fontSize: 10)),
+                        Text(
+                          '${tx['date']} · ${tx['ref']}',
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 10,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -414,7 +546,9 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 12,
-                      color: (tx['isCredit'] as bool) ? AppColors.emerald : AppColors.danger,
+                      color: (tx['isCredit'] as bool)
+                          ? AppColors.emerald
+                          : AppColors.danger,
                     ),
                   ),
                 ],
@@ -430,13 +564,22 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Commercial Terms & Governance', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+          const Text(
+            'Commercial Terms & Governance',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          ),
           const SizedBox(height: 10),
           _kycRow('Business Category', 'B2B Wholesale Jeweller & Retail Chain'),
           _kycRow('Billing Currency', 'INR (₹) · Making Charges + Purity Base'),
-          _kycRow('GST Verification', 'Verified Active (State Jurisdiction 24)'),
+          _kycRow(
+            'GST Verification',
+            'Verified Active (State Jurisdiction 24)',
+          ),
           _kycRow('Cheque Bounce History', '0 Incidents · Tier 1 Trust Record'),
-          _kycRow('Delivery Location', '${client.city} Wholesale Jewellery Complex'),
+          _kycRow(
+            'Delivery Location',
+            '${client.city} Wholesale Jewellery Complex',
+          ),
           _kycRow('Assigned Account Exec', 'Neha Sharma (Front Office Senior)'),
         ],
       ),
@@ -451,10 +594,20 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
         children: [
           SizedBox(
             width: 130,
-            child: Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+            child: Text(
+              label,
+              style: const TextStyle(color: AppColors.muted, fontSize: 11),
+            ),
           ),
           Expanded(
-            child: Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: AppColors.ink)),
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+                color: AppColors.ink,
+              ),
+            ),
           ),
         ],
       ),
@@ -462,7 +615,9 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
   }
 
   void _openAdjustCreditSheet(BuildContext context) {
-    final limitCtrl = TextEditingController(text: widget.client.creditLimitLakhs.toStringAsFixed(0));
+    final limitCtrl = TextEditingController(
+      text: widget.client.creditLimitLakhs.toStringAsFixed(0),
+    );
 
     showModalBottomSheet<void>(
       context: context,
@@ -472,7 +627,12 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          16,
+          20,
+          MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -481,13 +641,22 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
               child: Container(
                 width: 40,
                 height: 4,
-                decoration: BoxDecoration(color: AppColors.outline, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(
+                  color: AppColors.outline,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
             const SizedBox(height: 16),
-            Text('Adjust Credit Limit · ${widget.client.firmName}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            Text(
+              'Adjust Credit Limit · ${widget.client.firmName}',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
             const SizedBox(height: 4),
-            const Text('Set approved borrowing & WIP order cap in Lakhs (₹)', style: TextStyle(color: AppColors.muted, fontSize: 11)),
+            const Text(
+              'Set approved borrowing & WIP order cap in Lakhs (₹)',
+              style: TextStyle(color: AppColors.muted, fontSize: 11),
+            ),
             const SizedBox(height: 14),
             CommonTextField(
               controller: limitCtrl,
@@ -504,7 +673,8 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                   CommonSnackbar.success(
                     context,
                     title: 'Limit Updated',
-                    message: 'Credit cap for ${widget.client.firmName} updated to ₹${limitCtrl.text}L.',
+                    message:
+                        'Credit cap for ${widget.client.firmName} updated to ₹${limitCtrl.text}L.',
                   );
                 },
               ),
@@ -516,11 +686,7 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
   }
 
   void _showContactSnackbar(String msg) {
-    CommonSnackbar.info(
-      context,
-      title: 'Client Contact',
-      message: msg,
-    );
+    CommonSnackbar.info(context, title: 'Client Contact', message: msg);
   }
 }
 
@@ -533,7 +699,9 @@ class _ClientOrderTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final statusColor = order.status == OrderStatus.inWorkshop
         ? AppColors.emerald
-        : (order.status == OrderStatus.pending ? AppColors.warning : AppColors.goldDark);
+        : (order.status == OrderStatus.pending
+              ? AppColors.warning
+              : AppColors.goldDark);
 
     return CommonCard(
       child: Column(
@@ -544,30 +712,64 @@ class _ClientOrderTile extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: AppColors.emeraldLight, borderRadius: BorderRadius.circular(4)),
-                child: Text(order.id, style: const TextStyle(color: AppColors.emerald, fontWeight: FontWeight.w800, fontSize: 11)),
+                decoration: BoxDecoration(
+                  color: AppColors.emeraldLight,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  order.id,
+                  style: const TextStyle(
+                    color: AppColors.emerald,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                  ),
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
-                child: Text(order.status.label, style: TextStyle(color: statusColor, fontWeight: FontWeight.w800, fontSize: 10)),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  order.status.label,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 10,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(order.itemsSummary, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          Text(
+            order.itemsSummary,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${order.totalGrossGrams} g GW', style: const TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w600)),
+              Text(
+                '${order.totalGrossGrams} g GW',
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   'Delivery: ${order.promiseDate}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.emeraldDark, fontSize: 11, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    color: AppColors.emeraldDark,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],

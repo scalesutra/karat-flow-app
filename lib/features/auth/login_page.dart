@@ -5,14 +5,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:jewellery_ops_mobile/routes/app_pages.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/services/app_data_sync_service.dart';
+import '../../core/services/live_data_bloc_coordinator.dart';
 import '../../core/widgets/common_button.dart';
 import '../../core/widgets/common_card.dart';
 import '../../core/widgets/common_progress_indicator.dart';
 import '../../core/widgets/common_snackbar.dart';
 import '../../core/widgets/common_text_field.dart';
 import '../../domain/models.dart';
-import '../../data/demo_store.dart';
 import '../../routes/app_routes.dart';
 import 'bloc/auth_bloc.dart';
 
@@ -25,10 +24,9 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(text: 'admin@karratflow.com');
-  final _passwordController = TextEditingController(text: 'Admin@123');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
-  bool _isSyncingApiData = false;
 
   @override
   void dispose() {
@@ -48,13 +46,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  void _quickFill(String email, String password) {
-    setState(() {
-      _emailController.text = email;
-      _passwordController.text = password;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -69,6 +60,7 @@ class _LoginPageState extends State<LoginPage> {
               'FRONTIER' => AppRole.frontOffice,
               'FRONT_OFFICE' => AppRole.frontOffice,
               'PRODUCTION_MANAGER' => AppRole.processManager,
+              'PROCESS_MANAGER' => AppRole.processManager,
               'RAW_DESIGNER' => AppRole.cadDesigner,
               'THREE_D_DESIGNER' => AppRole.cadDesigner,
               'CAD_DESIGNER' => AppRole.cadDesigner,
@@ -78,11 +70,7 @@ class _LoginPageState extends State<LoginPage> {
             roleController.setRole(targetRole);
 
             // All protected APIs must run after the login token is saved.
-            setState(() => _isSyncingApiData = true);
-            await AppDataSyncService.syncForRole(
-              Get.find<DemoStore>(),
-              targetRole,
-            );
+            LiveDataBlocCoordinator.refreshForRole(context, targetRole);
 
             if (!context.mounted) return;
 
@@ -101,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
           }
         },
         builder: (context, state) {
-          final isLoading = state is AuthLoading || _isSyncingApiData;
+          final isLoading = state is AuthLoading;
 
           return SafeArea(
             child: Center(
@@ -314,7 +302,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 20),
 
-                      // ── 3. Quick-Fill Testing Helper Chips ───────────
+                      /*
                       CommonCard(
                         backgroundColor: AppColors.paper,
                         padding: const EdgeInsets.all(16),
@@ -445,7 +433,8 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ],
                         ),
-                      ),
+                      ), */
+                      const SizedBox.shrink(),
                     ],
                   ),
                 ),

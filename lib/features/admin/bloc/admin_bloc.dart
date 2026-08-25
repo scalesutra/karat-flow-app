@@ -1,15 +1,14 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../../data/demo_store.dart';
+import '../../../data/mappers/api_domain_mapper.dart';
 import '../../../data/repositories/karatflow_api_repository.dart';
-import '../../../domain/models.dart';
 import 'admin_event.dart';
 import 'admin_state.dart';
 
 export 'admin_event.dart';
 export 'admin_state.dart';
 
-/// Admin Governance & Operations BLoC with Strict Live Backend APIs (/employees, /customers, /sketches, /stages) & Debug Logs
 class AdminBloc extends Bloc<AdminEvent, AdminState> {
   AdminBloc({required DemoStore store, KaratFlowApiRepository? apiRepository})
     : _store = store,
@@ -17,8 +16,19 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       super(const AdminInitial()) {
     on<FetchAdminDashboardEvent>(_onFetchDashboard);
     on<AddArtisanEvent>(_onAddArtisan);
-    on<SendDirectiveEvent>(_onSendDirective);
-    on<ApproveSketchDesignEvent>(_onApproveSketchDesign);
+    on<UpdateEmployeeEvent>(_onUpdateEmployee);
+    on<RegisterCustomerEvent>(_onRegisterCustomer);
+    on<UpdateCustomerEvent>(_onUpdateCustomer);
+    on<CreateStageEvent>(_onCreateStage);
+    on<UpdateStageEvent>(_onUpdateStage);
+    on<DeleteStageEvent>(_onDeleteStage);
+    on<UploadSketchEvent>(_onUploadSketch);
+    on<ReuploadSketchEvent>(_onReuploadSketch);
+    on<ApproveSketchDesignEvent>(_onApproveSketch);
+    on<ReviewSketchDirectiveEvent>(_onReviewSketchDirective);
+    on<CheckSystemHealthEvent>(_onCheckHealth);
+    on<SendDirectiveEvent>(_onUnsupportedDirective);
+    on<FetchStockInventoryEvent>(_onUnsupportedStock);
   }
 
   final DemoStore _store;
@@ -29,82 +39,29 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     Emitter<AdminState> emit,
   ) async {
     emit(const AdminLoading());
-    debugPrint(
-      '👑 [AdminBloc] Fetching live admin dashboard from GET /employees, GET /customers, GET /sketches...',
-    );
     try {
       final employees = await _api.listEmployees();
-      final customers = await _api.listCustomers();
-      final sketches = await _api.listSketches();
-
-      debugPrint(
-        '✅ [AdminBloc] Received ${employees.length} employees, ${customers.length} clients, ${sketches.length} sketches.',
-      );
-
-      final mappedTeam = employees.map((emp) {
-        return TeamMember(
-          id: emp.id,
-          name: emp.name,
-          craft: emp.role,
-          shift: 'General Shift',
-          activeLotsCount: emp.workerAssignmentsCount,
-          status: emp.isActive
-              ? EmployeeStatus.available
-              : EmployeeStatus.blocked,
-          todayEfficiencyPercent: 100,
-          currentAssignment: 'Assignments: ${emp.workerAssignmentsCount}',
-        );
-      }).toList();
-      _store.setTeam(mappedTeam);
-
-      final mappedClients = customers.map((c) {
-        return ClientInfo(
-          id: c.id,
-          firmName: c.name,
-          city: c.city,
-          contactPerson: c.contactPerson,
-          phone: c.phone,
-          creditLimitLakhs: c.creditLimitLakhs,
-          outstandingBalance: c.outstandingLakhs * 100000.0,
-          activeOrdersCount: c.ordersCount,
-        );
-      }).toList();
-      _store.setClients(mappedClients);
-
-      final mappedDesigns = sketches.map((sk) {
-        return JewelleryDesign(
-          id: sk.id,
-          name: sk.title,
-          code: sk.designNumber,
-          category: JewelleryCategory.necklaces,
-          purity: '22KT',
-          grossWeightGrams: 48.65,
-          estimatedPrice: 382000.0,
-          imageUrl: sk.sketchUrl,
-          description: sk.adminInstructions ?? 'Raw client 2D sketch',
-        );
-      }).toList();
-      _store.setDesigns(mappedDesigns);
-
-      final rawDirectives = List<Map<String, String>>.from(
-        _store.adminDirectives,
-      );
-
+      final customers = await _api.listCustomers(limit: 100);
+      final sketches = await _api.listSketches(limit: 100);
+      final stages = await _api.listStages();
+      final team = employees.map(ApiDomainMapper.employee).toList();
+      final clients = customers.map(ApiDomainMapper.customer).toList();
+      final designs = sketches.map(ApiDomainMapper.sketch).toList();
+      _store
+        ..setTeam(team)
+        ..setClients(clients)
+        ..setDesigns(designs)
+        ..setStages(stages);
       emit(
         AdminLoaded(
-          team: mappedTeam,
-          clients: mappedClients,
-          designs: mappedDesigns,
-          directives: rawDirectives,
+          team: team,
+          clients: clients,
+          designs: designs,
+          directives: const [],
         ),
       );
-    } catch (e) {
-      debugPrint('❌ [AdminBloc] Failed to fetch admin overview: $e');
-      emit(
-        AdminError(
-          'Failed to fetch admin overview from live API: ${e.toString()}',
-        ),
-      );
+    } catch (error) {
+      emit(AdminError('Failed to load admin data: $error'));
     }
   }
 
@@ -113,72 +70,262 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     Emitter<AdminState> emit,
   ) async {
     emit(const AdminLoading());
-    debugPrint(
-      '➕ [AdminBloc] Onboarding new employee on POST /employees: ${event.member.name}...',
-    );
     try {
-      final sanitizedName = event.member.name.toLowerCase().replaceAll(
-        ' ',
-        '.',
-      );
       await _api.onboardEmployee(
         name: event.member.name,
-        email: '$sanitizedName@karratflow.com',
+        email: event.email,
         phone: event.phone,
-        stageId: event.stageId,
         role: 'OTHER_EMPLOYEE',
       );
-
-      debugPrint('🎉 [AdminBloc] Employee onboarded successfully on server.');
-      emit(
-        AdminActionSuccess(
-          'Artisan ${event.member.name} registered successfully on live backend.',
-        ),
-      );
+      emit(const AdminActionSuccess('Employee onboarded successfully.'));
       add(const FetchAdminDashboardEvent());
-    } catch (e) {
-      debugPrint('❌ [AdminBloc] Failed to add artisan: $e');
-      emit(AdminError('Failed to add artisan on live server: ${e.toString()}'));
+    } catch (error) {
+      emit(AdminError('Failed to onboard employee: $error'));
     }
   }
 
-  Future<void> _onSendDirective(
-    SendDirectiveEvent event,
+  Future<void> _onUpdateEmployee(
+    UpdateEmployeeEvent event,
     Emitter<AdminState> emit,
   ) async {
     try {
-      _store.addAdminDirective(event.recipient, event.directive);
-      emit(AdminActionSuccess('Directive dispatched to ${event.recipient}.'));
+      await _api.updateEmployeeRole(
+        id: event.employeeId,
+        role: event.role,
+        isActive: event.isActive,
+      );
+      emit(const AdminActionSuccess('Employee updated successfully.'));
       add(const FetchAdminDashboardEvent());
-    } catch (e) {
-      emit(AdminError('Failed to send directive: ${e.toString()}'));
+    } catch (error) {
+      emit(AdminError('Failed to update employee: $error'));
     }
   }
 
-  Future<void> _onApproveSketchDesign(
+  Future<void> _onRegisterCustomer(
+    RegisterCustomerEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    try {
+      await _api.registerCustomer(
+        name: event.name,
+        city: event.city,
+        contactPerson: event.contactPerson,
+        phone: event.phone,
+        email: event.email,
+        creditLimitLakhs: event.creditLimitLakhs,
+        notes: event.notes,
+      );
+      emit(const AdminActionSuccess('Customer registered successfully.'));
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      emit(AdminError('Failed to register customer: $error'));
+    }
+  }
+
+  Future<void> _onUpdateCustomer(
+    UpdateCustomerEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    try {
+      await _api.editCustomerCredit(
+        id: event.customerId,
+        creditLimitLakhs: event.creditLimitLakhs,
+        notes: event.notes,
+      );
+      emit(const AdminActionSuccess('Customer updated successfully.'));
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      emit(AdminError('Failed to update customer: $error'));
+    }
+  }
+
+  Future<void> _onCreateStage(
+    CreateStageEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    try {
+      await _api.createStage(
+        name: event.name,
+        stageNumber: event.stageNumber,
+        description: event.description,
+      );
+      emit(const AdminActionSuccess('Production stage created.'));
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      emit(AdminError('Failed to create stage: $error'));
+    }
+  }
+
+  Future<void> _onUpdateStage(
+    UpdateStageEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    try {
+      await _api.updateStage(
+        id: event.stageId,
+        name: event.name,
+        isActive: event.isActive,
+      );
+      emit(const AdminActionSuccess('Production stage updated.'));
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      emit(AdminError('Failed to update stage: $error'));
+    }
+  }
+
+  Future<void> _onDeleteStage(
+    DeleteStageEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    try {
+      await _api.deleteStage(event.stageId);
+      emit(const AdminActionSuccess('Production stage deleted.'));
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      emit(AdminError('Failed to delete stage: $error'));
+    }
+  }
+
+  Future<void> _onUploadSketch(
+    UploadSketchEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    emit(const AdminLoading());
+    try {
+      final upload = await _api.uploadFile(
+        fileName: event.fileName,
+        fileType: _imageContentType(event.fileName),
+        folder: 'sketches',
+        bytes: event.bytes,
+      );
+      await _api.uploadSketch(
+        designNumber: event.designNumber,
+        title: event.title,
+        sketchUrl: upload.fileUrl,
+      );
+      emit(const AdminActionSuccess('Sketch uploaded successfully.'));
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      emit(AdminError('Failed to upload sketch: $error'));
+    }
+  }
+
+  Future<void> _onReuploadSketch(
+    ReuploadSketchEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    emit(const AdminLoading());
+    try {
+      final upload = await _api.uploadFile(
+        fileName: event.fileName,
+        fileType: _imageContentType(event.fileName),
+        folder: 'sketches',
+        bytes: event.bytes,
+      );
+      await _api.reuploadSketch(
+        id: event.sketchId,
+        title: event.title,
+        sketchUrl: upload.fileUrl,
+      );
+      emit(const AdminActionSuccess('Sketch revision uploaded.'));
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      emit(AdminError('Failed to re-upload sketch: $error'));
+    }
+  }
+
+  Future<void> _onApproveSketch(
     ApproveSketchDesignEvent event,
     Emitter<AdminState> emit,
   ) async {
-    debugPrint(
-      '✍️ [AdminBloc] Approving sketch on PATCH /sketches/${event.designCode}/review...',
-    );
     try {
       await _api.reviewSketch(
-        id: event.designCode,
+        id: event.sketchId,
         status: 'APPROVED',
         adminInstructions: 'Approved for 3D CAD modeling',
       );
-
-      debugPrint('✅ [AdminBloc] Sketch approved successfully on live backend.');
-      emit(
-        AdminActionSuccess(
-          'Sketch ${event.designCode} approved on live server for 3D CAD modeling.',
-        ),
-      );
+      emit(const AdminActionSuccess('Sketch approved successfully.'));
       add(const FetchAdminDashboardEvent());
-    } catch (e) {
-      debugPrint('❌ [AdminBloc] Failed to approve sketch: $e');
-      emit(AdminError('Failed to approve sketch on live API: ${e.toString()}'));
+    } catch (error) {
+      emit(AdminError('Failed to approve sketch: $error'));
     }
+  }
+
+  Future<void> _onReviewSketchDirective(
+    ReviewSketchDirectiveEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    emit(const AdminLoading());
+    try {
+      String? audioUrl;
+      final audioBytes = event.audioBytes;
+      final audioFileName = event.audioFileName;
+      if (audioBytes != null &&
+          audioBytes.isNotEmpty &&
+          audioFileName != null &&
+          audioFileName.isNotEmpty) {
+        final upload = await _api.uploadFile(
+          fileName: audioFileName,
+          fileType: 'audio/mp4',
+          folder: 'audio-instructions',
+          bytes: audioBytes,
+        );
+        audioUrl = upload.fileUrl;
+      }
+
+      await _api.reviewSketch(
+        id: event.sketchId,
+        status: 'REJECTED',
+        adminInstructions: event.instructions,
+        feedbackAudioUrl: audioUrl,
+      );
+      emit(const AdminActionSuccess('Sketch directive sent successfully.'));
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      emit(AdminError('Failed to send sketch directive: $error'));
+    }
+  }
+
+  Future<void> _onCheckHealth(
+    CheckSystemHealthEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    emit(const AdminLoading());
+    try {
+      emit(AdminHealthLoaded(await _api.checkHealth()));
+    } catch (error) {
+      emit(AdminError('Health check failed: $error'));
+    }
+  }
+
+  void _onUnsupportedDirective(
+    SendDirectiveEvent event,
+    Emitter<AdminState> emit,
+  ) {
+    emit(
+      const AdminError(
+        'The backend API does not provide a directives endpoint.',
+      ),
+    );
+  }
+
+  void _onUnsupportedStock(
+    FetchStockInventoryEvent event,
+    Emitter<AdminState> emit,
+  ) {
+    emit(
+      const AdminError(
+        'The backend API does not provide a stock inventory endpoint.',
+      ),
+    );
+  }
+
+  String _imageContentType(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+      return 'image/jpeg';
+    }
+    if (lower.endsWith('.webp')) return 'image/webp';
+    return 'image/png';
   }
 }

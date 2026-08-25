@@ -3,6 +3,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
+import '../auth/widgets/authenticated_profile_card.dart';
 
 class FrontOfficeMorePage extends StatefulWidget {
   const FrontOfficeMorePage({super.key, required this.store});
@@ -61,6 +62,9 @@ class _FrontOfficeMorePageState extends State<FrontOfficeMorePage> {
             color: AppColors.muted,
           ),
           const SizedBox(height: 10),
+
+          const AuthenticatedProfileCard(),
+          const SizedBox(height: 14),
 
           // 1. LIVE GOLD & SILVER TICKER
           CommonCard(
@@ -381,7 +385,8 @@ class _FrontOfficeMorePageState extends State<FrontOfficeMorePage> {
                       CommonSnackbar.info(
                         context,
                         title: 'Quotation Copied',
-                        message: '₹${total.toStringAsFixed(0)} estimate copied to clipboard.',
+                        message:
+                            '₹${total.toStringAsFixed(0)} estimate copied to clipboard.',
                       );
                     },
                   ),

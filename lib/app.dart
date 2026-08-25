@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'core/localization/localization.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/widgets/live_bloc_feedback.dart';
 import 'data/demo_store.dart';
 import 'domain/models.dart';
 import 'features/admin/bloc/admin_bloc.dart';
@@ -46,7 +47,7 @@ class _JewelleryOpsAppState extends State<JewelleryOpsApp> {
           create: (_) => AuthBloc()..add(const AuthCheckRequested()),
         ),
         BlocProvider<OrdersBloc>(create: (_) => OrdersBloc(store: _store)),
-        BlocProvider<WorkshopBloc>(create: (_) => WorkshopBloc()),
+        BlocProvider<WorkshopBloc>(create: (_) => WorkshopBloc(store: _store)),
         BlocProvider<CadBloc>(create: (_) => CadBloc(store: _store)),
         BlocProvider<AdminBloc>(create: (_) => AdminBloc(store: _store)),
       ],
@@ -60,6 +61,8 @@ class _JewelleryOpsAppState extends State<JewelleryOpsApp> {
         initialRoute: AppPages.initial,
         getPages: AppPages.routes,
         defaultTransition: Transition.cupertino,
+        builder: (context, child) =>
+            LiveBlocFeedback(child: child ?? const SizedBox.shrink()),
       ),
     );
   }

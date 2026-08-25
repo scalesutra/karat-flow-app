@@ -3,67 +3,66 @@ import 'package:jewellery_ops_mobile/data/demo_store.dart';
 import 'package:jewellery_ops_mobile/domain/models.dart';
 
 void main() {
-  test('instruction keeps target context through its lifecycle', () {
-    final store = DemoStore.seeded();
+  test('live presentation cache starts empty', () {
+    final store = DemoStore.empty();
     addTearDown(store.dispose);
-    final target = store.workItemsFor(StatusPivot.orders).first;
 
-    final instruction = store.addInstruction(
-      target: target,
-      message: 'Confirm the replacement stones.',
-      urgency: InstructionUrgency.urgent,
-      hasPhoto: true,
-    );
-
-    expect(instruction.targetId, target.id);
-    expect(instruction.targetLabel, 'Order ${target.id}');
-    expect(instruction.status, InstructionStatus.sent);
-    expect(store.instructions.first.id, instruction.id);
-
-    store.setInstructionStatus(instruction.id, InstructionStatus.acknowledged);
-    expect(store.instructions.first.status, InstructionStatus.acknowledged);
-
-    store.setInstructionStatus(instruction.id, InstructionStatus.resolved);
-    expect(store.instructions.first.status, InstructionStatus.resolved);
+    expect(store.orders, isEmpty);
+    expect(store.clients, isEmpty);
+    expect(store.designs, isEmpty);
+    expect(store.lots, isEmpty);
+    expect(store.team, isEmpty);
+    expect(store.cadTasks, isEmpty);
+    expect(store.stages, isEmpty);
+    expect(store.stock, isEmpty);
   });
 
-  test('createDirectOrder creates order with designs, quantities and due date', () {
-    final store = DemoStore.seeded();
+  test('API setters replace rather than merge live data', () {
+    final store = DemoStore.empty();
     addTearDown(store.dispose);
-
-    final client = store.clients.first;
-    final design = store.designs.first;
-    final initialOrderCount = store.orders.length;
-
-    final order = store.createDirectOrder(
-      client: client,
-      items: [
-        {'design': design, 'quantity': 3},
-      ],
-      dueDate: 'Due Tomorrow · 12:00 PM',
-      notes: 'Urgent wholesale request',
+    final first = ClientInfo(
+      id: 'customer-1',
+      firmName: 'First',
+      city: 'Jaipur',
+      contactPerson: 'Owner',
+      phone: '+910000000001',
+      creditLimitLakhs: 10,
+      outstandingBalance: 0,
+      activeOrdersCount: 0,
+    );
+    final second = ClientInfo(
+      id: 'customer-2',
+      firmName: 'Second',
+      city: 'Mumbai',
+      contactPerson: 'Owner',
+      phone: '+910000000002',
+      creditLimitLakhs: 20,
+      outstandingBalance: 0,
+      activeOrdersCount: 0,
     );
 
-    expect(store.orders.length, initialOrderCount + 1);
-    expect(order.clientFirmName, client.firmName);
-    expect(order.itemsCount, 3);
-    expect(order.promiseDate, 'Due Tomorrow · 12:00 PM');
-    expect(order.itemsSummary, contains(design.name));
+    store.setClients([first]);
+    store.setClients([second]);
+
+    expect(store.clients, hasLength(1));
+    expect(store.clients.single.id, 'customer-2');
   });
 
-  test('toggleOrderHold updates order blocked status correctly', () {
-    final store = DemoStore.seeded();
+  test('cart remains temporary UI state only', () {
+    final store = DemoStore.empty();
     addTearDown(store.dispose);
+    const design = JewelleryDesign(
+      id: 'design-1',
+      name: 'Ring',
+      code: 'RG-1',
+      category: JewelleryCategory.rings,
+      purity: '22KT',
+      description: '',
+    );
 
-    final firstOrderId = store.orders.first.id;
-    expect(store.orders.first.isBlocked, false);
-
-    store.toggleOrderHold(firstOrderId, isBlocked: true, reason: 'Missing stones');
-    expect(store.orders.first.isBlocked, true);
-    expect(store.orders.first.blockedReason, 'Missing stones');
-
-    store.toggleOrderHold(firstOrderId, isBlocked: false);
-    expect(store.orders.first.isBlocked, false);
-    expect(store.orders.first.blockedReason, isNull);
+    store.addToCart(design, quantity: 2);
+    expect(store.cartItemsCount, 2);
+    store.clearCart();
+    expect(store.cart, isEmpty);
   });
 }

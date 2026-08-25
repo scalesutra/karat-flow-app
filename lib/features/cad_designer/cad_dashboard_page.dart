@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/localization/localization.dart';
 import '../../core/widgets/widgets.dart';
@@ -6,6 +7,7 @@ import '../../data/demo_store.dart';
 import '../../domain/models.dart';
 import 'widgets/cad_metric_chip.dart';
 import 'widgets/cad_task_card.dart';
+import 'bloc/cad_bloc.dart';
 
 class CadDashboardPage extends StatefulWidget {
   const CadDashboardPage({super.key, required this.store});
@@ -110,11 +112,9 @@ class _CadDashboardPageState extends State<CadDashboardPage> {
                       )
                     : CommonRefreshIndicator(
                         theme: IndicatorTheme.cad,
-                        onRefresh: () async {
-                          await Future<void>.delayed(
-                            const Duration(milliseconds: 600),
-                          );
-                        },
+                        onRefresh: () async => context.read<CadBloc>().add(
+                          const FetchCadTasksEvent(),
+                        ),
                         child: ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),

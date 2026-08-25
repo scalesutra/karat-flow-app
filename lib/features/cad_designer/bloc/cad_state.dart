@@ -35,6 +35,12 @@ final class CadOperationSuccess extends CadState {
   final String message;
 }
 
+final class CadDownloadReady extends CadState {
+  const CadDownloadReady(this.url);
+
+  final String url;
+}
+
 /// CAD error occurred
 final class CadError extends CadState {
   const CadError(this.message);

@@ -20,9 +20,12 @@ abstract final class AppDimensions {
   static const double radiusExtraLarge = 28.0;
   static const double radiusFull = 999.0;
 
-  static BorderRadius get borderRadiusSmall => BorderRadius.circular(radiusSmall);
-  static BorderRadius get borderRadiusMedium => BorderRadius.circular(radiusMedium);
-  static BorderRadius get borderRadiusLarge => BorderRadius.circular(radiusLarge);
+  static BorderRadius get borderRadiusSmall =>
+      BorderRadius.circular(radiusSmall);
+  static BorderRadius get borderRadiusMedium =>
+      BorderRadius.circular(radiusMedium);
+  static BorderRadius get borderRadiusLarge =>
+      BorderRadius.circular(radiusLarge);
   static BorderRadius get borderRadiusFull => BorderRadius.circular(radiusFull);
 
   // Component Heights

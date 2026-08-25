@@ -1,12 +1,17 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
 import '../../core/widgets/common_3d_viewer.dart';
 import '../../data/demo_store.dart';
+import '../../data/models/api_models.dart';
+import '../../data/mappers/api_domain_mapper.dart';
 import '../../domain/models.dart';
 import '../admin/widgets/add_artisan_sheet.dart';
+import 'bloc/workshop_bloc.dart';
 
 class StageOverviewScreen extends StatefulWidget {
   final Map<String, dynamic> orderData;
@@ -28,6 +33,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   late final String _purity;
   late final bool _allowStageChange;
   late List<ParentJewelleryItem> _parentItems;
+  bool _requestedLiveData = false;
 
   @override
   void initState() {
@@ -46,6 +52,135 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     for (var item in _parentItems) {
       _expandedItems[item.code] = true;
     }
+    DemoStore.instance.addListener(_onStoreChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_requestedLiveData) return;
+    _requestedLiveData = true;
+    context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent());
+  }
+
+  void _onStoreChanged() {
+    if (!mounted) return;
+    final refreshedItems = _getParentItems();
+    for (final item in refreshedItems) {
+      _expandedItems.putIfAbsent(item.code, () => true);
+    }
+    setState(() => _parentItems = refreshedItems);
+  }
+
+  @override
+  void dispose() {
+    DemoStore.instance.removeListener(_onStoreChanged);
+    super.dispose();
+  }
+
+  String? _livePartId(JewelleryPart part) {
+    for (final lot in DemoStore.instance.lots) {
+      if (lot.orderId == _orderId && lot.designCode == part.code) {
+        return lot.id;
+      }
+    }
+    return null;
+  }
+
+  void _assignLivePart(
+    BuildContext context,
+    JewelleryPart part,
+    String workerName,
+  ) {
+    final partId = _livePartId(part);
+    final workers = DemoStore.instance.team
+        .where((worker) => worker.name == workerName)
+        .toList();
+    final stages =
+        DemoStore.instance.stages.where((stage) => stage.isActive).toList()
+          ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+    if (partId == null || workers.isEmpty || stages.isEmpty) {
+      CommonSnackbar.error(
+        context,
+        title: 'Assignment Unavailable',
+        message: 'Live part, artisan, and stage IDs are required.',
+      );
+      return;
+    }
+    final targetStages = stages
+        .where((stage) => _domainStage(stage).index > part.stage.index)
+        .toList();
+    final targetStage = targetStages.isNotEmpty
+        ? targetStages.first
+        : stages.first;
+    context.read<WorkshopBloc>().add(
+      AllocateLotArtisanEvent(
+        lotId: partId,
+        artisanName: workers.first.name,
+        artisanId: workers.first.id,
+        stageId: targetStage.id,
+      ),
+    );
+  }
+
+  WorkshopStage _domainStage(ApiStage apiStage) {
+    final byName = ApiDomainMapper.stage(apiStage.name);
+    if (byName != WorkshopStage.inQueue ||
+        apiStage.name.trim().toLowerCase().contains('queue')) {
+      return byName;
+    }
+    final index = (apiStage.stageNumber - 1).clamp(
+      0,
+      WorkshopStage.values.length - 1,
+    );
+    return WorkshopStage.values[index.toInt()];
+  }
+
+  void _advanceLivePart(BuildContext context, JewelleryPart part) {
+    final partId = _livePartId(part);
+    if (partId == null) {
+      CommonSnackbar.error(
+        context,
+        title: 'Part Not Found',
+        message: 'A live backend part ID is required.',
+      );
+      return;
+    }
+    context.read<WorkshopBloc>().add(AdvanceLotStageEvent(partId));
+  }
+
+  void _rollbackLivePart(
+    BuildContext context,
+    JewelleryPart part,
+    WorkshopStage target,
+  ) {
+    final partId = _livePartId(part);
+    final stages = DemoStore.instance.stages.where(
+      (stage) => stage.name.toLowerCase() == target.label.toLowerCase(),
+    );
+    if (partId == null || stages.isEmpty) {
+      CommonSnackbar.error(
+        context,
+        title: 'Rollback Unavailable',
+        message: 'Live part and target stage IDs are required.',
+      );
+      return;
+    }
+    context.read<WorkshopBloc>().add(
+      RollbackLotStageEvent(
+        lotId: partId,
+        targetStageId: stages.first.id,
+        reason: 'Manual rollback from the KaratFlow mobile app',
+      ),
+    );
+  }
+
+  void _showUnsupportedSplit(BuildContext context) {
+    CommonSnackbar.error(
+      context,
+      title: 'Piece Split Unsupported',
+      message: 'The backend API does not expose a piece-level split endpoint.',
+    );
   }
 
   // Group and construct our pieces & sub-parts
@@ -97,8 +232,31 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     return items;
   }
 
-  void _showAssignArtisanModal(BuildContext context, JewelleryPart part) {
-    final workers = DemoStore.instance.team;
+  Future<void> _showAssignArtisanModal(
+    BuildContext context,
+    JewelleryPart part,
+  ) async {
+    var workers = DemoStore.instance.team;
+    if (workers.isEmpty) {
+      final workshopBloc = context.read<WorkshopBloc>();
+      final refresh = workshopBloc.stream.firstWhere(
+        (state) => state is WorkshopLoaded || state is WorkshopError,
+      );
+      workshopBloc.add(const FetchWorkshopLotsEvent());
+      try {
+        await refresh.timeout(const Duration(seconds: 15));
+      } on TimeoutException {
+        if (!context.mounted) return;
+        CommonSnackbar.error(
+          context,
+          title: 'Workers unavailable',
+          message: 'Employees API did not respond. Please try again.',
+        );
+        return;
+      }
+      if (!context.mounted) return;
+      workers = DemoStore.instance.team;
+    }
     if (workers.isEmpty) {
       CommonSnackbar.error(
         context,
@@ -336,17 +494,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   CommonButton.primary(
                     label: 'Confirm Assignment',
                     onPressed: () {
-                      DemoStore.instance.addWorkshopLot(
-                        orderId: _orderId,
-                        designCode: part.code,
-                        productTitle: part.name,
-                        stage: WorkshopStage.cadAndWax,
-                        assignedEmployee: selectedWorker,
-                        assignedEmployeeRole: 'Artisan',
-                        pieces: selectedQuantity,
-                        issueWeightGrams: part.weight ?? 25.0,
-                        targetWeightGrams: (part.weight ?? 25.0) * 0.96,
-                      );
+                      _assignLivePart(context, part, selectedWorker);
                       Navigator.pop(ctx);
                       setState(() {
                         _parentItems = _getParentItems();
@@ -643,43 +791,11 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                 final nextStage = values[currentIdx + 1];
 
                                 // 1. Move passed pieces to next stage
-                                DemoStore.instance.addWorkshopLot(
-                                  orderId: _orderId,
-                                  designCode: part.code,
-                                  productTitle: part.name,
-                                  stage: nextStage,
-                                  assignedEmployee:
-                                      part.assignedEmployee ?? 'Artisan',
-                                  assignedEmployeeRole: 'Artisan',
-                                  pieces: passedPcs,
-                                  issueWeightGrams:
-                                      (part.weight ?? 25.0) *
-                                      (passedPcs / totalPcs),
-                                  targetWeightGrams:
-                                      (part.weight ?? 25.0) *
-                                      (passedPcs / totalPcs) *
-                                      0.96,
-                                );
+                                _advanceLivePart(context, part);
 
                                 // 2. If defective pieces exist, log defective lot sent back to In Queue for recasting
                                 if (defectivePcs > 0) {
-                                  DemoStore.instance.addWorkshopLot(
-                                    orderId: _orderId,
-                                    designCode: '${part.code}-RECAST',
-                                    productTitle:
-                                        '${part.name} ($defectivePcs Pcs Recast/Broken)',
-                                    stage: WorkshopStage.inQueue,
-                                    assignedEmployee: 'Unassigned (Recast)',
-                                    assignedEmployeeRole: 'Unassigned',
-                                    pieces: defectivePcs,
-                                    issueWeightGrams:
-                                        (part.weight ?? 25.0) *
-                                        (defectivePcs / totalPcs),
-                                    targetWeightGrams:
-                                        (part.weight ?? 25.0) *
-                                        (defectivePcs / totalPcs) *
-                                        0.96,
-                                  );
+                                  _showUnsupportedSplit(context);
                                 }
 
                                 Navigator.pop(ctx);
@@ -899,23 +1015,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
                         return InkWell(
                           onTap: () {
-                            DemoStore.instance.addWorkshopLot(
-                              orderId: _orderId,
-                              designCode: part.code,
-                              productTitle: part.name,
-                              stage: stage,
-                              assignedEmployee:
-                                  part.assignedEmployee ?? 'Artisan',
-                              assignedEmployeeRole: 'Artisan',
-                              pieces: selectedPieces,
-                              issueWeightGrams:
-                                  (part.weight ?? 25.0) *
-                                  (selectedPieces / totalPcs),
-                              targetWeightGrams:
-                                  (part.weight ?? 25.0) *
-                                  (selectedPieces / totalPcs) *
-                                  0.96,
-                            );
+                            _rollbackLivePart(context, part, stage);
 
                             Navigator.pop(ctx);
                             setState(() {
@@ -1136,12 +1236,11 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
   void _showRevisionDialog(BuildContext context, CadDesignTask task) {
     final TextEditingController feedbackController = TextEditingController();
-    bool attachVoice = false;
 
     showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) => AlertDialog(
+        builder: (context, _) => AlertDialog(
           backgroundColor: AppColors.paper,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
@@ -1176,14 +1275,6 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                     'e.g., Thicken the prongs by 0.2mm and add diamond halo',
                 maxLines: 3,
               ),
-              const SizedBox(height: 10),
-              _MockVoiceRecorder(
-                onRecordComplete: (recorded) {
-                  setModalState(() {
-                    attachVoice = recorded;
-                  });
-                },
-              ),
             ],
           ),
           actions: [
@@ -1206,28 +1297,12 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   );
                   return;
                 }
-                DemoStore.instance.rejectCadTask(task.id, text, attachVoice);
                 Navigator.pop(context);
-
-                // Refresh list
-                setState(() {
-                  _parentItems = _getParentItems();
-                });
-
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    duration: const Duration(seconds: 3),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    backgroundColor: AppColors.danger,
-                    content: Text(
-                      'CAD design ${task.designCode} rejected. Status set to Revision.',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
+                CommonSnackbar.error(
+                  context,
+                  title: 'Revision API Unavailable',
+                  message:
+                      'The backend does not expose a CAD revision-request endpoint.',
                 );
               },
             ),
@@ -2647,31 +2722,12 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                     child: CommonButton.primary(
                       label: 'Confirm Block & Hold',
                       onPressed: () {
-                        final reason = reasonController.text.trim().isNotEmpty
-                            ? reasonController.text.trim()
-                            : selectedReason;
-                        setState(() {
-                          for (var item in _parentItems) {
-                            final idx = item.parts.indexWhere(
-                              (p) => p.code == part.code,
-                            );
-                            if (idx != -1) {
-                              item.parts[idx] = item.parts[idx].copyWith(
-                                blockerReason: reason,
-                              );
-                            }
-                          }
-                        });
-                        DemoStore.instance.toggleOrderHold(
-                          _orderId,
-                          isBlocked: true,
-                          reason: reason,
-                        );
                         Navigator.pop(ctx);
-                        CommonSnackbar.warning(
+                        CommonSnackbar.error(
                           context,
-                          title: 'Stage Put On Hold',
-                          message: '${part.name} marked as blocked: "$reason".',
+                          title: 'Order Hold API Unavailable',
+                          message:
+                              'The backend does not expose an order-hold endpoint.',
                         );
                       },
                     ),
@@ -2686,22 +2742,10 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   }
 
   void _unblockPart(BuildContext context, JewelleryPart part) {
-    setState(() {
-      for (var item in _parentItems) {
-        final idx = item.parts.indexWhere((p) => p.code == part.code);
-        if (idx != -1) {
-          item.parts[idx] = item.parts[idx].copyWith(clearBlocker: true);
-        }
-      }
-    });
-    final hasOtherBlock = _parentItems.any(
-      (item) => item.parts.any((p) => p.blockerReason != null),
-    );
-    DemoStore.instance.toggleOrderHold(_orderId, isBlocked: hasOtherBlock);
-    CommonSnackbar.success(
+    CommonSnackbar.error(
       context,
-      title: 'Stage Resumed',
-      message: 'Hold cleared for ${part.name}. Production resumed.',
+      title: 'Order Hold API Unavailable',
+      message: 'The backend does not expose an order-hold endpoint.',
     );
   }
 }
@@ -2800,6 +2844,7 @@ class SlideInFade extends StatelessWidget {
   }
 }
 
+/*
 class _MockVoiceRecorder extends StatefulWidget {
   const _MockVoiceRecorder({required this.onRecordComplete});
 
@@ -3021,3 +3066,4 @@ class _AudioBarState extends State<_AudioBar>
     );
   }
 }
+*/

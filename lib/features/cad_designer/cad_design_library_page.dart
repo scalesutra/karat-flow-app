@@ -26,13 +26,14 @@ class _CadDesignLibraryPageState extends State<CadDesignLibraryPage> {
       'Completed' =>
         tasks.where((t) => t.status == CadTaskStatus.completed).toList(),
       'With STL' => tasks.where((t) => t.hasStlFile).toList(),
-      'Pending' => tasks
-          .where(
-            (t) =>
-                t.status == CadTaskStatus.newTask ||
-                t.status == CadTaskStatus.inProgress,
-          )
-          .toList(),
+      'Pending' =>
+        tasks
+            .where(
+              (t) =>
+                  t.status == CadTaskStatus.newTask ||
+                  t.status == CadTaskStatus.inProgress,
+            )
+            .toList(),
       _ => tasks.toList(),
     };
   }
@@ -73,14 +74,12 @@ class _CadDesignLibraryPageState extends State<CadDesignLibraryPage> {
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: InkWell(
-                              onTap: () =>
-                                  setState(() => _activeFilter = f),
+                              onTap: () => setState(() => _activeFilter = f),
                               borderRadius: BorderRadius.circular(
                                 AppDimensions.radiusFull,
                               ),
                               child: AnimatedContainer(
-                                duration:
-                                    const Duration(milliseconds: 150),
+                                duration: const Duration(milliseconds: 150),
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 14,
                                   vertical: 7,
@@ -132,11 +131,9 @@ class _CadDesignLibraryPageState extends State<CadDesignLibraryPage> {
                         ),
                       )
                     : ListView.separated(
-                        padding:
-                            const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
                         itemCount: filtered.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: 10),
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final task = filtered[index];
                           return _DesignLibraryCard(
@@ -259,10 +256,7 @@ class _DesignLibraryCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '${task.designCode} · ${task.specs}',
-                  style: const TextStyle(
-                    color: AppColors.muted,
-                    fontSize: 11,
-                  ),
+                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -309,7 +303,8 @@ class _DesignLibraryCard extends StatelessWidget {
                               CommonSnackbar.success(
                                 context,
                                 title: 'STL Uploaded',
-                                message: '${task.designCode.toLowerCase()}_v1.stl attached.',
+                                message:
+                                    '${task.designCode.toLowerCase()}_v1.stl attached.',
                               );
                             },
                             borderRadius: BorderRadius.circular(6),
@@ -321,9 +316,7 @@ class _DesignLibraryCard extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: AppColors.canvas,
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: AppColors.outline,
-                                ),
+                                border: Border.all(color: AppColors.outline),
                               ),
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,

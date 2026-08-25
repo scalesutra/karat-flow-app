@@ -10,7 +10,6 @@ import 'package:jewellery_ops_mobile/core/widgets/common_text.dart';
 import 'package:jewellery_ops_mobile/core/widgets/common_text_field.dart';
 import 'package:jewellery_ops_mobile/data/demo_store.dart';
 import 'package:jewellery_ops_mobile/data/models/api_models.dart';
-import 'package:jewellery_ops_mobile/data/repositories/karatflow_api_repository.dart';
 import 'package:jewellery_ops_mobile/domain/models.dart';
 import '../bloc/admin_bloc.dart';
 
@@ -44,6 +43,7 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
 
   // ── Mandatory Controllers ─────────────────────────────────────────
   final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _employeeIdController = TextEditingController();
 
   // ── Optional Controllers ──────────────────────────────────────────
@@ -51,7 +51,6 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
   final _addressController = TextEditingController();
   final _skillController = TextEditingController();
 
-  final _api = KaratFlowApiRepository();
   List<ApiStage> _skillCategories = const [];
   String? _selectedStageId;
   String? _stageError;
@@ -77,27 +76,18 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
       _isLoadingStages = true;
       _stageError = null;
     });
-    try {
-      final stages =
-          (await _api.listStages()).where((stage) => stage.isActive).toList()
-            ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
-      if (!mounted) return;
-      widget.store.setStages(stages);
-      setState(() {
-        _skillCategories = stages;
-        _selectedStageId = stages.isEmpty ? null : stages.first.id;
-        _isLoadingStages = false;
-      });
-      if (stages.isNotEmpty) _generateEmployeeId(stages.first);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _skillCategories = const [];
-        _selectedStageId = null;
-        _stageError = error.toString();
-        _isLoadingStages = false;
-      });
-    }
+    final stages = widget.store.stages.where((stage) => stage.isActive).toList()
+      ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+    if (!mounted) return;
+    setState(() {
+      _skillCategories = stages;
+      _selectedStageId = stages.isEmpty ? null : stages.first.id;
+      _stageError = stages.isEmpty
+          ? 'No live production stages are available.'
+          : null;
+      _isLoadingStages = false;
+    });
+    if (stages.isNotEmpty) _generateEmployeeId(stages.first);
   }
 
   void _generateEmployeeId(ApiStage stage) {
@@ -116,6 +106,7 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
   @override
   void dispose() {
     _nameController.dispose();
+    _emailController.dispose();
     _employeeIdController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
@@ -154,6 +145,7 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
     context.read<AdminBloc>().add(
       AddArtisanEvent(
         newMember,
+        email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
         stageId: stage.id,
       ),
@@ -322,6 +314,25 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
                         validator: (val) {
                           if (val == null || val.trim().isEmpty) {
                             return 'Artisan name is required';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+
+                      CommonTextField(
+                        controller: _emailController,
+                        label: 'Email Address *',
+                        hintText: 'artisan@company.com',
+                        prefixIcon: Icons.email_outlined,
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (value) {
+                          final email = value?.trim() ?? '';
+                          if (email.isEmpty) return 'Email address is required';
+                          if (!RegExp(
+                            r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                          ).hasMatch(email)) {
+                            return 'Enter a valid email address';
                           }
                           return null;
                         },

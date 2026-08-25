@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../core/network/api_client.dart';
 import '../../core/network/api_endpoints.dart';
 import '../models/api_models.dart';
@@ -8,6 +10,20 @@ class KaratFlowApiRepository {
     : _api = apiClient ?? ApiClient();
 
   final ApiClient _api;
+
+  Map<String, dynamic> _dataMap(dynamic responseData) {
+    if (responseData is! Map || responseData['data'] is! Map) {
+      throw const FormatException('API response data must be an object.');
+    }
+    return Map<String, dynamic>.from(responseData['data'] as Map);
+  }
+
+  List<dynamic> _dataList(dynamic responseData) {
+    if (responseData is! Map || responseData['data'] is! List) {
+      throw const FormatException('API response data must be a list.');
+    }
+    return List<dynamic>.from(responseData['data'] as List);
+  }
 
   // ── SECTION 1: Auth & Token Management (/auth) ────────────────────
   Future<AuthResponseData> login({
@@ -63,18 +79,11 @@ class KaratFlowApiRepository {
     required String name,
     required String email,
     required String phone,
-    required String stageId,
     String role = 'OTHER_EMPLOYEE',
   }) async {
     final response = await _api.post(
       ApiEndpoints.employees,
-      data: {
-        'name': name,
-        'email': email,
-        'phone': phone,
-        'role': role,
-        'stageId': stageId,
-      },
+      data: {'name': name, 'email': email, 'phone': phone, 'role': role},
     );
     final data = response.data['data'] as Map<String, dynamic>;
     return ApiEmployee.fromJson(data);
@@ -347,6 +356,23 @@ class KaratFlowApiRepository {
     return ApiThreeDDesign.fromJson(data);
   }
 
+  Future<ApiThreeDDesign> reuploadThreeDDesign({
+    required String id,
+    required String xtlFileUrl,
+    required String bomFileUrl,
+    required double totalWeight,
+  }) async {
+    final response = await _api.put(
+      ApiEndpoints.reuploadThreeD(id),
+      data: {
+        'xtlFileUrl': xtlFileUrl,
+        'bomFileUrl': bomFileUrl,
+        'totalWeight': totalWeight,
+      },
+    );
+    return ApiThreeDDesign.fromJson(_dataMap(response.data));
+  }
+
   // ── SECTION 7: Orders (/orders) ───────────────────────────────────
   Future<List<ApiOrder>> listOrders({
     String status = '',
@@ -373,6 +399,11 @@ class KaratFlowApiRepository {
     return ApiOrder.fromJson(data);
   }
 
+  Future<ApiOrderTracking> trackOrder(String orderNumber) async {
+    final response = await _api.get(ApiEndpoints.orderTrack(orderNumber));
+    return ApiOrderTracking.fromJson(_dataMap(response.data));
+  }
+
   Future<ApiOrder> createMultiDesignOrder({
     required String customerId,
     required String dueDate,
@@ -394,6 +425,19 @@ class KaratFlowApiRepository {
 
   Future<void> checkoutOrder(String orderId) async {
     await _api.post(ApiEndpoints.checkoutOrder(orderId));
+  }
+
+  Future<List<ApiOrderPart>> addOrderParts({
+    required String orderId,
+    required List<Map<String, dynamic>> parts,
+  }) async {
+    final response = await _api.post(
+      ApiEndpoints.addOrderParts(orderId),
+      data: {'parts': parts},
+    );
+    return _dataList(response.data)
+        .map((part) => ApiOrderPart.fromJson(part as Map<String, dynamic>))
+        .toList(growable: false);
   }
 
   // ── SECTION 8: Production Floor (/production) ─────────────────────
@@ -478,13 +522,43 @@ class KaratFlowApiRepository {
     return ApiPresignedUrl.fromJson(data);
   }
 
-  // ── SECTION 11: Health (/health) ──────────────────────────────────
-  Future<bool> checkHealth() async {
-    try {
-      final response = await _api.get(ApiEndpoints.health);
-      return response.statusCode == 200;
-    } catch (_) {
-      return false;
+  Future<ApiPresignedUrl> uploadFile({
+    required String fileName,
+    required String fileType,
+    required String folder,
+    required Uint8List bytes,
+  }) async {
+    final signedUrl = await getPresignedUploadUrl(
+      fileName: fileName,
+      fileType: fileType,
+      folder: folder,
+    );
+    if (signedUrl.uploadUrl.isEmpty || signedUrl.fileUrl.isEmpty) {
+      throw const FormatException(
+        'Storage API returned an invalid upload URL.',
+      );
     }
+    await _api.putAbsoluteBytes(
+      signedUrl.uploadUrl,
+      bytes: bytes,
+      contentType: fileType,
+    );
+    return signedUrl;
+  }
+
+  Future<ApiPresignedDownloadUrl> getPresignedDownloadUrl(
+    String fileKey,
+  ) async {
+    final response = await _api.get(
+      ApiEndpoints.storageDownloadUrl,
+      queryParameters: {'fileKey': fileKey},
+    );
+    return ApiPresignedDownloadUrl.fromJson(_dataMap(response.data));
+  }
+
+  // ── SECTION 11: Health (/health) ──────────────────────────────────
+  Future<ApiHealthStatus> checkHealth() async {
+    final response = await _api.get(ApiEndpoints.health);
+    return ApiHealthStatus.fromJson(_dataMap(response.data));
   }
 }

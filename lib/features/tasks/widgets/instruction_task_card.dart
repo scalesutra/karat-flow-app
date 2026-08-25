@@ -174,10 +174,7 @@ class InstructionTaskCard extends StatelessWidget {
             if (instruction.status == InstructionStatus.sent)
               CommonButton.primary(
                 height: 42,
-                onPressed: () => store.setInstructionStatus(
-                  instruction.id,
-                  InstructionStatus.acknowledged,
-                ),
+                onPressed: () => _showUnsupportedAction(context),
                 label: 'Acknowledge Instruction',
               )
             else
@@ -188,11 +185,8 @@ class InstructionTaskCard extends StatelessWidget {
                       height: 42,
                       onPressed:
                           instruction.status == InstructionStatus.inProgress
-                              ? null
-                              : () => store.setInstructionStatus(
-                                    instruction.id,
-                                    InstructionStatus.inProgress,
-                                  ),
+                          ? null
+                          : () => _showUnsupportedAction(context),
                       label: 'Start Work',
                     ),
                   ),
@@ -200,10 +194,7 @@ class InstructionTaskCard extends StatelessWidget {
                   Expanded(
                     child: CommonButton.primary(
                       height: 42,
-                      onPressed: () => store.setInstructionStatus(
-                        instruction.id,
-                        InstructionStatus.resolved,
-                      ),
+                      onPressed: () => _showUnsupportedAction(context),
                       label: 'Resolve Task',
                     ),
                   ),
@@ -221,18 +212,7 @@ class InstructionTaskCard extends StatelessWidget {
                     height: 40,
                     label: 'Mark Resolved',
                     icon: Icons.check,
-                    onPressed: () {
-                      store.setInstructionStatus(
-                        instruction.id,
-                        InstructionStatus.resolved,
-                      );
-                      CommonSnackbar.success(
-                        context,
-                        title: 'Resolved',
-                        message:
-                            '${instruction.id} has been marked as resolved.',
-                      );
-                    },
+                    onPressed: () => _showUnsupportedAction(context),
                   ),
                 ),
               ],
@@ -240,6 +220,15 @@ class InstructionTaskCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+
+  void _showUnsupportedAction(BuildContext context) {
+    CommonSnackbar.error(
+      context,
+      title: 'Instructions API unavailable',
+      message:
+          'The API documentation does not provide an instruction status endpoint.',
     );
   }
 

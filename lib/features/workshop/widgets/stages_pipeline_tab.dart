@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/widgets/common_progress_indicator.dart';
 import '../../../../data/demo_store.dart';
 import '../../../../data/models/api_models.dart';
-import '../../../../core/services/app_data_sync_service.dart';
+import '../bloc/workshop_bloc.dart';
 import '../../../../domain/models.dart';
 import 'stage_lots_modal.dart';
 
@@ -41,12 +42,8 @@ class StagesPipelineTab extends StatelessWidget {
 
     return CommonRefreshIndicator(
       theme: IndicatorTheme.workshop,
-      onRefresh: () async {
-        await Future.wait([
-          AppDataSyncService.syncWorkshopLots(store),
-          AppDataSyncService.syncStages(store),
-        ]);
-      },
+      onRefresh: () async =>
+          context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent()),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 28),

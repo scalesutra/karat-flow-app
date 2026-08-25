@@ -9,21 +9,22 @@ export '../constants/app_dimensions.dart';
 
 abstract final class AppTheme {
   static ThemeData light() {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.emerald,
-      brightness: Brightness.light,
-      surface: AppColors.paper,
-    ).copyWith(
-      primary: AppColors.emerald,
-      onPrimary: AppColors.pureWhite,
-      secondary: AppColors.gold,
-      onSecondary: AppColors.pureWhite,
-      error: AppColors.danger,
-      onError: AppColors.pureWhite,
-      surface: AppColors.paper,
-      onSurface: AppColors.ink,
-      outline: AppColors.outline,
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: AppColors.emerald,
+          brightness: Brightness.light,
+          surface: AppColors.paper,
+        ).copyWith(
+          primary: AppColors.emerald,
+          onPrimary: AppColors.pureWhite,
+          secondary: AppColors.gold,
+          onSecondary: AppColors.pureWhite,
+          error: AppColors.danger,
+          onError: AppColors.pureWhite,
+          surface: AppColors.paper,
+          onSurface: AppColors.ink,
+          outline: AppColors.outline,
+        );
 
     final baseTextTheme = ThemeData.light().textTheme;
     final textTheme = GoogleFonts.interTextTheme(baseTextTheme).copyWith(
@@ -145,7 +146,10 @@ abstract final class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
           ),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14),
+          textStyle: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -156,7 +160,10 @@ abstract final class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
           ),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14),
+          textStyle: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
         ),
       ),
       chipTheme: ChipThemeData(
@@ -172,7 +179,10 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.paper,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
           borderSide: const BorderSide(color: AppColors.outline),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/widgets/common_3d_viewer.dart';
@@ -8,6 +9,7 @@ import '../../../../core/widgets/common_card.dart';
 import '../../../../data/demo_store.dart';
 import '../../../../domain/models.dart';
 import '../cad_weight_calculator.dart';
+import '../bloc/cad_bloc.dart';
 
 /// Modular CAD Designer Task Card
 class CadTaskCard extends StatelessWidget {
@@ -23,19 +25,19 @@ class CadTaskCard extends StatelessWidget {
   final VoidCallback onStatusChanged;
 
   Color get _statusColor => switch (task.status) {
-        CadTaskStatus.newTask => AppColors.gold,
-        CadTaskStatus.inProgress => AppColors.info,
-        CadTaskStatus.completed => AppColors.success,
-        CadTaskStatus.revision => AppColors.danger,
-      };
+    CadTaskStatus.newTask => AppColors.gold,
+    CadTaskStatus.inProgress => AppColors.info,
+    CadTaskStatus.completed => AppColors.success,
+    CadTaskStatus.revision => AppColors.danger,
+  };
 
   String get _statusLabel => task.status.label;
 
   void _showDualFileUploadModal(BuildContext context) {
-    String? stlFileName =
-        task.hasStlFile ? '${task.designCode.toLowerCase()}_v1.stl' : null;
-    String? blockFileName =
-        task.hasStlFile ? '${task.designCode.toLowerCase()}_block.3dm' : null;
+    PlatformFile? stlFile;
+    PlatformFile? blockFile;
+    String? stlFileName;
+    String? blockFileName;
 
     showModalBottomSheet<void>(
       context: context,
@@ -152,18 +154,38 @@ class CadTaskCard extends StatelessWidget {
                       onPressed: () async {
                         try {
                           final result = await FilePicker.platform.pickFiles(
+                            // Android does not consistently expose MIME types
+                            // for CAD formats, so validate the extension after
+                            // selection instead of using FileType.custom.
                             type: FileType.any,
+                            withData: true,
                           );
                           if (result != null && result.files.isNotEmpty) {
-                            setModalState(
-                              () => stlFileName = result.files.first.name,
+                            final selected = result.files.first;
+                            final extension = _extensionOf(selected);
+                            if (extension != 'stl' && extension != 'obj') {
+                              if (context.mounted) {
+                                CommonSnackbar.error(
+                                  context,
+                                  title: 'Unsupported 3D file',
+                                  message: 'Please select an STL or OBJ file.',
+                                );
+                              }
+                              return;
+                            }
+                            setModalState(() {
+                              stlFile = selected;
+                              stlFileName = stlFile!.name;
+                            });
+                          }
+                        } catch (error) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Could not select STL: $error'),
+                              ),
                             );
                           }
-                        } catch (_) {
-                          setModalState(
-                            () => stlFileName =
-                                '${task.designCode.toLowerCase()}_model.stl',
-                          );
                         }
                       },
                     ),
@@ -230,18 +252,35 @@ class CadTaskCard extends StatelessWidget {
                       onPressed: () async {
                         try {
                           final result = await FilePicker.platform.pickFiles(
+                            // .3dm has no reliable Android MIME mapping.
                             type: FileType.any,
+                            withData: true,
                           );
                           if (result != null && result.files.isNotEmpty) {
-                            setModalState(
-                              () => blockFileName = result.files.first.name,
+                            final selected = result.files.first;
+                            if (_extensionOf(selected) != '3dm') {
+                              if (context.mounted) {
+                                CommonSnackbar.error(
+                                  context,
+                                  title: 'Unsupported block file',
+                                  message: 'Please select a 3DM file.',
+                                );
+                              }
+                              return;
+                            }
+                            setModalState(() {
+                              blockFile = selected;
+                              blockFileName = blockFile!.name;
+                            });
+                          }
+                        } catch (error) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Could not select 3DM: $error'),
+                              ),
                             );
                           }
-                        } catch (_) {
-                          setModalState(
-                            () => blockFileName =
-                                '${task.designCode.toLowerCase()}_block.3dm',
-                          );
                         }
                       },
                     ),
@@ -255,57 +294,56 @@ class CadTaskCard extends StatelessWidget {
                 width: double.infinity,
                 child: CommonButton.primary(
                   height: 42,
-                  icon: Icons.calculate_outlined,
-                  label: 'Calculate Weight & Complete Upload',
-                  onPressed: () {
-                    final messenger = ScaffoldMessenger.of(context);
-                    final finalStl = stlFileName ??
-                        '${task.designCode.toLowerCase()}_model.stl';
-                    final finalBlock = blockFileName ??
-                        '${task.designCode.toLowerCase()}_block.3dm';
+                  icon: Icons.cloud_upload_outlined,
+                  label: 'Calculate Weight & Upload Files',
+                  onPressed: stlFile == null || blockFile == null
+                      ? null
+                      : () {
+                          final selectedStl = stlFile!;
+                          final selectedBlock = blockFile!;
+                          final stlBytes = selectedStl.bytes;
+                          final blockBytes = selectedBlock.bytes;
+                          final messenger = ScaffoldMessenger.of(context);
 
-                    Navigator.pop(ctx);
-
-                    showModalBottomSheet<void>(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (calcCtx) => CadWeightCalculator(
-                        initialVolume: 1680.0,
-                        onCalculate: (vol, weight, metalType) {
-                          Navigator.pop(calcCtx);
-
-                          store.uploadStlFile(
-                            task.id,
-                            vol,
-                            '$metalType, weight: ${weight.toStringAsFixed(2)} g | STL: $finalStl | Block: $finalBlock',
-                          );
-                          onStatusChanged();
-
-                          if (messenger.mounted) {
-                            messenger.clearSnackBars();
+                          if (stlBytes == null || blockBytes == null) {
                             messenger.showSnackBar(
-                              SnackBar(
-                                duration: const Duration(seconds: 4),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                backgroundColor: AppColors.emerald,
+                              const SnackBar(
                                 content: Text(
-                                  'Uploaded $finalStl & $finalBlock for ${task.productTitle}!',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.pureWhite,
-                                  ),
+                                  'Unable to read the selected files. Please select them again.',
                                 ),
                               ),
                             );
+                            return;
                           }
+
+                          Navigator.pop(ctx);
+                          showModalBottomSheet<void>(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (calcCtx) => CadWeightCalculator(
+                              initialVolume: 1680.0,
+                              onCalculate: (vol, weight, metalType) {
+                                Navigator.pop(calcCtx);
+                                context.read<CadBloc>().add(
+                                  UploadCadFilesEvent(
+                                    taskId: task.id == task.orderId
+                                        ? task.orderId
+                                        : task.id,
+                                    volumeCubicMm: vol,
+                                    specsNote: metalType,
+                                    stlFileName: selectedStl.name,
+                                    stlBytes: stlBytes,
+                                    bomFileName: selectedBlock.name,
+                                    bomBytes: blockBytes,
+                                    isRevision: task.id != task.orderId,
+                                    goldQuantity: weight,
+                                  ),
+                                );
+                              },
+                            ),
+                          );
                         },
-                      ),
-                    );
-                  },
                 ),
               ),
             ],
@@ -313,6 +351,22 @@ class CadTaskCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _cadContentType(String? extension) =>
+      switch (extension?.toLowerCase()) {
+        'stl' => 'model/stl',
+        'obj' => 'model/obj',
+        _ => 'application/octet-stream',
+      };
+
+  static String _extensionOf(PlatformFile file) {
+    final pluginExtension = file.extension?.trim().toLowerCase();
+    if (pluginExtension != null && pluginExtension.isNotEmpty) {
+      return pluginExtension;
+    }
+    final dot = file.name.lastIndexOf('.');
+    return dot < 0 ? '' : file.name.substring(dot + 1).toLowerCase();
   }
 
   @override
@@ -484,11 +538,12 @@ class CadTaskCard extends StatelessWidget {
                   label: 'Start 3D Modeling',
                   onPressed: () {
                     final messenger = ScaffoldMessenger.of(context);
-                    store.updateCadTaskStatus(
-                      task.id,
-                      CadTaskStatus.inProgress,
+                    context.read<CadBloc>().add(
+                      UpdateCadTaskStatusEvent(
+                        taskId: task.id,
+                        status: CadTaskStatus.inProgress,
+                      ),
                     );
-                    onStatusChanged();
                     if (messenger.mounted) {
                       messenger.clearSnackBars();
                       messenger.showSnackBar(
@@ -820,8 +875,9 @@ class CadTaskCard extends StatelessWidget {
                 return InkWell(
                   onTap: () {
                     final messenger = ScaffoldMessenger.of(context);
-                    store.updateCadTaskStatus(task.id, st);
-                    onStatusChanged();
+                    context.read<CadBloc>().add(
+                      UpdateCadTaskStatusEvent(taskId: task.id, status: st),
+                    );
                     Navigator.pop(ctx);
                     if (messenger.mounted) {
                       messenger.clearSnackBars();
@@ -898,6 +954,7 @@ class CadTaskCard extends StatelessWidget {
                       builder: (ctx) => Common3DViewer(
                         designCode: task.designCode,
                         productTitle: task.productTitle,
+                        modelUrl: task.modelFileUrl,
                       ),
                     );
                   },

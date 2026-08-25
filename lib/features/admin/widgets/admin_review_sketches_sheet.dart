@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/common_button.dart';
 import '../../../../core/widgets/common_card.dart';
@@ -6,6 +8,8 @@ import '../../../../core/widgets/common_snackbar.dart';
 import '../../../../core/widgets/common_text_field.dart';
 import '../../../../data/demo_store.dart';
 import '../../../../domain/models.dart';
+import '../bloc/admin_bloc.dart';
+import 'sketch_directive_dialog.dart';
 
 /// Modal bottom sheet for Admin Review of 2D Client Sketches
 class AdminReviewSketchesSheet extends StatelessWidget {
@@ -54,7 +58,8 @@ class AdminReviewSketchesSheet extends StatelessWidget {
 
   void _showDirectiveDialog(BuildContext context, JewelleryDesign design) {
     final controller = TextEditingController(
-      text: 'Please adjust prong height and check shank thickness for ${design.name} (${design.code}).',
+      text:
+          'Please adjust prong height and check shank thickness for ${design.name} (${design.code}).',
     );
     String targetRole = 'CAD Designer';
 
@@ -62,16 +67,25 @@ class AdminReviewSketchesSheet extends StatelessWidget {
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           backgroundColor: AppColors.paper,
           title: Row(
             children: [
-              const Icon(Icons.send_rounded, color: AppColors.goldDark, size: 22),
+              const Icon(
+                Icons.send_rounded,
+                color: AppColors.goldDark,
+                size: 22,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Directive for ${design.code}',
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ],
@@ -82,13 +96,20 @@ class AdminReviewSketchesSheet extends StatelessWidget {
             children: [
               const Text(
                 'Select Recipient Role:',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.ink),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.ink,
+                ),
               ),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 initialValue: targetRole,
                 decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   filled: true,
                   fillColor: AppColors.canvas,
                   border: OutlineInputBorder(
@@ -97,9 +118,18 @@ class AdminReviewSketchesSheet extends StatelessWidget {
                   ),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'CAD Designer', child: Text('CAD Designer')),
-                  DropdownMenuItem(value: 'Goldsmith (Artisans)', child: Text('Goldsmith (Artisans)')),
-                  DropdownMenuItem(value: 'Process Manager', child: Text('Process Manager')),
+                  DropdownMenuItem(
+                    value: 'CAD Designer',
+                    child: Text('CAD Designer'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Goldsmith (Artisans)',
+                    child: Text('Goldsmith (Artisans)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Process Manager',
+                    child: Text('Process Manager'),
+                  ),
                   DropdownMenuItem(value: 'QC Team', child: Text('QC Team')),
                 ],
                 onChanged: (val) {
@@ -109,14 +139,19 @@ class AdminReviewSketchesSheet extends StatelessWidget {
               const SizedBox(height: 12),
               const Text(
                 'Correction Message / Directive:',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.ink),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.ink,
+                ),
               ),
               const SizedBox(height: 6),
               TextField(
                 controller: controller,
                 maxLines: 3,
                 decoration: InputDecoration(
-                  hintText: 'Enter correction notes for the artisan/designer...',
+                  hintText:
+                      'Enter correction notes for the artisan/designer...',
                   filled: true,
                   fillColor: AppColors.canvas,
                   border: OutlineInputBorder(
@@ -130,26 +165,28 @@ class AdminReviewSketchesSheet extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogCtx),
-              child: const Text('Cancel', style: TextStyle(color: AppColors.muted)),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.muted),
+              ),
             ),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.emerald,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               icon: const Icon(Icons.send, size: 16),
               label: const Text('Dispatch Directive'),
               onPressed: () {
                 final text = controller.text.trim();
                 if (text.isNotEmpty) {
-                  store.addAdminDirective(targetRole, text);
-                  Navigator.pop(dialogCtx);
-                  CommonSnackbar.success(
-                    context,
-                    title: 'Directive Dispatched',
-                    message: 'Directive sent to $targetRole for ${design.name}.',
+                  context.read<AdminBloc>().add(
+                    SendDirectiveEvent(recipient: targetRole, directive: text),
                   );
+                  Navigator.pop(dialogCtx);
                 }
               },
             ),
@@ -228,7 +265,9 @@ class AdminReviewSketchesSheet extends StatelessWidget {
                         separatorBuilder: (_, _) => const SizedBox(height: 10),
                         itemBuilder: (ctx, index) {
                           final design = designs[index];
-                          final isApproved = design.name.contains('(Sketch Approved)');
+                          final isApproved = design.name.contains(
+                            '(Sketch Approved)',
+                          );
 
                           return CommonCard(
                             padding: const EdgeInsets.all(12),
@@ -236,7 +275,8 @@ class AdminReviewSketchesSheet extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Expanded(
                                       child: Text(
@@ -263,12 +303,22 @@ class AdminReviewSketchesSheet extends StatelessWidget {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           if (isApproved)
-                                            const Icon(Icons.check_circle, size: 11, color: AppColors.emeraldDark)
+                                            const Icon(
+                                              Icons.check_circle,
+                                              size: 11,
+                                              color: AppColors.emeraldDark,
+                                            )
                                           else
-                                            const Icon(Icons.pending_outlined, size: 11, color: AppColors.goldDark),
+                                            const Icon(
+                                              Icons.pending_outlined,
+                                              size: 11,
+                                              color: AppColors.goldDark,
+                                            ),
                                           const SizedBox(width: 4),
                                           Text(
-                                            isApproved ? 'APPROVED' : 'PENDING REVIEW',
+                                            isApproved
+                                                ? 'APPROVED'
+                                                : 'PENDING REVIEW',
                                             style: TextStyle(
                                               color: isApproved
                                                   ? AppColors.emeraldDark
@@ -302,11 +352,10 @@ class AdminReviewSketchesSheet extends StatelessWidget {
                                           icon: Icons.check,
                                           label: 'Approve Sketch',
                                           onPressed: () {
-                                            store.approveSketch(design.code);
-                                            CommonSnackbar.success(
-                                              context,
-                                              title: 'Sketch Approved',
-                                              message: 'Approved 2D sketch for ${design.name}. Sent to CAD queue.',
+                                            context.read<AdminBloc>().add(
+                                              ApproveSketchDesignEvent(
+                                                design.id,
+                                              ),
                                             );
                                           },
                                         ),
@@ -318,7 +367,11 @@ class AdminReviewSketchesSheet extends StatelessWidget {
                                         height: 34,
                                         icon: Icons.send,
                                         label: 'Send Directive',
-                                        onPressed: () => _showDirectiveDialog(context, design),
+                                        onPressed: () =>
+                                            SketchDirectiveDialog.show(
+                                              context,
+                                              design,
+                                            ),
                                       ),
                                     ),
                                   ],
@@ -353,7 +406,8 @@ class _RegisterNewSketchSheet extends StatefulWidget {
   final DemoStore store;
 
   @override
-  State<_RegisterNewSketchSheet> createState() => _RegisterNewSketchSheetState();
+  State<_RegisterNewSketchSheet> createState() =>
+      _RegisterNewSketchSheetState();
 }
 
 class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
@@ -368,6 +422,7 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
   String _selectedPurity = '22KT';
 
   final List<String> _purityOptions = const ['22KT', '18KT', '14KT', '24KT'];
+  PlatformFile? _sketchFile;
 
   @override
   void initState() {
@@ -391,31 +446,34 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
 
     final name = _nameController.text.trim();
     final code = _codeController.text.trim().toUpperCase();
-    final weight = double.tryParse(_weightController.text.trim()) ?? 25.0;
-    final price = double.tryParse(_priceController.text.trim()) ?? (weight * 7200);
-    final desc = _descriptionController.text.trim().isEmpty
-        ? 'Custom client 2D sketch for $_selectedPurity jewellery.'
-        : _descriptionController.text.trim();
-
-    final newDesign = JewelleryDesign(
-      id: 'DES-${DateTime.now().millisecondsSinceEpoch}',
-      name: name,
-      code: code,
-      category: _selectedCategory,
-      purity: _selectedPurity,
-      grossWeightGrams: weight,
-      estimatedPrice: price,
-      description: desc,
+    final file = _sketchFile;
+    if (file?.bytes == null) {
+      CommonSnackbar.error(
+        context,
+        title: 'Sketch File Required',
+        message: 'Select a PNG, JPG, or WEBP sketch file.',
+      );
+      return;
+    }
+    context.read<AdminBloc>().add(
+      UploadSketchEvent(
+        designNumber: code,
+        title: name,
+        fileName: file!.name,
+        bytes: file.bytes!,
+      ),
     );
-
-    widget.store.addDesign(newDesign);
     Navigator.pop(context);
+  }
 
-    CommonSnackbar.success(
-      context,
-      title: 'Design Sketch Registered',
-      message: '$name ($code) successfully added to review catalogue.',
+  Future<void> _pickSketch() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
+      withData: true,
     );
+    if (result == null || result.files.isEmpty || !mounted) return;
+    setState(() => _sketchFile = result.files.first);
   }
 
   @override
@@ -454,7 +512,11 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
                       color: AppColors.emeraldLight,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.brush_outlined, color: AppColors.emeraldDark, size: 22),
+                    child: const Icon(
+                      Icons.brush_outlined,
+                      color: AppColors.emeraldDark,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -463,11 +525,18 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
                       children: [
                         Text(
                           'Register Design Sketch',
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.ink),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            color: AppColors.ink,
+                          ),
                         ),
                         Text(
                           'Create a new 2D client sketch entry for CAD approval',
-                          style: TextStyle(color: AppColors.muted, fontSize: 11),
+                          style: TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),
@@ -492,7 +561,8 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
                       hintText: 'e.g. Peacock Kundan Jadau Haar',
                       prefixIcon: Icons.auto_awesome,
                       validator: (val) {
-                        if (val == null || val.trim().isEmpty) return 'Design name is required';
+                        if (val == null || val.trim().isEmpty)
+                          return 'Design name is required';
                         return null;
                       },
                     ),
@@ -506,7 +576,8 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
                             hintText: 'e.g. NK-991',
                             prefixIcon: Icons.tag,
                             validator: (val) {
-                              if (val == null || val.trim().isEmpty) return 'Code is required';
+                              if (val == null || val.trim().isEmpty)
+                                return 'Code is required';
                               return null;
                             },
                           ),
@@ -518,23 +589,40 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
                             children: [
                               const Text(
                                 'Purity *',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.ink),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink,
+                                ),
                               ),
                               const SizedBox(height: 4),
                               DropdownButtonFormField<String>(
                                 initialValue: _selectedPurity,
                                 decoration: InputDecoration(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
                                   filled: true,
                                   fillColor: AppColors.paper,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(color: AppColors.outline),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.outline,
+                                    ),
                                   ),
                                 ),
-                                items: _purityOptions.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                                items: _purityOptions
+                                    .map(
+                                      (p) => DropdownMenuItem(
+                                        value: p,
+                                        child: Text(p),
+                                      ),
+                                    )
+                                    .toList(),
                                 onChanged: (val) {
-                                  if (val != null) setState(() => _selectedPurity = val);
+                                  if (val != null)
+                                    setState(() => _selectedPurity = val);
                                 },
                               ),
                             ],
@@ -551,10 +639,14 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
                             label: 'Est. Gross Weight (g) *',
                             hintText: 'e.g. 48.5',
                             prefixIcon: Icons.scale_outlined,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             validator: (val) {
-                              if (val == null || val.trim().isEmpty) return 'Weight is required';
-                              if (double.tryParse(val.trim()) == null) return 'Enter valid number';
+                              if (val == null || val.trim().isEmpty)
+                                return 'Weight is required';
+                              if (double.tryParse(val.trim()) == null)
+                                return 'Enter valid number';
                               return null;
                             },
                           ),
@@ -575,7 +667,8 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
                     CommonTextField(
                       controller: _descriptionController,
                       label: 'Sketch Notes / Specs (Optional)',
-                      hintText: 'e.g. Client requested antique finish with South Sea pearl drops.',
+                      hintText:
+                          'e.g. Client requested antique finish with South Sea pearl drops.',
                       prefixIcon: Icons.notes_outlined,
                       maxLines: 2,
                     ),
@@ -589,10 +682,21 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
                 color: AppColors.paper,
                 border: Border(top: BorderSide(color: AppColors.outlineLight)),
               ),
-              child: CommonButton.primary(
-                label: 'Save & Add Design Sketch',
-                icon: Icons.check,
-                onPressed: _saveSketch,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CommonButton.outlined(
+                    label: _sketchFile?.name ?? 'Select Sketch File',
+                    icon: Icons.attach_file,
+                    onPressed: _pickSketch,
+                  ),
+                  const SizedBox(height: 8),
+                  CommonButton.primary(
+                    label: 'Upload Design Sketch',
+                    icon: Icons.cloud_upload_outlined,
+                    onPressed: _saveSketch,
+                  ),
+                ],
               ),
             ),
           ],

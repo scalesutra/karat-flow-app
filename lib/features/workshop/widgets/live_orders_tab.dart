@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/widgets/common_empty_state.dart';
@@ -6,6 +7,8 @@ import '../../../../core/widgets/common_progress_indicator.dart';
 import '../../../../data/demo_store.dart';
 import '../../../../domain/models.dart';
 import '../../../../routes/app_routes.dart';
+import '../../front_office/bloc/orders_bloc.dart';
+import '../bloc/workshop_bloc.dart';
 
 /// Workshop Process Manager - Live Orders Tab
 class LiveOrdersTab extends StatelessWidget {
@@ -20,7 +23,9 @@ class LiveOrdersTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rawOrders = store.orders.where((o) => o.status != OrderStatus.delivered).toList();
+    final rawOrders = store.orders
+        .where((o) => o.status != OrderStatus.delivered)
+        .toList();
 
     final filteredOrders = rawOrders.where((o) {
       if (searchQuery.isEmpty) return true;
@@ -33,14 +38,19 @@ class LiveOrdersTab extends StatelessWidget {
 
     final liveOrders = filteredOrders.map((o) {
       final isBlocked = o.isBlocked;
-      final isComplete = o.status == OrderStatus.ready || o.status == OrderStatus.dispatched;
+      final isComplete =
+          o.status == OrderStatus.ready || o.status == OrderStatus.dispatched;
       final isInProgress = o.status == OrderStatus.inWorkshop;
 
       final orderCadTasks = store.cadTasks
-          .where((t) => t.productTitle.toLowerCase().contains(o.id.toLowerCase()))
+          .where(
+            (t) => t.productTitle.toLowerCase().contains(o.id.toLowerCase()),
+          )
           .toList();
       final totalCad = orderCadTasks.length;
-      final completedCad = orderCadTasks.where((t) => t.status == CadTaskStatus.completed).length;
+      final completedCad = orderCadTasks
+          .where((t) => t.status == CadTaskStatus.completed)
+          .length;
       final hasStl = orderCadTasks.any((t) => t.hasStlFile);
 
       return {
@@ -49,22 +59,24 @@ class LiveOrdersTab extends StatelessWidget {
         'client': '${o.clientFirmName} · ${o.clientCity}',
         'stage': isBlocked
             ? 'ON CRITICAL HOLD'
-            : (isComplete ? 'Complete' : (isInProgress ? o.currentWorkshopStage : 'Pending Start')),
+            : (isComplete
+                  ? 'Complete'
+                  : (isInProgress ? o.currentWorkshopStage : 'Pending Start')),
         'purity': '${o.totalGrossGrams}g · Due ${o.promiseDate}',
         'status': isBlocked
             ? 'on hold'
             : isComplete
-                ? 'complete'
-                : isInProgress
-                    ? 'in progress'
-                    : 'pending',
+            ? 'complete'
+            : isInProgress
+            ? 'in progress'
+            : 'pending',
         'statusColor': isBlocked
             ? AppColors.danger
             : isComplete
-                ? AppColors.emerald
-                : isInProgress
-                    ? AppColors.goldDark
-                    : const Color(0xFFFFD18A),
+            ? AppColors.emerald
+            : isInProgress
+            ? AppColors.goldDark
+            : const Color(0xFFFFD18A),
         'pieces': o.itemsCount,
         'artisan': o.responsibleManager,
         'totalCad': totalCad,
@@ -86,7 +98,8 @@ class LiveOrdersTab extends StatelessWidget {
     return CommonRefreshIndicator(
       theme: IndicatorTheme.workshop,
       onRefresh: () async {
-        await Future<void>.delayed(const Duration(milliseconds: 600));
+        context.read<OrdersBloc>().add(const FetchOrdersEvent());
+        context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent());
       },
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -96,7 +109,9 @@ class LiveOrdersTab extends StatelessWidget {
         itemBuilder: (context, index) {
           final order = liveOrders[index];
           final isBlocked = order['isBlocked'] as bool? ?? false;
-          final statusColor = isBlocked ? AppColors.danger : (order['statusColor'] as Color);
+          final statusColor = isBlocked
+              ? AppColors.danger
+              : (order['statusColor'] as Color);
 
           return InkWell(
             onTap: () {
@@ -113,7 +128,9 @@ class LiveOrdersTab extends StatelessWidget {
                 color: AppColors.paper,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isBlocked ? AppColors.danger : statusColor.withValues(alpha: 0.8),
+                  color: isBlocked
+                      ? AppColors.danger
+                      : statusColor.withValues(alpha: 0.8),
                   width: isBlocked ? 2.0 : 1.5,
                 ),
                 boxShadow: [
@@ -146,10 +163,15 @@ class LiveOrdersTab extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: statusColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusFull,
+                          ),
                           border: Border.all(
                             color: statusColor.withValues(alpha: 0.5),
                             width: 1,
@@ -169,11 +191,16 @@ class LiveOrdersTab extends StatelessWidget {
                   if (isBlocked) ...[
                     const SizedBox(height: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.dangerLight,
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: AppColors.danger.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -202,11 +229,17 @@ class LiveOrdersTab extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     order['client'] as String,
-                    style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.canvas,
                       borderRadius: BorderRadius.circular(8),
@@ -217,7 +250,11 @@ class LiveOrdersTab extends StatelessWidget {
                         Expanded(
                           child: Row(
                             children: [
-                              const Icon(Icons.layers_outlined, size: 14, color: AppColors.muted),
+                              const Icon(
+                                Icons.layers_outlined,
+                                size: 14,
+                                color: AppColors.muted,
+                              ),
                               const SizedBox(width: 4),
                               Flexible(
                                 child: Text(
@@ -227,7 +264,9 @@ class LiveOrdersTab extends StatelessWidget {
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 11,
-                                    color: isBlocked ? AppColors.danger : AppColors.ink,
+                                    color: isBlocked
+                                        ? AppColors.danger
+                                        : AppColors.ink,
                                   ),
                                 ),
                               ),
