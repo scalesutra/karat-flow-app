@@ -279,7 +279,7 @@ class KaratFlowApiRepository {
         'status': status,
         if (adminInstructions.isNotEmpty)
           'adminInstructions': adminInstructions,
-        if (feedbackAudioUrl != null) 'feedbackAudioUrl': feedbackAudioUrl,
+        'feedbackAudioUrl': ?feedbackAudioUrl,
       },
     );
     final data = response.data['data'] as Map<String, dynamic>;
@@ -504,7 +504,10 @@ class KaratFlowApiRepository {
   Future<void> reportWorkerTaskFailure(String id, String reason) async {
     await _api.post(
       ApiEndpoints.reportWorkerTaskFailure(id),
-      data: {'reason': reason},
+      data: {
+        'failureReason': reason,
+        'reason': reason,
+      },
     );
   }
 

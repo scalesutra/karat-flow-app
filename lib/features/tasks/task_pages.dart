@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:jewellery_ops_mobile/features/status/status_detail_page.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
@@ -8,10 +9,10 @@ import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../domain/models.dart';
 import '../instructions/instruction_composer.dart';
-import '../status/admin_status_page.dart';
 import '../workshop/bloc/workshop_bloc.dart';
 import 'widgets/cad_approval_task_card.dart';
 import 'widgets/instruction_task_card.dart';
+import '../admin/bloc/admin_bloc.dart';
 
 class AdminTasksPage extends StatelessWidget {
   const AdminTasksPage({super.key, required this.store});
@@ -20,14 +21,20 @@ class AdminTasksPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: store,
-      builder: (context, _) => _InstructionList(
-        title: '${AppStrings.navTasks.trClean} & Approvals',
-        subtitle: 'Track workshop instructions and make governed decisions.',
-        instructions: store.instructions,
-        mode: TaskDisplayMode.admin,
-        store: store,
+    return CommonRefreshIndicator(
+      onRefresh: () async {
+        context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+      },
+      child: AnimatedBuilder(
+        animation: store,
+        builder: (context, _) => _InstructionList(
+          title: '${AppStrings.navTasks.trClean} & Approvals',
+          subtitle: 'Track workshop instructions and make governed decisions.',
+          instructions: store.instructions,
+          mode: TaskDisplayMode.admin,
+          store: store,
+        ),
       ),
     );
   }
@@ -1129,12 +1136,10 @@ class _InstructionListState extends State<_InstructionList> {
 
   void _openNewInstructionForAdmin(BuildContext context) {
     final workItems = widget.store.workItemsFor(StatusPivot.orders);
-    if (workItems.isNotEmpty) {
-      showInstructionComposer(
-        context,
-        store: widget.store,
-        target: workItems.first,
-      );
-    }
+    showInstructionComposer(
+      context,
+      store: widget.store,
+      target: workItems.isNotEmpty ? workItems.first : null,
+    );
   }
 }

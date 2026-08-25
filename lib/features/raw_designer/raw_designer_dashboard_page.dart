@@ -8,6 +8,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/models/api_models.dart';
+import '../../data/repositories/karatflow_api_repository.dart';
 import 'bloc/sketch_bloc.dart';
 
 class RawDesignerDashboardPage extends StatefulWidget {
@@ -20,6 +21,8 @@ class RawDesignerDashboardPage extends StatefulWidget {
 
 class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
   String _status = '';
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -27,19 +30,41 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
     context.read<SketchBloc>().add(const FetchSketchesEvent());
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   void _filter(String value) {
     setState(() => _status = value);
     context.read<SketchBloc>().add(FetchSketchesEvent(status: value));
+  }
+
+  List<ApiSketch> _applySearch(List<ApiSketch> sketches) {
+    if (_searchQuery.trim().isEmpty) return sketches;
+    final query = _searchQuery.toLowerCase().trim();
+    return sketches.where((s) {
+      final matchesDesign = s.designNumber.toLowerCase().contains(query);
+      final matchesTitle = s.title.toLowerCase().contains(query);
+      return matchesDesign || matchesTitle;
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SketchBloc, SketchState>(
       builder: (context, state) {
-        final sketches = state is SketchLoaded
+        final allSketches = state is SketchLoaded
             ? state.sketches
             : const <ApiSketch>[];
+        final filteredSketches = _applySearch(allSketches);
         final loading = state is SketchLoading || state is SketchInitial;
+
+        final pendingCount = _count(allSketches, 'PENDING');
+        final rejectedCount = _count(allSketches, 'REJECTED');
+        final approvedCount = _count(allSketches, 'APPROVED');
+
         return RefreshIndicator(
           color: AppColors.emerald,
           onRefresh: () async => context.read<SketchBloc>().add(
@@ -58,12 +83,12 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
                       eyebrow: 'Raw Design Studio',
                       title: 'Sketch Dashboard',
                       description:
-                          'Create, revise and track pencil sketches from the live design workflow.',
+                          'Create, revise, and manage live pencil sketches for the production pipeline.',
                       icon: Icons.draw_outlined,
                       action: CommonButton.primary(
                         isFullWidth: false,
                         label: 'Upload Sketch',
-                        icon: Icons.upload_file_outlined,
+                        icon: Icons.upload_file_rounded,
                         onPressed: () => _showUploadDialog(context),
                       ),
                     ),
@@ -71,41 +96,75 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
                     ResponsiveMetricGrid(
                       metrics: [
                         DashboardMetric(
-                          value: '${sketches.length}',
-                          label: 'Visible sketches',
+                          value: '${allSketches.length}',
+                          label: 'Total Sketches',
                           icon: Icons.collections_outlined,
                           color: AppColors.emerald,
                         ),
                         DashboardMetric(
-                          value: '${_count(sketches, 'PENDING')}',
-                          label: 'Awaiting review',
+                          value: '$pendingCount',
+                          label: 'Awaiting Review',
                           icon: Icons.hourglass_top_rounded,
                           color: AppColors.warning,
                         ),
                         DashboardMetric(
-                          value: '${_count(sketches, 'REJECTED')}',
-                          label: 'Needs revision',
-                          icon: Icons.replay_rounded,
+                          value: '$rejectedCount',
+                          label: 'Needs Revision',
+                          icon: Icons.assignment_late_outlined,
                           color: AppColors.danger,
                         ),
                         DashboardMetric(
-                          value: '${_count(sketches, 'APPROVED')}',
+                          value: '$approvedCount',
                           label: 'Approved',
-                          icon: Icons.verified_outlined,
+                          icon: Icons.verified_rounded,
                           color: AppColors.success,
                         ),
                       ],
                     ),
                     const SizedBox(height: 20),
+
+                    // Search & Filter Controls Bar
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CommonTextField(
+                            controller: _searchController,
+                            hintText: 'Search by design code or title...',
+                            prefixIcon: Icons.search_rounded,
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(
+                                      Icons.close_rounded,
+                                      size: 18,
+                                    ),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  )
+                                : null,
+                            onChanged: (val) =>
+                                setState(() => _searchQuery = val),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
                     CommonFilterChips<String>(
                       padding: EdgeInsets.zero,
                       options: const ['', 'PENDING', 'REJECTED', 'APPROVED'],
                       selected: _status,
                       onSelected: _filter,
-                      labelBuilder: (value) =>
-                          value.isEmpty ? 'All' : _statusLabel(value),
+                      labelBuilder: (value) => switch (value.toUpperCase()) {
+                        'PENDING' => 'Pending ($pendingCount)',
+                        'REJECTED' => 'Needs Revision ($rejectedCount)',
+                        'APPROVED' => 'Approved ($approvedCount)',
+                        _ => 'All (${allSketches.length})',
+                      },
                     ),
                     const SizedBox(height: 16),
+
                     if (loading)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 80),
@@ -121,14 +180,26 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
                         actionLabel: 'Retry',
                         onAction: () => _filter(_status),
                       )
-                    else if (sketches.isEmpty)
+                    else if (filteredSketches.isEmpty)
                       CommonEmptyState(
                         icon: Icons.draw_outlined,
-                        title: 'No sketches found',
-                        description:
-                            'The live API returned no sketches for this filter.',
-                        actionLabel: 'Upload Sketch',
-                        onAction: () => _showUploadDialog(context),
+                        title: _searchQuery.isNotEmpty
+                            ? 'No matching sketches found'
+                            : 'No sketches in this category',
+                        description: _searchQuery.isNotEmpty
+                            ? 'Try searching with a different design code or title.'
+                            : 'There are currently no sketches matching this status filter.',
+                        actionLabel: _searchQuery.isNotEmpty
+                            ? 'Clear Search'
+                            : 'Upload Sketch',
+                        onAction: () {
+                          if (_searchQuery.isNotEmpty) {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          } else {
+                            _showUploadDialog(context);
+                          }
+                        },
                       )
                     else
                       LayoutBuilder(
@@ -139,12 +210,12 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
                               ? 2
                               : 1;
                           final cardWidth =
-                              (constraints.maxWidth - (12 * (columns - 1))) /
+                              (constraints.maxWidth - (16 * (columns - 1))) /
                               columns;
                           return Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: sketches
+                            spacing: 16,
+                            runSpacing: 16,
+                            children: filteredSketches
                                 .map(
                                   (sketch) => SizedBox(
                                     width: cardWidth,
@@ -152,6 +223,11 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
                                       sketch: sketch,
                                       onReupload: () =>
                                           _reupload(context, sketch),
+                                      onPreviewImage: () =>
+                                          _showImagePreviewDialog(
+                                            context,
+                                            sketch,
+                                          ),
                                     ),
                                   ),
                                 )
@@ -189,220 +265,187 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
     );
   }
 
-  void _showUploadDialog(BuildContext context) {
-    final designController = TextEditingController();
-    final titleController = TextEditingController();
-    String? fileName;
-    Uint8List? bytes;
+  void _showImagePreviewDialog(BuildContext context, ApiSketch sketch) {
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.paper,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
-          ),
-          title: const Text('Upload New Sketch'),
-          content: SizedBox(
-            width: 480,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CommonTextField(
-                  controller: designController,
-                  label: 'Design Number *',
-                  hintText: 'Enter the assigned design number',
-                ),
-                const SizedBox(height: 12),
-                CommonTextField(
-                  controller: titleController,
-                  label: 'Sketch Title *',
-                  hintText: 'Enter a clear sketch title',
-                ),
-                const SizedBox(height: 12),
-                CommonButton.outlined(
-                  label: fileName ?? 'Select Image *',
-                  icon: Icons.image_outlined,
-                  onPressed: () async {
-                    final result = await FilePicker.platform.pickFiles(
-                      type: FileType.image,
-                      withData: true,
-                    );
-                    final file = result?.files.single;
-                    if (file?.bytes == null) return;
-                    setDialogState(() {
-                      fileName = file!.name;
-                      bytes = file.bytes;
-                    });
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final designNumber = designController.text.trim();
-                final title = titleController.text.trim();
-                if (designNumber.isEmpty ||
-                    title.isEmpty ||
-                    fileName == null ||
-                    bytes == null) {
-                  CommonSnackbar.error(
-                    context,
-                    title: 'Required information',
-                    message: 'Design number, title and image are required.',
-                  );
-                  return;
-                }
-                context.read<SketchBloc>().add(
-                  UploadRawSketchEvent(
-                    designNumber: designNumber,
-                    title: title,
-                    fileName: fileName!,
-                    bytes: bytes!,
-                  ),
-                );
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Upload'),
-            ),
-          ],
-        ),
-      ),
-    ).whenComplete(() {
-      designController.dispose();
-      titleController.dispose();
-    });
+      builder: (ctx) => _SketchImagePreviewDialog(sketch: sketch),
+    );
   }
 
-  static String _statusLabel(String status) => switch (status.toUpperCase()) {
-    'PENDING' => 'Pending',
+  void _showUploadDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => const _UploadSketchDialog(),
+    );
+  }
+
+  static String statusLabel(String status) => switch (status.toUpperCase()) {
+    'PENDING' => 'Pending Review',
     'REJECTED' => 'Needs Revision',
     'APPROVED' => 'Approved',
     _ => status,
   };
 }
 
-class _SketchCard extends StatelessWidget {
-  const _SketchCard({required this.sketch, required this.onReupload});
+class _SketchImagePreviewDialog extends StatelessWidget {
+  const _SketchImagePreviewDialog({required this.sketch});
 
   final ApiSketch sketch;
-  final VoidCallback onReupload;
 
   @override
   Widget build(BuildContext context) {
-    final status = sketch.status.toUpperCase();
-    final color = switch (status) {
-      'APPROVED' => AppColors.success,
-      'REJECTED' => AppColors.danger,
-      _ => AppColors.warning,
-    };
-    return CommonCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    final screenHeight = MediaQuery.of(context).size.height;
+    final dialogHeight = (screenHeight * 0.8).clamp(400.0, 700.0);
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(16),
+      child: Stack(
+        alignment: Alignment.topRight,
         children: [
-          AspectRatio(
-            aspectRatio: 16 / 10,
-            child: sketch.sketchUrl.isEmpty
-                ? const Center(child: Icon(Icons.image_not_supported_outlined))
-                : ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(AppDimensions.radiusLarge),
-                    ),
-                    child: Image.network(
-                      sketch.sketchUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const Center(
-                        child: Icon(
-                          Icons.broken_image_outlined,
-                          color: AppColors.danger,
-                        ),
-                      ),
-                    ),
-                  ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        sketch.designNumber,
-                        style: const TextStyle(
-                          color: AppColors.goldDark,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        _RawDesignerDashboardPageState._statusLabel(status),
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
+          Container(
+            width: 800,
+            height: dialogHeight,
+            decoration: BoxDecoration(
+              color: AppColors.paper,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
                 ),
-                const SizedBox(height: 7),
-                Text(
-                  sketch.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.ink,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'Version ${sketch.version}',
-                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
-                ),
-                if (sketch.adminInstructions?.trim().isNotEmpty ?? false) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    sketch.adminInstructions!,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.danger,
-                      fontSize: 12,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-                if (status == 'REJECTED') ...[
-                  const SizedBox(height: 12),
-                  CommonButton.tonal(
-                    height: 40,
-                    label: 'Upload Revision',
-                    icon: Icons.replay_rounded,
-                    onPressed: onReupload,
-                  ),
-                ],
               ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Dialog Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 60, 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.goldLight,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.gold.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Text(
+                          sketch.designNumber,
+                          style: const TextStyle(
+                            color: AppColors.goldDark,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          sketch.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            color: AppColors.ink,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                // Image Display Area
+                Expanded(
+                  child: Container(
+                    color: AppColors.canvas,
+                    width: double.infinity,
+                    height: double.infinity,
+                    child: sketch.sketchUrl.isEmpty
+                        ? const Center(
+                            child: Icon(
+                              Icons.image_not_supported_outlined,
+                              size: 64,
+                              color: AppColors.muted,
+                            ),
+                          )
+                        : InteractiveViewer(
+                            clipBehavior: Clip.hardEdge,
+                            minScale: 0.5,
+                            maxScale: 4.0,
+                            child: Center(
+                              child: _PresignedSketchImage(
+                                imageUrl: sketch.sketchUrl,
+                                fit: BoxFit.contain,
+                                loadingLabel: 'Loading full sketch image...',
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+                // Footer info
+                if (sketch.adminInstructions?.trim().isNotEmpty ?? false)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: const BoxDecoration(
+                      color: AppColors.dangerLight,
+                      borderRadius: BorderRadius.vertical(
+                        bottom: Radius.circular(20),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.assignment_late_outlined,
+                          color: AppColors.danger,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Admin Revision Notes:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.danger,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                sketch.adminInstructions!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: CircleAvatar(
+              backgroundColor: AppColors.paper,
+              child: IconButton(
+                icon: const Icon(Icons.close_rounded, color: AppColors.ink),
+                onPressed: () => Navigator.pop(context),
+              ),
             ),
           ),
         ],
@@ -410,3 +453,671 @@ class _SketchCard extends StatelessWidget {
     );
   }
 }
+
+class _UploadSketchDialog extends StatefulWidget {
+  const _UploadSketchDialog();
+
+  @override
+  State<_UploadSketchDialog> createState() => _UploadSketchDialogState();
+}
+
+class _UploadSketchDialogState extends State<_UploadSketchDialog> {
+  late final TextEditingController _designController;
+  late final TextEditingController _titleController;
+  String? _fileName;
+  Uint8List? _bytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _designController = TextEditingController();
+    _titleController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _designController.dispose();
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.paper,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+      contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.emeraldLight,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.draw_rounded,
+              color: AppColors.emerald,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Upload New Sketch',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                  color: AppColors.ink,
+                ),
+              ),
+              Text(
+                'Submit pencil sketch for admin review',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.muted,
+                  fontWeight: FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 460,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 8),
+              CommonTextField(
+                controller: _designController,
+                label: 'Design Code / Number *',
+                hintText: 'e.g. DSG-1042',
+                prefixIcon: Icons.qr_code_rounded,
+              ),
+              const SizedBox(height: 14),
+              CommonTextField(
+                controller: _titleController,
+                label: 'Sketch Title *',
+                hintText: 'e.g. Diamond Solitaire Ring - Pencil Draft',
+                prefixIcon: Icons.title_rounded,
+              ),
+              const SizedBox(height: 16),
+
+              // Image Upload Selector / Preview Box
+              GestureDetector(
+                onTap: () async {
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.image,
+                    withData: true,
+                  );
+                  final file = result?.files.single;
+                  if (file?.bytes == null) return;
+                  setState(() {
+                    _fileName = file!.name;
+                    _bytes = file.bytes;
+                  });
+                },
+                child: Container(
+                  height: _bytes != null ? 160 : 120,
+                  decoration: BoxDecoration(
+                    color: _bytes != null
+                        ? AppColors.canvas
+                        : AppColors.emeraldLight.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _bytes != null
+                          ? AppColors.emerald
+                          : AppColors.outline,
+                      width: _bytes != null ? 2 : 1.5,
+                    ),
+                  ),
+                  child: _bytes != null
+                      ? Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.memory(
+                                _bytes!,
+                                width: double.infinity,
+                                height: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Container(
+                              color: Colors.black.withValues(alpha: 0.35),
+                            ),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppColors.pureWhite,
+                                  size: 32,
+                                ),
+                                const SizedBox(height: 4),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  child: Text(
+                                    _fileName ?? 'Image Selected',
+                                    style: const TextStyle(
+                                      color: AppColors.pureWhite,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Tap to change image',
+                                  style: TextStyle(
+                                    color: AppColors.sage,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.cloud_upload_outlined,
+                              color: AppColors.emerald,
+                              size: 36,
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Select Sketch Image *',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.ink,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Supports PNG, JPG, WEBP',
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(
+              color: AppColors.muted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        CommonButton.primary(
+          isFullWidth: false,
+          height: 40,
+          label: 'Upload Sketch',
+          icon: Icons.check_rounded,
+          onPressed: () {
+            final designNumber = _designController.text.trim();
+            final title = _titleController.text.trim();
+            if (designNumber.isEmpty ||
+                title.isEmpty ||
+                _fileName == null ||
+                _bytes == null) {
+              CommonSnackbar.error(
+                context,
+                title: 'Required Fields Missing',
+                message: 'Design number, title and image are required.',
+              );
+              return;
+            }
+            context.read<SketchBloc>().add(
+              UploadRawSketchEvent(
+                designNumber: designNumber,
+                title: title,
+                fileName: _fileName!,
+                bytes: _bytes!,
+              ),
+            );
+            Navigator.pop(context);
+          },
+        ),
+      ],
+    );
+  }
+}
+
+String statusLabel(String status) => switch (status.toUpperCase()) {
+  'PENDING' => 'Pending Review',
+  'REJECTED' => 'Needs Revision',
+  'APPROVED' => 'Approved',
+  _ => status,
+};
+
+class _SketchCard extends StatelessWidget {
+  const _SketchCard({
+    required this.sketch,
+    required this.onReupload,
+    required this.onPreviewImage,
+  });
+
+  final ApiSketch sketch;
+  final VoidCallback onReupload;
+  final VoidCallback onPreviewImage;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = sketch.status.toUpperCase();
+    final (statusColor, statusBg, statusIcon) = switch (status) {
+      'APPROVED' => (
+        AppColors.success,
+        AppColors.successLight,
+        Icons.check_circle_rounded,
+      ),
+      'REJECTED' => (
+        AppColors.danger,
+        AppColors.dangerLight,
+        Icons.assignment_late_outlined,
+      ),
+      _ => (
+        AppColors.warning,
+        AppColors.warningLight,
+        Icons.hourglass_top_rounded,
+      ),
+    };
+
+    return CommonCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onPreviewImage,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Image Box Container
+            Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: 16 / 10,
+                  child: sketch.sketchUrl.isEmpty
+                      ? Container(
+                          color: AppColors.canvas,
+                          child: const Center(
+                            child: Icon(
+                              Icons.image_not_supported_outlined,
+                              color: AppColors.muted,
+                              size: 32,
+                            ),
+                          ),
+                        )
+                      : ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(AppDimensions.radiusLarge),
+                          ),
+                          child: _PresignedSketchImage(
+                            imageUrl: sketch.sketchUrl,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                ),
+
+                // Floating Status Pill (Top Right)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.paper,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                      border: Border.all(
+                        color: statusColor.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(statusIcon, color: statusColor, size: 12),
+                        const SizedBox(width: 4),
+                        Text(
+                          _RawDesignerDashboardPageState.statusLabel(status),
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Version Tag (Bottom Left)
+                Positioned(
+                  bottom: 8,
+                  left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'v${sketch.version}',
+                      style: const TextStyle(
+                        color: AppColors.pureWhite,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // Card Body Details
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.goldLight,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: AppColors.gold.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Text(
+                          sketch.designNumber,
+                          style: const TextStyle(
+                            color: AppColors.goldDark,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      const Icon(
+                        Icons.zoom_in_rounded,
+                        size: 16,
+                        color: AppColors.subtle,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    sketch.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.ink,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      height: 1.25,
+                    ),
+                  ),
+
+                  // Admin Revision Feedback Container
+                  if (sketch.adminInstructions?.trim().isNotEmpty ?? false) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.dangerLight,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.danger.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.report_problem_outlined,
+                                color: AppColors.danger,
+                                size: 14,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'ADMIN REVISION NOTES',
+                                style: TextStyle(
+                                  color: AppColors.danger,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            sketch.adminInstructions!,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.ink,
+                              fontSize: 12,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // Action for Needs Revision
+                  if (status == 'REJECTED') ...[
+                    const SizedBox(height: 12),
+                    CommonButton.tonal(
+                      height: 38,
+                      label: 'Upload Revision',
+                      icon: Icons.replay_rounded,
+                      onPressed: onReupload,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PresignedSketchImage extends StatefulWidget {
+  const _PresignedSketchImage({
+    required this.imageUrl,
+    this.fit = BoxFit.cover,
+    this.loadingLabel,
+  });
+
+  final String imageUrl;
+  final BoxFit fit;
+  final String? loadingLabel;
+
+  @override
+  State<_PresignedSketchImage> createState() => _PresignedSketchImageState();
+}
+
+class _PresignedSketchImageState extends State<_PresignedSketchImage> {
+  static final Map<String, String> _urlCache = {};
+  String? _resolvedUrl;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUrl();
+  }
+
+  @override
+  void didUpdateWidget(_PresignedSketchImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl) {
+      _loadUrl();
+    }
+  }
+
+  Future<void> _loadUrl() async {
+    final url = widget.imageUrl.trim();
+    if (url.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
+      return;
+    }
+
+    if (_urlCache.containsKey(url)) {
+      if (mounted) {
+        setState(() {
+          _resolvedUrl = _urlCache[url];
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    if (url.contains('X-Amz-Algorithm') || !url.contains('amazonaws.com')) {
+      _urlCache[url] = url;
+      if (mounted) {
+        setState(() {
+          _resolvedUrl = url;
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final uri = Uri.parse(url);
+      String fileKey = uri.path;
+      if (fileKey.startsWith('/')) {
+        fileKey = fileKey.substring(1);
+      }
+
+      if (fileKey.isNotEmpty) {
+        final api = KaratFlowApiRepository();
+        final signed = await api.getPresignedDownloadUrl(fileKey);
+        if (signed.downloadUrl.isNotEmpty) {
+          _urlCache[url] = signed.downloadUrl;
+          if (mounted) {
+            setState(() {
+              _resolvedUrl = signed.downloadUrl;
+              _isLoading = false;
+            });
+          }
+          return;
+        }
+      }
+    } catch (_) {
+      // Fallback
+    }
+
+    if (mounted) {
+      setState(() {
+        _resolvedUrl = url;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Center(
+        child: CommonProgressIndicator(
+          label: widget.loadingLabel ?? 'Loading...',
+        ),
+      );
+    }
+
+    if (_hasError) {
+      return const Center(
+        child: Icon(
+          Icons.broken_image_outlined,
+          color: AppColors.danger,
+          size: 32,
+        ),
+      );
+    }
+
+    final targetUrl = _resolvedUrl ?? widget.imageUrl;
+
+    return Image.network(
+      targetUrl,
+      fit: widget.fit,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return Center(
+          child: CircularProgressIndicator(
+            value: progress.expectedTotalBytes != null
+                ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                : null,
+            strokeWidth: 2,
+            color: AppColors.emerald,
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return const Center(
+          child: Icon(
+            Icons.broken_image_outlined,
+            color: AppColors.danger,
+            size: 32,
+          ),
+        );
+      },
+    );
+  }
+}
+

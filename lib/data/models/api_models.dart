@@ -175,6 +175,8 @@ class ApiSketch {
     this.adminInstructions,
     this.feedbackAudioUrl,
     this.feedbackImageUrl,
+    this.designer,
+    this.createdAt,
   });
 
   factory ApiSketch.fromJson(Map<String, dynamic> json) {
@@ -188,6 +190,10 @@ class ApiSketch {
       adminInstructions: json['adminInstructions'] as String?,
       feedbackAudioUrl: json['feedbackAudioUrl'] as String?,
       feedbackImageUrl: json['feedbackImageUrl'] as String?,
+      designer: json['designer'] != null
+          ? ApiUser.fromJson(json['designer'] as Map<String, dynamic>)
+          : null,
+      createdAt: json['createdAt'] as String?,
     );
   }
 
@@ -200,6 +206,8 @@ class ApiSketch {
   final String? adminInstructions;
   final String? feedbackAudioUrl;
   final String? feedbackImageUrl;
+  final ApiUser? designer;
+  final String? createdAt;
 }
 
 // ── 6. 3D CAD Models ────────────────────────────────────────────────

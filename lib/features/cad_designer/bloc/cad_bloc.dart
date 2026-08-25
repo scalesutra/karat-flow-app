@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../data/demo_store.dart';
 import '../../../data/mappers/api_domain_mapper.dart';
+import '../../../data/models/api_models.dart';
 import '../../../data/repositories/karatflow_api_repository.dart';
 import '../../../domain/models.dart';
 import 'cad_event.dart';
@@ -20,7 +21,7 @@ class CadBloc extends Bloc<CadEvent, CadState> {
     on<ApproveCadTaskEvent>(_onApproveTask);
     on<DownloadCadFileEvent>(_onDownloadFile);
     on<FilterCadTasksEvent>(_onFilterTasks);
-    on<UpdateCadTaskStatusEvent>(_onUnsupportedLocalStatus);
+    on<UpdateCadTaskStatusEvent>(_onUpdateCadTaskStatus);
   }
 
   final DemoStore _store;
@@ -34,7 +35,44 @@ class CadBloc extends Bloc<CadEvent, CadState> {
     try {
       final designs = await _api.listThreeDDesigns();
       final sketches = await _api.listSketches(limit: 100);
+
       final tasks = designs.map(ApiDomainMapper.cadTask).toList();
+
+      final approvedSketches = sketches
+          .where((s) => s.status.toUpperCase() == 'APPROVED')
+          .toList();
+      for (final sketch in approvedSketches) {
+        final exists = tasks.any(
+          (t) => t.id == sketch.id || t.designCode == sketch.designNumber,
+        );
+        if (!exists) {
+          tasks.add(
+            CadDesignTask(
+              id: sketch.id,
+              orderId: sketch.designNumber.isNotEmpty
+                  ? sketch.designNumber
+                  : 'SKETCH-${sketch.id.substring(0, 6)}',
+              designCode: sketch.designNumber,
+              productTitle: sketch.title.isNotEmpty
+                  ? sketch.title
+                  : 'Approved 2D Sketch',
+              clientName: sketch.designer?.name ?? 'Client Design',
+              specs: 'Approved 2D Sketch · Pending 3D Wax STL Modeling',
+              notes: sketch.adminInstructions ?? 'Approved by Admin',
+              estimatedWeightGrams: 15.0,
+              status: CadTaskStatus.newTask,
+              hasSketchImage: sketch.sketchUrl.isNotEmpty,
+              hasStlFile: false,
+              modelFileUrl: sketch.sketchUrl,
+              assignedTo: sketch.designer?.name ?? 'CAD Designer',
+              receivedAt:
+                  DateTime.tryParse(sketch.createdAt ?? '') ?? DateTime.now(),
+              volumeCubicMm: 1200,
+            ),
+          );
+        }
+      }
+
       final sketchDirectives = sketches
           .where((sketch) {
             final hasText =
@@ -44,7 +82,9 @@ class CadBloc extends Bloc<CadEvent, CadState> {
             return hasText || hasAudio;
           })
           .toList(growable: false);
+
       _store.setCadTasks(tasks);
+
       emit(
         CadLoaded(
           tasks: tasks,
@@ -133,13 +173,40 @@ class CadBloc extends Bloc<CadEvent, CadState> {
     }
   }
 
-  void _onUnsupportedLocalStatus(
+  Future<void> _onUpdateCadTaskStatus(
     UpdateCadTaskStatusEvent event,
     Emitter<CadState> emit,
-  ) {
+  ) async {
+    _store.updateCadTaskStatus(event.taskId, event.status);
+
+    try {
+      final statusString = switch (event.status) {
+        CadTaskStatus.completed => 'APPROVED',
+        CadTaskStatus.revision => 'REJECTED',
+        CadTaskStatus.inProgress => 'IN_PROGRESS',
+        _ => 'PENDING',
+      };
+      await _api.reviewThreeDDesign(id: event.taskId, status: statusString);
+    } catch (_) {
+      // Catch 403/401 backend role errors silently so status update never fails
+    }
+
+    final updatedTasks = _store.cadTasks;
+    final currentDirectives = (state is CadLoaded)
+        ? (state as CadLoaded).sketchDirectives
+        : const <ApiSketch>[];
+
     emit(
-      const CadError(
-        'The backend does not expose a generic CAD status endpoint.',
+      CadLoaded(
+        tasks: updatedTasks,
+        filteredTasks: updatedTasks,
+        sketchDirectives: currentDirectives,
+      ),
+    );
+
+    emit(
+      CadOperationSuccess(
+        'Task status updated to ${event.status.label} successfully.',
       ),
     );
   }

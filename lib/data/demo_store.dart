@@ -69,13 +69,32 @@ class DemoStore extends ChangeNotifier {
       .toList();
 
   void addAdminDirective(String recipient, String content) {
+    final id = 'DIR-00${_adminDirectives.length + 1}';
     _adminDirectives.insert(0, {
-      'id': 'DIR-00${_adminDirectives.length + 1}',
-      'date': '24-08-2026',
+      'id': id,
+      'date': '25-08-2026',
       'recipient': recipient,
       'content': content,
       'status': 'Active',
     });
+
+    _instructions.insert(
+      0,
+      Instruction(
+        id: id,
+        targetId: id,
+        targetLabel: 'Directive to $recipient',
+        message: content,
+        createdBy: 'Admin',
+        assignedTo: recipient,
+        urgency: InstructionUrgency.urgent,
+        status: InstructionStatus.sent,
+        createdAt: DateTime.now(),
+        hasPhoto: false,
+        hasVoice: false,
+      ),
+    );
+
     notifyListeners();
   }
 
@@ -176,15 +195,18 @@ class DemoStore extends ChangeNotifier {
               .where((lot) => lot.stage == WorkshopStage.values[stageIndex])
               .length;
           return WorkItem(
-            id: stage.id,
+            id: stage.name,
             pivot: pivot,
             title: stage.name,
-            subtitle: 'Production stage ${stage.stageNumber}',
-            status: stage.isActive ? 'Active' : 'Inactive',
-            quantity: '$lotCount lots',
-            owner: 'Live backend route',
-            tone: stage.isActive ? HealthTone.healthy : HealthTone.critical,
-            metrics: {'Lots': '$lotCount', 'Sequence': '${stage.stageNumber}'},
+            subtitle: 'Stage ${stage.stageNumber} · Production Routing',
+            status: lotCount > 0 ? '$lotCount Lots Active' : 'Idle',
+            quantity: '$lotCount lots in floor',
+            owner: 'Workshop Manager',
+            tone: HealthTone.healthy,
+            metrics: {
+              'Active lots': '$lotCount',
+              'Stage No.': '${stage.stageNumber}',
+            },
             timeline: const [],
           );
         })
@@ -240,6 +262,59 @@ class DemoStore extends ChangeNotifier {
   void addDesign(JewelleryDesign design) {
     _designs.insert(0, design);
     notifyListeners();
+  }
+
+  void approveDesign(String id) {
+    final index = _designs.indexWhere((item) => item.id == id);
+    if (index != -1) {
+      final old = _designs[index];
+      _designs[index] = JewelleryDesign(
+        id: old.id,
+        name: old.name.contains('(Sketch Approved)')
+            ? old.name
+            : '${old.name} (Sketch Approved)',
+        code: old.code,
+        category: old.category,
+        purity: old.purity,
+        grossWeightGrams: old.grossWeightGrams,
+        imageUrl: old.imageUrl,
+        description: old.description,
+        isPopular: true,
+        estimatedPrice: old.estimatedPrice,
+      );
+
+      final taskExists = _cadTasks.any(
+        (t) => t.id == old.id || t.designCode == old.code,
+      );
+      if (!taskExists) {
+        _cadTasks.insert(
+          0,
+          CadDesignTask(
+            id: 'CAD-${old.code}',
+            orderId: 'ORD-2026-CAD',
+            designCode: old.code,
+            productTitle: '${old.name} (Approved 2D Sketch)',
+            clientName: 'Approved Client Sketch',
+            specs: 'Approved 2D Concept · Ready for 3D STL & BOM Modeling',
+            notes: old.description.isNotEmpty
+                ? old.description
+                : 'Approved for CAD Modeling',
+            estimatedWeightGrams: old.grossWeightGrams > 0
+                ? old.grossWeightGrams
+                : 16.0,
+            status: CadTaskStatus.newTask,
+            hasSketchImage: old.imageUrl.isNotEmpty,
+            hasStlFile: false,
+            modelFileUrl: old.imageUrl,
+            assignedTo: 'Rahul CAD Designer',
+            receivedAt: DateTime.now(),
+            volumeCubicMm: 1250,
+          ),
+        );
+      }
+
+      notifyListeners();
+    }
   }
 
   List<JewelleryDesign> designsForCategory(JewelleryCategory category) {

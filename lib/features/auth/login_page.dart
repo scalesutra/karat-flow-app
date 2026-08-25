@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:jewellery_ops_mobile/routes/app_pages.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/services/live_data_bloc_coordinator.dart';
@@ -12,6 +11,7 @@ import '../../core/widgets/common_progress_indicator.dart';
 import '../../core/widgets/common_snackbar.dart';
 import '../../core/widgets/common_text_field.dart';
 import '../../domain/models.dart';
+import '../../routes/app_pages.dart';
 import '../../routes/app_routes.dart';
 import 'bloc/auth_bloc.dart';
 
@@ -46,14 +46,19 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  void _quickFill(String email, String password) {
+    setState(() {
+      _emailController.text = email;
+      _passwordController.text = password;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.canvas,
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) async {
           if (state is AuthAuthenticated) {
-            // Update role in AppRoleController
             final roleController = Get.find<AppRoleController>();
             final targetRole = switch (state.role.toUpperCase()) {
               'ADMIN' => AppRole.admin,
@@ -68,16 +73,14 @@ class _LoginPageState extends State<LoginPage> {
               _ => AppRole.admin,
             };
             roleController.setRole(targetRole);
-
-            // All protected APIs must run after the login token is saved.
             LiveDataBlocCoordinator.refreshForRole(context, targetRole);
 
             if (!context.mounted) return;
 
             CommonSnackbar.success(
               context,
-              title: 'Login Successful',
-              message: 'Welcome back, ${state.userName}!',
+              title: 'Welcome Back',
+              message: 'Logged in as ${state.userName} (${targetRole.label})',
             );
             Get.offAllNamed(Routes.shell);
           } else if (state is AuthError) {
@@ -91,358 +94,576 @@ class _LoginPageState extends State<LoginPage> {
         builder: (context, state) {
           final isLoading = state is AuthLoading;
 
-          return SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 20,
-                ),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 440),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // ── 1. Luxury Brand Header ───────────────────────
-                      Center(
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const RadialGradient(
-                              colors: [
-                                Color(0xFFFFDF7A),
-                                Color(0xFFD4AF37),
-                                Color(0xFF0D6252),
-                              ],
-                              stops: [0.2, 0.6, 1.0],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.gold.withValues(alpha: 0.35),
-                                blurRadius: 24,
-                                spreadRadius: 4,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.diamond_outlined,
-                            size: 42,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      Center(
-                        child: Text(
-                          'KARATFLOW',
-                          style: GoogleFonts.cinzel(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 4.0,
-                            color: AppColors.ink,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-
-                      Center(
-                        child: Text(
-                          'Enterprise Jewellery Manufacturing ERP',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.muted,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-
-                      // ── 2. Login Card ────────────────────────────────
-                      CommonCard(
-                        padding: const EdgeInsets.all(24),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Sign In to Your Workspace',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.ink,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Enter authorized credentials to access factory control',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  color: AppColors.muted,
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-
-                              // Email Field
-                              CommonTextField(
-                                controller: _emailController,
-                                label: 'Email Address *',
-                                hintText: 'admin@karratflow.com',
-                                prefixIcon: Icons.email_outlined,
-                                keyboardType: TextInputType.emailAddress,
-                                validator: (val) {
-                                  if (val == null || val.trim().isEmpty) {
-                                    return 'Please enter your email';
-                                  }
-                                  if (!val.contains('@')) {
-                                    return 'Please enter a valid email address';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Password Field
-                              Text(
-                                'Password *',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.ink,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              TextFormField(
-                                controller: _passwordController,
-                                obscureText: _obscurePassword,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.ink,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: '••••••••',
-                                  prefixIcon: const Icon(
-                                    Icons.lock_outline,
-                                    color: AppColors.muted,
-                                    size: 20,
-                                  ),
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                      color: AppColors.muted,
-                                      size: 20,
-                                    ),
-                                    onPressed: () => setState(
-                                      () =>
-                                          _obscurePassword = !_obscurePassword,
-                                    ),
-                                  ),
-                                  filled: true,
-                                  fillColor: AppColors.paper,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                      color: AppColors.outline,
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                      color: AppColors.outline,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                      color: AppColors.gold,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                ),
-                                validator: (val) {
-                                  if (val == null || val.trim().isEmpty) {
-                                    return 'Please enter your password';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 24),
-
-                              // Login Submit Button
-                              if (isLoading)
-                                const Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 8),
-                                    child: CommonProgressIndicator(
-                                      theme: IndicatorTheme.universal,
-                                      size: 54,
-                                      label:
-                                          'Authenticating with live server...',
-                                    ),
-                                  ),
-                                )
-                              else
-                                CommonButton.primary(
-                                  label: 'Sign In to Workspace',
-                                  icon: Icons.login_rounded,
-                                  onPressed: _submitLogin,
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      /*
-                      CommonCard(
-                        backgroundColor: AppColors.paper,
-                        padding: const EdgeInsets.all(16),
-                        borderRadius: BorderRadius.circular(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.flash_on,
-                                  size: 16,
-                                  color: AppColors.gold,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Quick Fill Credentials',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.ink,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 6,
-                              children: [
-                                ActionChip(
-                                  avatar: const Icon(
-                                    Icons.admin_panel_settings,
-                                    size: 14,
-                                    color: AppColors.emeraldDark,
-                                  ),
-                                  label: const Text(
-                                    '1. Admin (admin@karratflow.com)',
-                                    style: TextStyle(fontSize: 11),
-                                  ),
-                                  backgroundColor: AppColors.emeraldLight,
-                                  onPressed: () => _quickFill(
-                                    'admin@karratflow.com',
-                                    'Admin@123',
-                                  ),
-                                ),
-                                ActionChip(
-                                  avatar: const Icon(
-                                    Icons.storefront_outlined,
-                                    size: 14,
-                                    color: AppColors.goldDark,
-                                  ),
-                                  label: const Text(
-                                    '2. Frontier / Front Office',
-                                    style: TextStyle(fontSize: 11),
-                                  ),
-                                  backgroundColor: AppColors.goldLight,
-                                  onPressed: () => _quickFill(
-                                    'frontier@karratflow.com',
-                                    'Frontier@123',
-                                  ),
-                                ),
-                                ActionChip(
-                                  avatar: const Icon(
-                                    Icons.precision_manufacturing_outlined,
-                                    size: 14,
-                                    color: AppColors.emeraldDark,
-                                  ),
-                                  label: const Text(
-                                    '3. Production Manager',
-                                    style: TextStyle(fontSize: 11),
-                                  ),
-                                  backgroundColor: AppColors.sage,
-                                  onPressed: () => _quickFill(
-                                    'pm@karratflow.com',
-                                    'Manager@123',
-                                  ),
-                                ),
-                                ActionChip(
-                                  avatar: const Icon(
-                                    Icons.draw_outlined,
-                                    size: 14,
-                                    color: AppColors.goldDark,
-                                  ),
-                                  label: const Text(
-                                    '4. Raw Designer (Sketcher)',
-                                    style: TextStyle(fontSize: 11),
-                                  ),
-                                  backgroundColor: AppColors.goldLight,
-                                  onPressed: () => _quickFill(
-                                    'sketcher@karratflow.com',
-                                    'Sketcher@123',
-                                  ),
-                                ),
-                                ActionChip(
-                                  avatar: const Icon(
-                                    Icons.view_in_ar_outlined,
-                                    size: 14,
-                                    color: AppColors.emerald,
-                                  ),
-                                  label: const Text(
-                                    '5. 3D CAD Designer',
-                                    style: TextStyle(fontSize: 11),
-                                  ),
-                                  backgroundColor: AppColors.sage,
-                                  onPressed: () => _quickFill(
-                                    'cad@karratflow.com',
-                                    'Designer@123',
-                                  ),
-                                ),
-                                ActionChip(
-                                  avatar: const Icon(
-                                    Icons.engineering,
-                                    size: 14,
-                                    color: AppColors.goldDark,
-                                  ),
-                                  label: const Text(
-                                    '6. Workshop Artisan',
-                                    style: TextStyle(fontSize: 11),
-                                  ),
-                                  backgroundColor: AppColors.goldLight,
-                                  onPressed: () => _quickFill(
-                                    'artisan@karratflow.com',
-                                    'Artisan@123',
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ), */
-                      const SizedBox.shrink(),
-                    ],
+          return Stack(
+            children: [
+              // ── 0. Luxury Ambient Gradient Background ─────────────────────
+              Positioned.fill(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Color(0xFFFAF7F0),
+                        Color(0xFFF3EDDF),
+                        Color(0xFFE8DFC9),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
                   ),
                 ),
               ),
-            ),
+
+              // Top Right Emerald Ambient Soft Glow
+              Positioned(
+                top: -80,
+                right: -80,
+                child: Container(
+                  width: 280,
+                  height: 280,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.emerald.withValues(alpha: 0.12),
+                  ),
+                ),
+              ),
+
+              // Bottom Left Gold Ambient Soft Glow
+              Positioned(
+                bottom: -100,
+                left: -100,
+                child: Container(
+                  width: 320,
+                  height: 320,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.gold.withValues(alpha: 0.15),
+                  ),
+                ),
+              ),
+
+              // ── Main Content Container ─────────────────────────────────────
+              SafeArea(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 24,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 460),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // ── 1. Luxury Brand Hero Emblem ───────────────────────
+                          Center(
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // Outer Glow Aura Ring
+                                Container(
+                                  width: 108,
+                                  height: 108,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: RadialGradient(
+                                      colors: [
+                                        AppColors.gold.withValues(alpha: 0.4),
+                                        AppColors.emerald.withValues(
+                                          alpha: 0.15,
+                                        ),
+                                        Colors.transparent,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+
+                                // Main Metallic Emblem Badge
+                                Container(
+                                  width: 90,
+                                  height: 90,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFFFFE899),
+                                        Color(0xFFD4AF37),
+                                        Color(0xFF0D6252),
+                                        Color(0xFF083D33),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    border: Border.all(
+                                      color: const Color(0xFFFFF7DB),
+                                      width: 2.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.emeraldDark.withValues(
+                                          alpha: 0.35,
+                                        ),
+                                        blurRadius: 24,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      // Main Diamond Icon
+                                      const Icon(
+                                        Icons.diamond_rounded,
+                                        size: 46,
+                                        color: Colors.white,
+                                      ),
+                                      // Top Right Sparkle Star
+                                      const Positioned(
+                                        top: 14,
+                                        right: 14,
+                                        child: Icon(
+                                          Icons.auto_awesome_rounded,
+                                          size: 16,
+                                          color: Color(0xFFFFE899),
+                                        ),
+                                      ),
+                                      // Bottom Left Small Sparkle Accent
+                                      const Positioned(
+                                        bottom: 16,
+                                        left: 16,
+                                        child: Icon(
+                                          Icons.auto_awesome_rounded,
+                                          size: 12,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          Center(
+                            child: Text(
+                              'KARATFLOW',
+                              style: GoogleFonts.cinzel(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 5.0,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+
+                          Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.goldLight,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: AppColors.gold.withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Text(
+                                'ENTERPRISE JEWELLERY MANUFACTURING ERP',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.goldDark,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+
+                          // ── 2. Login Card with Gradient Accent Bar ──────────
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.paper,
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: AppColors.gold.withValues(alpha: 0.3),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.ink.withValues(alpha: 0.08),
+                                  blurRadius: 28,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: Column(
+                              children: [
+                                // Metallic Gold to Emerald Accent Line
+                                Container(
+                                  height: 5,
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppColors.gold,
+                                        AppColors.emerald,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.all(28),
+                                  child: Form(
+                                    key: _formKey,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(10),
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  colors: [
+                                                    AppColors.emeraldLight,
+                                                    AppColors.goldLight,
+                                                  ],
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: AppColors.gold
+                                                      .withValues(alpha: 0.3),
+                                                ),
+                                              ),
+                                              child: const Icon(
+                                                Icons.shield_outlined,
+                                                color: AppColors.emeraldDark,
+                                                size: 22,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Sign In to Workspace',
+                                                    style:
+                                                        GoogleFonts.plusJakartaSans(
+                                                          fontSize: 17,
+                                                          fontWeight:
+                                                              FontWeight.w800,
+                                                          color: AppColors.ink,
+                                                        ),
+                                                  ),
+                                                  Text(
+                                                    'Enter authorized credentials to proceed',
+                                                    style:
+                                                        GoogleFonts.plusJakartaSans(
+                                                          fontSize: 12,
+                                                          color:
+                                                              AppColors.muted,
+                                                        ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 24),
+
+                                        // Email Field
+                                        CommonTextField(
+                                          controller: _emailController,
+                                          label: 'Email Address *',
+                                          hintText: 'e.g. admin@karratflow.com',
+                                          prefixIcon: Icons.email_outlined,
+                                          keyboardType:
+                                              TextInputType.emailAddress,
+                                          validator: (val) {
+                                            if (val == null ||
+                                                val.trim().isEmpty) {
+                                              return 'Please enter your email';
+                                            }
+                                            if (!val.contains('@')) {
+                                              return 'Please enter a valid email address';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 18),
+
+                                        // Password Field
+                                        Text(
+                                          'Password *',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.ink,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        TextFormField(
+                                          controller: _passwordController,
+                                          obscureText: _obscurePassword,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.ink,
+                                          ),
+                                          decoration: InputDecoration(
+                                            hintText: '••••••••',
+                                            prefixIcon: const Icon(
+                                              Icons.lock_outline,
+                                              color: AppColors.muted,
+                                              size: 20,
+                                            ),
+                                            suffixIcon: IconButton(
+                                              icon: Icon(
+                                                _obscurePassword
+                                                    ? Icons.visibility_outlined
+                                                    : Icons
+                                                          .visibility_off_outlined,
+                                                color: AppColors.muted,
+                                                size: 20,
+                                              ),
+                                              onPressed: () => setState(
+                                                () => _obscurePassword =
+                                                    !_obscurePassword,
+                                              ),
+                                            ),
+                                            filled: true,
+                                            fillColor: AppColors.canvas
+                                                .withValues(alpha: 0.5),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 14,
+                                                  vertical: 14,
+                                                ),
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              borderSide: const BorderSide(
+                                                color: AppColors.outline,
+                                              ),
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              borderSide: const BorderSide(
+                                                color: AppColors.outline,
+                                              ),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              borderSide: const BorderSide(
+                                                color: AppColors.gold,
+                                                width: 2,
+                                              ),
+                                            ),
+                                          ),
+                                          validator: (val) {
+                                            if (val == null ||
+                                                val.trim().isEmpty) {
+                                              return 'Please enter your password';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 26),
+
+                                        // Login Submit Button
+                                        if (isLoading)
+                                          const Center(
+                                            child: Padding(
+                                              padding: EdgeInsets.symmetric(
+                                                vertical: 8,
+                                              ),
+                                              child: CommonProgressIndicator(
+                                                theme: IndicatorTheme.universal,
+                                                size: 54,
+                                                label:
+                                                    'Authenticating with live server...',
+                                              ),
+                                            ),
+                                          )
+                                        else
+                                          CommonButton.primary(
+                                            height: 48,
+                                            label: 'Sign In to Workspace',
+                                            icon: Icons.arrow_forward_rounded,
+                                            onPressed: _submitLogin,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // ── 3. Quick Role Credentials Card ─────────────────
+                          CommonCard(
+                            backgroundColor: AppColors.paper,
+                            padding: const EdgeInsets.all(18),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.flash_on_rounded,
+                                      size: 18,
+                                      color: AppColors.gold,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Quick Role Login Presets',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.ink,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    const Text(
+                                      'Tap to fill',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _RolePresetChip(
+                                      label: 'Admin',
+                                      icon: Icons.admin_panel_settings_outlined,
+                                      color: AppColors.emerald,
+                                      bgColor: AppColors.emeraldLight,
+                                      onTap: () => _quickFill(
+                                        'admin@karratflow.com',
+                                        'Admin@123',
+                                      ),
+                                    ),
+                                    _RolePresetChip(
+                                      label: 'Front Office',
+                                      icon: Icons.storefront_outlined,
+                                      color: AppColors.goldDark,
+                                      bgColor: AppColors.goldLight,
+                                      onTap: () => _quickFill(
+                                        'frontier@karratflow.com',
+                                        'Frontier@123',
+                                      ),
+                                    ),
+                                    _RolePresetChip(
+                                      label: 'Process Manager',
+                                      icon: Icons
+                                          .precision_manufacturing_outlined,
+                                      color: AppColors.emeraldDark,
+                                      bgColor: AppColors.sage,
+                                      onTap: () => _quickFill(
+                                        'pm@karratflow.com',
+                                        'Manager@123',
+                                      ),
+                                    ),
+                                    _RolePresetChip(
+                                      label: 'Raw Sketcher',
+                                      icon: Icons.draw_outlined,
+                                      color: AppColors.goldDark,
+                                      bgColor: AppColors.goldLight,
+                                      onTap: () => _quickFill(
+                                        'sketcher@karratflow.com',
+                                        'Sketcher@123',
+                                      ),
+                                    ),
+                                    _RolePresetChip(
+                                      label: 'CAD Designer',
+                                      icon: Icons.view_in_ar_outlined,
+                                      color: AppColors.info,
+                                      bgColor: AppColors.infoLight,
+                                      onTap: () => _quickFill(
+                                        'cad@karratflow.com',
+                                        'Designer@123',
+                                      ),
+                                    ),
+                                    _RolePresetChip(
+                                      label: 'Artisan Bench',
+                                      icon: Icons.handyman_outlined,
+                                      color: AppColors.emerald,
+                                      bgColor: AppColors.emeraldLight,
+                                      onTap: () => _quickFill(
+                                        'artisan@karratflow.com',
+                                        'Artisan@123',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
+    );
+  }
+}
+
+class _RolePresetChip extends StatelessWidget {
+  const _RolePresetChip({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.bgColor,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final Color bgColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      avatar: Icon(icon, size: 15, color: color),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: color.withValues(alpha: 0.3)),
+      ),
+      onPressed: onTap,
     );
   }
 }

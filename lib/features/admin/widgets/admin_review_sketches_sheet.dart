@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:jewellery_ops_mobile/domain/models.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/common_button.dart';
 import '../../../../core/widgets/common_card.dart';
@@ -11,7 +12,7 @@ import '../bloc/admin_bloc.dart';
 import 'sketch_directive_dialog.dart';
 
 /// Modal bottom sheet for Admin Review of 2D Client Sketches
-class AdminReviewSketchesSheet extends StatelessWidget {
+class AdminReviewSketchesSheet extends StatefulWidget {
   const AdminReviewSketchesSheet({
     super.key,
     required this.store,
@@ -43,6 +44,14 @@ class AdminReviewSketchesSheet extends StatelessWidget {
     );
   }
 
+  @override
+  State<AdminReviewSketchesSheet> createState() =>
+      _AdminReviewSketchesSheetState();
+}
+
+class _AdminReviewSketchesSheetState extends State<AdminReviewSketchesSheet> {
+  String _selectedFilter = 'PENDING';
+
   void _openNewSketchModal(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
@@ -51,16 +60,58 @@ class AdminReviewSketchesSheet extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => _RegisterNewSketchSheet(store: store),
+      builder: (ctx) => _RegisterNewSketchSheet(store: widget.store),
+    );
+  }
+
+  Widget _filterChip(String label, String filterKey) {
+    final isSelected = _selectedFilter == filterKey;
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? Colors.white : AppColors.ink,
+          fontSize: 11,
+          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+        ),
+      ),
+      selected: isSelected,
+      selectedColor: AppColors.emerald,
+      backgroundColor: AppColors.canvas,
+      onSelected: (selected) {
+        if (selected) {
+          setState(() {
+            _selectedFilter = filterKey;
+          });
+        }
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: store,
+      animation: widget.store,
       builder: (context, _) {
-        final designs = store.designs;
+        final allDesigns = widget.store.designs;
+        final pendingDesigns = allDesigns
+            .where(
+              (d) =>
+                  !d.isPopular && !d.name.contains('(Sketch Approved)'),
+            )
+            .toList();
+        final approvedDesigns = allDesigns
+            .where(
+              (d) =>
+                  d.isPopular || d.name.contains('(Sketch Approved)'),
+            )
+            .toList();
+
+        final designs = switch (_selectedFilter) {
+          'APPROVED' => approvedDesigns,
+          'ALL' => allDesigns,
+          _ => pendingDesigns,
+        };
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -110,13 +161,39 @@ class AdminReviewSketchesSheet extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 10),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _filterChip(
+                      'Pending Review (${pendingDesigns.length})',
+                      'PENDING',
+                    ),
+                    const SizedBox(width: 8),
+                    _filterChip(
+                      'Approved (${approvedDesigns.length})',
+                      'APPROVED',
+                    ),
+                    const SizedBox(width: 8),
+                    _filterChip(
+                      'All (${allDesigns.length})',
+                      'ALL',
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 14),
               Expanded(
                 child: designs.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
-                          'No design sketches available.',
-                          style: TextStyle(color: AppColors.muted),
+                          _selectedFilter == 'PENDING'
+                              ? 'No pending sketches for review.'
+                              : (_selectedFilter == 'APPROVED'
+                                    ? 'No approved sketches.'
+                                    : 'No design sketches available.'),
+                          style: const TextStyle(color: AppColors.muted),
                         ),
                       )
                     : ListView.separated(
@@ -124,9 +201,9 @@ class AdminReviewSketchesSheet extends StatelessWidget {
                         separatorBuilder: (_, _) => const SizedBox(height: 10),
                         itemBuilder: (ctx, index) {
                           final design = designs[index];
-                          final isApproved = design.name.contains(
-                            '(Sketch Approved)',
-                          );
+                          final isApproved =
+                              design.isPopular ||
+                              design.name.contains('(Sketch Approved)');
 
                           return CommonCard(
                             padding: const EdgeInsets.all(12),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:jewellery_ops_mobile/features/status/status_detail_page.dart';
 import '../data/demo_store.dart';
 import '../domain/models.dart';
 import '../features/auth/login_page.dart';

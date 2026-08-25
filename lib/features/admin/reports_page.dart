@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../domain/models.dart';
 import '../../routes/app_routes.dart';
+import 'bloc/admin_bloc.dart';
 
 class AdminReportsPage extends StatefulWidget {
   const AdminReportsPage({super.key, required this.store});
@@ -80,6 +82,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
           top: false,
           child: CommonRefreshIndicator(
             onRefresh: () async {
+              context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
               await Future<void>.delayed(const Duration(milliseconds: 600));
             },
             child: ListView(

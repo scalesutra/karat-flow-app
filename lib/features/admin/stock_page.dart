@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../domain/models.dart';
+import 'bloc/admin_bloc.dart';
 
 class AdminStockPage extends StatefulWidget {
   const AdminStockPage({super.key, required this.store});
@@ -44,108 +46,114 @@ class _AdminStockPageState extends State<AdminStockPage> {
             .fold(0.0, (sum, s) => sum + s.reservedInLots);
         final freeGold = totalGold - reservedGold;
 
-        return SafeArea(
-          top: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const CommonText.headlineLarge('Inventory & Vault Stock'),
-                    const SizedBox(height: 1),
-                    CommonText.bodySmall(
-                      'Gold grain, certified diamonds, findings and vault custody',
-                      color: AppColors.muted,
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Vault Balances Card
-                    CommonCard(
-                      backgroundColor: AppColors.ink,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
+        return CommonRefreshIndicator(
+          onRefresh: () async {
+            context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+            await Future<void>.delayed(const Duration(milliseconds: 600));
+          },
+          child: SafeArea(
+            top: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const CommonText.headlineLarge('Inventory & Vault Stock'),
+                      const SizedBox(height: 1),
+                      CommonText.bodySmall(
+                        'Gold grain, certified diamonds, findings and vault custody',
+                        color: AppColors.muted,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.lock_outline,
-                                color: Color(0xFFFFD18A),
-                                size: 18,
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Main Gold Vault Balance (24K & 22K)',
-                                style: TextStyle(
+                      const SizedBox(height: 10),
+
+                      // Vault Balances Card
+                      CommonCard(
+                        backgroundColor: AppColors.ink,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.lock_outline,
                                   color: Color(0xFFFFD18A),
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 13,
+                                  size: 18,
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _vaultStat(
-                                  'Total in Vault',
-                                  '${totalGold.toStringAsFixed(0)} g',
+                                SizedBox(width: 8),
+                                Text(
+                                  'Main Gold Vault Balance (24K & 22K)',
+                                  style: TextStyle(
+                                    color: Color(0xFFFFD18A),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                  ),
                                 ),
-                              ),
-                              Expanded(
-                                child: _vaultStat(
-                                  'Reserved in Lots',
-                                  '${reservedGold.toStringAsFixed(0)} g',
-                                  color: const Color(0xFFFFA88D),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _vaultStat(
+                                    'Total in Vault',
+                                    '${totalGold.toStringAsFixed(0)} g',
+                                  ),
                                 ),
-                              ),
-                              Expanded(
-                                child: _vaultStat(
-                                  'Free Available',
-                                  '${freeGold.toStringAsFixed(0)} g',
-                                  color: const Color(0xFFA9DDD0),
+                                Expanded(
+                                  child: _vaultStat(
+                                    'Reserved in Lots',
+                                    '${reservedGold.toStringAsFixed(0)} g',
+                                    color: const Color(0xFFFFA88D),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                                Expanded(
+                                  child: _vaultStat(
+                                    'Free Available',
+                                    '${freeGold.toStringAsFixed(0)} g',
+                                    color: const Color(0xFFA9DDD0),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
 
-              CommonFilterChips<String>(
-                options: _categories,
-                selected: _selectedCategory,
-                onSelected: (val) => setState(() => _selectedCategory = val),
-                labelBuilder: (val) => val,
-              ),
-
-              const SizedBox(height: 10),
-
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-                  itemCount: stockItems.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final item = stockItems[index];
-                    return _StockCard(
-                      item: item,
-                      onReconcile: () => _openReconcileDialog(context, item),
-                    );
-                  },
+                CommonFilterChips<String>(
+                  options: _categories,
+                  selected: _selectedCategory,
+                  onSelected: (val) => setState(() => _selectedCategory = val),
+                  labelBuilder: (val) => val,
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 10),
+
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+                    itemCount: stockItems.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final item = stockItems[index];
+                      return _StockCard(
+                        item: item,
+                        onReconcile: () => _openReconcileDialog(context, item),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

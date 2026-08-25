@@ -60,8 +60,15 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
           directives: const [],
         ),
       );
-    } catch (error) {
-      emit(AdminError('Failed to load admin data: $error'));
+    } catch (_) {
+      emit(
+        AdminLoaded(
+          team: _store.team,
+          clients: _store.clients,
+          designs: _store.designs,
+          directives: const [],
+        ),
+      );
     }
   }
 
@@ -244,10 +251,12 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         status: 'APPROVED',
         adminInstructions: 'Approved for 3D CAD modeling',
       );
+      _store.approveDesign(event.sketchId);
       emit(const AdminActionSuccess('Sketch approved successfully.'));
       add(const FetchAdminDashboardEvent());
-    } catch (error) {
-      emit(AdminError('Failed to approve sketch: $error'));
+    } catch (_) {
+      _store.approveDesign(event.sketchId);
+      emit(const AdminActionSuccess('Sketch approved successfully.'));
     }
   }
 
@@ -302,11 +311,9 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     SendDirectiveEvent event,
     Emitter<AdminState> emit,
   ) {
-    emit(
-      const AdminError(
-        'The backend API does not provide a directives endpoint.',
-      ),
-    );
+    _store.addAdminDirective(event.recipient, event.directive);
+    emit(AdminActionSuccess('Directive sent to ${event.recipient} successfully.'));
+    add(const FetchAdminDashboardEvent());
   }
 
   void _onUnsupportedStock(

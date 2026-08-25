@@ -19,11 +19,17 @@ class AdminManagePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
-        children: [
+    return CommonRefreshIndicator(
+      onRefresh: () async {
+        context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+      },
+      child: SafeArea(
+        top: false,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+          children: [
           CommonText.headlineLarge(AppStrings.manageWorkshop.trClean),
           const SizedBox(height: 1),
           CommonText.bodySmall(
@@ -151,8 +157,9 @@ class AdminManagePage extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ==========================================
   // 1. EMPLOYEES & GOLDSMITHS MODAL

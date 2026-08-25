@@ -6,7 +6,6 @@ import '../../../../core/widgets/common_button.dart';
 import '../../../../core/widgets/common_card.dart';
 import '../../../../core/widgets/common_progress_indicator.dart';
 import '../../../../core/widgets/common_snackbar.dart';
-import '../../../../core/widgets/common_text_field.dart';
 import '../../../../data/demo_store.dart';
 import '../../../../domain/models.dart';
 import '../../cad_designer/bloc/cad_bloc.dart';
@@ -113,146 +112,161 @@ class AdminReviewCadSheet extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Expanded(
-                child: CommonRefreshIndicator(
-                  theme: IndicatorTheme.cad,
-                  onRefresh: () async =>
-                      context.read<CadBloc>().add(const FetchCadTasksEvent()),
-                  child: ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: pendingTasks.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (ctx, index) {
-                      final task = pendingTasks[index];
-                      final isApproved =
-                          task.status == CadTaskStatus.completed ||
-                          task.specs.contains('(Approved)');
-
-                      return CommonCard(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    task.productTitle,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: AppColors.ink,
-                                    ),
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isApproved
-                                        ? AppColors.emeraldLight
-                                        : AppColors.goldLight,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (isApproved)
-                                        const Icon(
-                                          Icons.check_circle,
-                                          size: 11,
-                                          color: AppColors.emeraldDark,
-                                        )
-                                      else
-                                        const Icon(
-                                          Icons.view_in_ar,
-                                          size: 11,
-                                          color: AppColors.goldDark,
-                                        ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        isApproved
-                                            ? 'APPROVED'
-                                            : 'PENDING 3D SIGN-OFF',
-                                        style: TextStyle(
-                                          color: isApproved
-                                              ? AppColors.emeraldDark
-                                              : AppColors.goldDark,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Code: ${task.designCode} Â· Client: ${task.clientName} Â· ${task.specs}',
-                              style: const TextStyle(
-                                color: AppColors.muted,
-                                fontSize: 11,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: CommonButton.outlined(
-                                    height: 34,
-                                    icon: Icons.view_in_ar,
-                                    label: 'View 3D',
-                                    onPressed: () {
-                                      showModalBottomSheet<void>(
-                                        context: context,
-                                        isScrollControlled: true,
-                                        backgroundColor: Colors.transparent,
-                                        builder: (viewCtx) => Common3DViewer(
-                                          designCode: task.designCode,
-                                          productTitle: task.productTitle,
-                                          modelUrl: task.modelFileUrl,
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                if (!isApproved) ...[
-                                  Expanded(
-                                    child: CommonButton.primary(
-                                      height: 34,
-                                      backgroundColor: AppColors.emerald,
-                                      icon: Icons.check_circle_outline,
-                                      label: 'Approve 3D',
-                                      onPressed: () =>
-                                          _approveTask(context, task),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                ],
-                                Expanded(
-                                  child: CommonButton.outlined(
-                                    height: 34,
-                                    icon: Icons.edit_note,
-                                    label: 'Directive',
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      onSendDirective(
-                                        'CAD Modification: ${task.designCode}',
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                child: BlocBuilder<CadBloc, CadState>(
+                  builder: (context, cadState) {
+                    if (cadState is CadLoading) {
+                      return const Center(
+                        child: CommonProgressIndicator.admin(
+                          label: 'Syncing Admin 3D CAD Models...',
                         ),
                       );
-                    },
-                  ),
+                    }
+                    return CommonRefreshIndicator(
+                      theme: IndicatorTheme.cad,
+                      onRefresh: () async => context.read<CadBloc>().add(
+                        const FetchCadTasksEvent(),
+                      ),
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemCount: pendingTasks.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
+                        itemBuilder: (ctx, index) {
+                          final task = pendingTasks[index];
+                          final isApproved =
+                              task.status == CadTaskStatus.completed ||
+                              task.specs.contains('(Approved)');
+
+                          return CommonCard(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        task.productTitle,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 14,
+                                          color: AppColors.ink,
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isApproved
+                                            ? AppColors.emeraldLight
+                                            : AppColors.goldLight,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (isApproved)
+                                            const Icon(
+                                              Icons.check_circle,
+                                              size: 11,
+                                              color: AppColors.emeraldDark,
+                                            )
+                                          else
+                                            const Icon(
+                                              Icons.view_in_ar,
+                                              size: 11,
+                                              color: AppColors.goldDark,
+                                            ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            isApproved
+                                                ? 'APPROVED'
+                                                : 'PENDING 3D SIGN-OFF',
+                                            style: TextStyle(
+                                              color: isApproved
+                                                  ? AppColors.emeraldDark
+                                                  : AppColors.goldDark,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Code: ${task.designCode} Â· Client: ${task.clientName} Â· ${task.specs}',
+                                  style: const TextStyle(
+                                    color: AppColors.muted,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: CommonButton.outlined(
+                                        height: 34,
+                                        icon: Icons.view_in_ar,
+                                        label: 'View 3D',
+                                        onPressed: () {
+                                          showModalBottomSheet<void>(
+                                            context: context,
+                                            isScrollControlled: true,
+                                            backgroundColor: Colors.transparent,
+                                            builder: (viewCtx) =>
+                                                Common3DViewer(
+                                                  designCode: task.designCode,
+                                                  productTitle:
+                                                      task.productTitle,
+                                                  modelUrl: task.modelFileUrl,
+                                                ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    if (!isApproved) ...[
+                                      Expanded(
+                                        child: CommonButton.primary(
+                                          height: 34,
+                                          backgroundColor: AppColors.emerald,
+                                          icon: Icons.check_circle_outline,
+                                          label: 'Approve 3D',
+                                          onPressed: () =>
+                                              _approveTask(context, task),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                    ],
+                                    Expanded(
+                                      child: CommonButton.outlined(
+                                        height: 34,
+                                        icon: Icons.edit_note,
+                                        label: 'Directive',
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                          onSendDirective(
+                                            'CAD Modification: ${task.designCode}',
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
                 ),
               ),
               const SizedBox(height: 12),

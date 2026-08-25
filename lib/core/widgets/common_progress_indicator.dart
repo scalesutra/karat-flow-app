@@ -47,6 +47,16 @@ class CommonProgressIndicator extends StatefulWidget {
     this.label = 'Rendering 3D CAD Mesh & STL Geometry...',
   });
 
+  const CommonProgressIndicator.admin({
+    super.key,
+    this.size = 46.0,
+    this.strokeWidth = 3.0,
+    this.theme = IndicatorTheme.universal,
+    this.primaryColor = AppColors.emerald,
+    this.secondaryColor = AppColors.gold,
+    this.label = 'Synchronizing Admin Factory ERP...',
+  });
+
   const CommonProgressIndicator.small({
     super.key,
     this.size = 22.0,
@@ -670,7 +680,7 @@ class _CommonProgressIndicatorState extends State<CommonProgressIndicator>
     final goldGlow = const Color(0xFFFFE082);
     final emeraldNeon = widget.secondaryColor ?? const Color(0xFF00A86B);
 
-    return SizedBox(
+    final loader = SizedBox(
       width: widget.size,
       height: widget.size,
       child: AnimatedBuilder(
@@ -730,6 +740,44 @@ class _CommonProgressIndicatorState extends State<CommonProgressIndicator>
         },
       ),
     );
+
+    if (widget.label != null) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          loader,
+          const SizedBox(height: 14),
+          Text(
+            widget.label!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 3),
+          const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.shield_outlined, size: 12, color: AppColors.emerald),
+              SizedBox(width: 4),
+              Text(
+                'KaratFlow Admin Cloud & ERP Engine',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return loader;
   }
 }
 
@@ -1021,15 +1069,15 @@ class _FrontOfficeLuxuryOrbitPainter extends CustomPainter {
       true;
 }
 
-/// Custom KaratFlow Pull to Refresh wrapper with Theme support
-class CommonRefreshIndicator extends StatelessWidget {
+/// Custom KaratFlow Pull to Refresh wrapper with Theme support & Center 3D Progress Loader
+class CommonRefreshIndicator extends StatefulWidget {
   const CommonRefreshIndicator({
     super.key,
     required this.child,
     required this.onRefresh,
     this.theme = IndicatorTheme.universal,
-    this.showIndicator = false,
-    this.enabled = false,
+    this.showIndicator = true,
+    this.enabled = true,
   });
 
   final Widget child;
@@ -1039,27 +1087,63 @@ class CommonRefreshIndicator extends StatelessWidget {
   final bool enabled;
 
   @override
+  State<CommonRefreshIndicator> createState() => _CommonRefreshIndicatorState();
+}
+
+class _CommonRefreshIndicatorState extends State<CommonRefreshIndicator> {
+  bool _isRefreshing = false;
+
+  Future<void> _handleRefresh() async {
+    if (!mounted) return;
+    HapticFeedback.mediumImpact();
+    setState(() => _isRefreshing = true);
+    try {
+      await widget.onRefresh();
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (!enabled) return child;
+    if (!widget.enabled) return widget.child;
 
-    final color = switch (theme) {
-      IndicatorTheme.workshop => const Color(0xFFFFB300),
-      IndicatorTheme.frontOffice => const Color(0xFFD4AF37),
-      IndicatorTheme.cad => const Color(0xFF00E5FF),
-      IndicatorTheme.universal => const Color(0xFFD4AF37),
-    };
-
-    return RefreshIndicator.adaptive(
-      color: showIndicator ? color : Colors.transparent,
-      backgroundColor: showIndicator ? AppColors.paper : Colors.transparent,
-      displacement: 36,
-      edgeOffset: 8,
-      strokeWidth: showIndicator ? 3.0 : 0.01,
-      onRefresh: () async {
-        HapticFeedback.mediumImpact();
-        await onRefresh();
-      },
-      child: child,
+    return Stack(
+      children: [
+        RefreshIndicator(
+          color: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          strokeWidth: 0.01,
+          onRefresh: _handleRefresh,
+          child: widget.child,
+        ),
+        if (_isRefreshing)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                color: AppColors.paper.withValues(alpha: 0.82),
+                child: Center(
+                  child: CommonProgressIndicator(
+                    theme: widget.theme,
+                    label: switch (widget.theme) {
+                      IndicatorTheme.workshop =>
+                        'Synchronizing Workshop Live Benches & Batches...',
+                      IndicatorTheme.frontOffice =>
+                        'Synchronizing Vault Inventory & Client Orders...',
+                      IndicatorTheme.cad =>
+                        'Synchronizing 3D CAD Mesh & Solitaire Models...',
+                      IndicatorTheme.universal =>
+                        'Synchronizing KaratFlow Cloud & Factory ERP...',
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

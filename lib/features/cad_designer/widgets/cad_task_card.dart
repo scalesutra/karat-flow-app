@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_snackbar.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/widgets/common_3d_viewer.dart';
@@ -870,70 +871,75 @@ class CadTaskCard extends StatelessWidget {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: CadTaskStatus.values.map((st) {
-                final isCurrent = task.status == st;
-                return InkWell(
-                  onTap: () {
-                    final messenger = ScaffoldMessenger.of(context);
-                    context.read<CadBloc>().add(
-                      UpdateCadTaskStatusEvent(taskId: task.id, status: st),
-                    );
-                    Navigator.pop(ctx);
-                    if (messenger.mounted) {
-                      messenger.clearSnackBars();
-                      messenger.showSnackBar(
-                        SnackBar(
-                          duration: const Duration(seconds: 3),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          backgroundColor: AppColors.emerald,
-                          content: Text(
-                            '${task.productTitle} → ${st.label}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.pureWhite,
+              children: CadTaskStatus.values
+                  .where((st) => st != CadTaskStatus.revision)
+                  .map((st) {
+                    final isCurrent = task.status == st;
+                    return InkWell(
+                      onTap: () {
+                        final messenger = ScaffoldMessenger.of(context);
+                        context.read<CadBloc>().add(
+                          UpdateCadTaskStatusEvent(taskId: task.id, status: st),
+                        );
+                        Navigator.pop(ctx);
+                        if (messenger.mounted) {
+                          messenger.clearSnackBars();
+                          messenger.showSnackBar(
+                            SnackBar(
+                              duration: const Duration(seconds: 3),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              backgroundColor: AppColors.emerald,
+                              content: Text(
+                                '${task.productTitle} → ${st.label}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.pureWhite,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isCurrent
-                          ? AppColors.emeraldLight
-                          : AppColors.canvas,
+                          );
+                        }
+                      },
                       borderRadius: BorderRadius.circular(
                         AppDimensions.radiusFull,
                       ),
-                      border: Border.all(
-                        color: isCurrent
-                            ? AppColors.emerald
-                            : AppColors.outline,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isCurrent
+                              ? AppColors.emeraldLight
+                              : AppColors.canvas,
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusFull,
+                          ),
+                          border: Border.all(
+                            color: isCurrent
+                                ? AppColors.emerald
+                                : AppColors.outline,
+                          ),
+                        ),
+                        child: Text(
+                          st.label,
+                          style: TextStyle(
+                            color: isCurrent
+                                ? AppColors.emeraldDark
+                                : AppColors.ink,
+                            fontWeight: isCurrent
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      st.label,
-                      style: TextStyle(
-                        color: isCurrent
-                            ? AppColors.emeraldDark
-                            : AppColors.ink,
-                        fontWeight: isCurrent
-                            ? FontWeight.w800
-                            : FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
+                    );
+                  })
+                  .toList(),
             ),
 
             if (task.hasStlFile) ...[

@@ -51,7 +51,10 @@ class _JewelleryOpsAppState extends State<JewelleryOpsApp> {
         BlocProvider<OrdersBloc>(create: (_) => OrdersBloc(store: _store)),
         BlocProvider<WorkshopBloc>(create: (_) => WorkshopBloc(store: _store)),
         BlocProvider<CadBloc>(create: (_) => CadBloc(store: _store)),
-        BlocProvider<AdminBloc>(create: (_) => AdminBloc(store: _store)),
+        BlocProvider<AdminBloc>(
+          create: (_) =>
+              AdminBloc(store: _store)..add(const FetchAdminDashboardEvent()),
+        ),
         BlocProvider<SketchBloc>(create: (_) => SketchBloc()),
         BlocProvider<ArtisanBloc>(create: (_) => ArtisanBloc()),
       ],
