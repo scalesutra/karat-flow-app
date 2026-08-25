@@ -91,15 +91,45 @@ class CadBloc extends Bloc<CadEvent, CadState> {
         }
       }
 
-      final sketchDirectives = sketches
-          .where((sketch) {
-            final hasText =
-                sketch.adminInstructions?.trim().isNotEmpty ?? false;
-            final hasAudio =
-                sketch.feedbackAudioUrl?.trim().isNotEmpty ?? false;
-            return hasText || hasAudio;
-          })
-          .toList(growable: false);
+      final sketchDirectives = <ApiSketch>[];
+
+      for (final sketch in sketches) {
+        final hasText = sketch.adminInstructions?.trim().isNotEmpty ?? false;
+        final hasAudio = sketch.feedbackAudioUrl?.trim().isNotEmpty ?? false;
+        if (hasText || hasAudio) {
+          sketchDirectives.add(sketch);
+        }
+      }
+
+      for (final d in designs) {
+        final hasText = d.adminInstructions?.trim().isNotEmpty ?? false;
+        final hasAudio = d.feedbackAudioUrl?.trim().isNotEmpty ?? false;
+        if (hasText || hasAudio) {
+          final isDup = sketchDirectives.any(
+            (s) => s.id == d.id || s.id == d.sketchId,
+          );
+          if (!isDup) {
+            sketchDirectives.add(
+              ApiSketch(
+                id: d.id,
+                designNumber: d.sketch?.designNumber.isNotEmpty == true
+                    ? d.sketch!.designNumber
+                    : 'CAD-${d.id.substring(0, d.id.length > 6 ? 6 : d.id.length)}',
+                title: d.sketch?.title.isNotEmpty == true
+                    ? d.sketch!.title
+                    : (d.sizeDimensions.isNotEmpty
+                          ? d.sizeDimensions
+                          : '3D CAD Model'),
+                sketchUrl: d.xtlFileUrl ?? d.sketch?.sketchUrl ?? '',
+                status: d.status,
+                adminInstructions: d.adminInstructions,
+                feedbackAudioUrl: d.feedbackAudioUrl,
+                feedbackImageUrl: d.feedbackImageUrl,
+              ),
+            );
+          }
+        }
+      }
 
       _store.setCadTasks(tasks);
 

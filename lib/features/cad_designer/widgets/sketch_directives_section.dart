@@ -26,14 +26,14 @@ class SketchDirectivesSection extends StatelessWidget {
                 ? state.sketchDirectives
                 : const <ApiSketch>[];
 
-            final storeDirectives = DemoStore.instance.adminDirectives
-                .where((d) {
-                  final r = d['recipient'] ?? '';
-                  return r.contains('CAD') ||
-                      r.contains('All') ||
-                      r.contains('Designer');
-                })
-                .toList();
+            final storeDirectives = DemoStore.instance.adminDirectives.where((
+              d,
+            ) {
+              final r = d['recipient'] ?? '';
+              return r.contains('CAD') ||
+                  r.contains('All') ||
+                  r.contains('Designer');
+            }).toList();
 
             final totalCount = sketchDirectives.length + storeDirectives.length;
 
@@ -92,59 +92,7 @@ class SketchDirectivesSection extends StatelessWidget {
                       ),
                     )
                   else ...[
-                    ...storeDirectives.map((d) => Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.goldLight.withValues(alpha: 0.45),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: AppColors.gold.withValues(alpha: 0.35),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.gavel,
-                                    size: 14,
-                                    color: AppColors.goldDark,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      'Governance Directive · ${d['recipient'] ?? 'CAD Designer'}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 11,
-                                        color: AppColors.goldDark,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    d['timeLabel'] ?? 'Just now',
-                                    style: const TextStyle(
-                                      color: AppColors.muted,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                d['instruction'] ?? '',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                  color: AppColors.ink,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )),
+                    ...storeDirectives.map(_GovernanceDirectiveTile.new),
                     ...sketchDirectives.map(_SketchDirectiveTile.new),
                   ],
                 ],
@@ -284,6 +232,123 @@ class _SketchDirectiveTileState extends State<_SketchDirectiveTile> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
+              label: Text(_isPlaying ? 'Pause voice note' : 'Play voice note'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _GovernanceDirectiveTile extends StatefulWidget {
+  const _GovernanceDirectiveTile(this.directive);
+
+  final Map<String, String> directive;
+
+  @override
+  State<_GovernanceDirectiveTile> createState() =>
+      _GovernanceDirectiveTileState();
+}
+
+class _GovernanceDirectiveTileState extends State<_GovernanceDirectiveTile> {
+  final AudioPlayer _player = AudioPlayer();
+  StreamSubscription<void>? _sub;
+  bool _isPlaying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _isPlaying = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _player.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = widget.directive['instruction'] ?? '';
+    final hasAudio = text.contains('[ 🎙️ Voice Note: ');
+    String audioUrl = '';
+    String cleanText = text;
+
+    if (hasAudio) {
+      final start =
+          text.indexOf('[ 🎙️ Voice Note: ') + '[ 🎙️ Voice Note: '.length;
+      final end = text.indexOf(' ]', start);
+      if (end != -1) {
+        audioUrl = text.substring(start, end).trim();
+        cleanText = text
+            .substring(0, text.indexOf('[ 🎙️ Voice Note: '))
+            .trim();
+      } else {
+        audioUrl = text.substring(start).replaceAll(']', '').trim();
+        cleanText = text
+            .substring(0, text.indexOf('[ 🎙️ Voice Note: '))
+            .trim();
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.goldLight.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.gavel, size: 14, color: AppColors.goldDark),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Governance Directive · ${widget.directive['recipient'] ?? 'CAD Designer'}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                    color: AppColors.goldDark,
+                  ),
+                ),
+              ),
+              Text(
+                widget.directive['timeLabel'] ?? 'Just now',
+                style: const TextStyle(color: AppColors.muted, fontSize: 10),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            cleanText.isNotEmpty ? cleanText : 'Voice Directive Note Attached',
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              color: AppColors.ink,
+            ),
+          ),
+          if (audioUrl.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () async {
+                if (_isPlaying) {
+                  await _player.pause();
+                  if (mounted) setState(() => _isPlaying = false);
+                } else {
+                  await _player.play(UrlSource(audioUrl));
+                  if (mounted) setState(() => _isPlaying = true);
+                }
+              },
+              icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
               label: Text(_isPlaying ? 'Pause voice note' : 'Play voice note'),
             ),
           ],

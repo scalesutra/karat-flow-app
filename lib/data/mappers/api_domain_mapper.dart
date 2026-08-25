@@ -50,6 +50,15 @@ abstract final class ApiDomainMapper {
     );
   }
 
+  static String _cleanText(String? text) {
+    if (text == null || text.trim().isEmpty) return '';
+    if (text.contains('[ 🎙️ Voice Note: ')) {
+      final clean = text.substring(0, text.indexOf('[ 🎙️ Voice Note: ')).trim();
+      return clean.isNotEmpty ? clean : 'Voice Directive Note Attached';
+    }
+    return text.trim();
+  }
+
   static JewelleryDesign sketch(ApiSketch value) => JewelleryDesign(
     id: value.id,
     name: value.title,
@@ -58,7 +67,7 @@ abstract final class ApiDomainMapper {
     purity: '',
     grossWeightGrams: 0,
     imageUrl: value.sketchUrl,
-    description: value.adminInstructions ?? '',
+    description: _cleanText(value.adminInstructions),
     isPopular: value.status == 'APPROVED',
   );
 
@@ -70,7 +79,9 @@ abstract final class ApiDomainMapper {
     purity: '',
     grossWeightGrams: value.totalWeight,
     imageUrl: value.xtlFileUrl ?? '',
-    description: value.sizeDimensions,
+    description: _cleanText(value.adminInstructions).isNotEmpty
+        ? _cleanText(value.adminInstructions)
+        : value.sizeDimensions,
     isPopular: value.status == 'APPROVED',
   );
 

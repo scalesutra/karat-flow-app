@@ -1,5 +1,12 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/common_button.dart';
@@ -49,7 +56,17 @@ class _InstructionComposerSheet extends StatefulWidget {
 class __InstructionComposerSheetState
     extends State<_InstructionComposerSheet> {
   late final TextEditingController _textController;
+  final AudioRecorder _recorder = AudioRecorder();
+  final AudioPlayer _player = AudioPlayer();
+  StreamSubscription<void>? _playerCompleteSubscription;
+
   String _selectedRecipient = 'CAD Designer';
+  Timer? _timer;
+  String? _recordingPath;
+  Duration _elapsed = Duration.zero;
+  bool _isRecording = false;
+  bool _isPlaying = false;
+  bool _isSubmitting = false;
 
   final List<String> _recipients = const [
     'CAD Designer',
@@ -70,57 +87,157 @@ class __InstructionComposerSheetState
   void initState() {
     super.initState();
     _textController = TextEditingController();
+    _playerCompleteSubscription = _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _isPlaying = false);
+    });
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
+    _playerCompleteSubscription?.cancel();
     _textController.dispose();
+    _recorder.dispose();
+    _player.dispose();
     super.dispose();
   }
 
-  void _sendDirective() {
-    final text = _textController.text.trim();
-    if (text.isEmpty) {
+  Future<void> _toggleRecording() async {
+    if (_isRecording) {
+      await _stopRecording();
+      return;
+    }
+
+    if (!await _recorder.hasPermission()) {
+      if (!mounted) return;
       CommonSnackbar.error(
         context,
-        title: 'Empty Directive',
-        message: 'Please enter instructions for the recipient team.',
+        title: 'Microphone Permission Required',
+        message: 'Please allow microphone access to record a voice directive.',
       );
       return;
     }
 
-    final targetInfo = widget.target != null
-        ? '[ ${widget.target!.title} ] '
-        : '';
-    final fullMessage = '$targetInfo$text';
+    await _player.stop();
+    final directory = await getTemporaryDirectory();
+    final filePath =
+        '${directory.path}${Platform.pathSeparator}directive_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
-    // 1. Save to DemoStore for real-time local sync across role dashboards
-    widget.store.addAdminDirective(_selectedRecipient, fullMessage);
-
-    // 2. Also dispatch BLoC event if AdminBloc is present in context
-    try {
-      context.read<AdminBloc>().add(
-            SendDirectiveEvent(
-              recipient: _selectedRecipient,
-              directive: fullMessage,
-            ),
-          );
-    } catch (_) {
-      // Safe fallback if invoked outside AdminBloc tree
-    }
-
-    CommonSnackbar.success(
-      context,
-      title: 'Directive Dispatched',
-      message: 'Successfully sent to $_selectedRecipient',
+    await _recorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc),
+      path: filePath,
     );
 
-    Navigator.pop(context);
+    if (!mounted) return;
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
+    });
+
+    setState(() {
+      _recordingPath = null;
+      _elapsed = Duration.zero;
+      _isRecording = true;
+      _isPlaying = false;
+    });
+  }
+
+  Future<void> _stopRecording() async {
+    final path = await _recorder.stop();
+    _timer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _recordingPath = path;
+      _isRecording = false;
+    });
+  }
+
+  Future<void> _togglePreview() async {
+    final path = _recordingPath;
+    if (path == null) return;
+    try {
+      if (_isPlaying) {
+        await _player.pause();
+        if (mounted) setState(() => _isPlaying = false);
+        return;
+      }
+      await _player.stop();
+      await _player.play(DeviceFileSource(path));
+      if (mounted) setState(() => _isPlaying = true);
+    } catch (_) {
+      if (mounted) {
+        CommonSnackbar.error(
+          context,
+          title: 'Playback Error',
+          message: 'Could not play voice preview.',
+        );
+      }
+    }
+  }
+
+  Future<void> _sendDirective() async {
+    if (_isRecording) await _stopRecording();
+    final text = _textController.text.trim();
+    final path = _recordingPath;
+
+    if (text.isEmpty && path == null) {
+      CommonSnackbar.error(
+        context,
+        title: 'Empty Directive',
+        message: 'Please enter instructions or record a voice directive.',
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    final bloc = context.read<AdminBloc>();
+
+    if (_isPlaying) {
+      await _player.stop();
+      if (mounted) setState(() => _isPlaying = false);
+    }
+
+    setState(() => _isSubmitting = true);
+    final Uint8List? bytes =
+        path == null ? null : await File(path).readAsBytes();
+
+    final targetInfo =
+        widget.target != null ? '[ ${widget.target!.title} ] ' : '';
+    final messageBody =
+        text.isNotEmpty ? text : 'Voice Directive Note Attached';
+    final fullMessage = '$targetInfo$messageBody';
+
+    widget.store.addAdminDirective(_selectedRecipient, fullMessage);
+
+    try {
+      bloc.add(
+        SendDirectiveEvent(
+          recipient: _selectedRecipient,
+          directive: fullMessage,
+          audioFileName: path?.split(Platform.pathSeparator).last,
+          audioBytes: bytes,
+        ),
+      );
+    } catch (_) {}
+
+    if (mounted) {
+      CommonSnackbar.success(
+        context,
+        title: 'Directive Dispatched',
+        message: 'Successfully sent to $_selectedRecipient',
+      );
+    }
+
+    navigator.pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final targetLabel = widget.target?.title ?? 'General Workshop Directive';
+    final seconds =
+        _elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final minutes = _elapsed.inMinutes.toString().padLeft(2, '0');
 
     return SafeArea(
       top: false,
@@ -266,7 +383,7 @@ class __InstructionComposerSheetState
             ),
             const SizedBox(height: 16),
             const Text(
-              'Directive Instructions',
+              'Directive Instructions (Optional if voice recorded)',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
@@ -276,10 +393,10 @@ class __InstructionComposerSheetState
             const SizedBox(height: 6),
             TextField(
               controller: _textController,
-              maxLines: 4,
+              maxLines: 3,
               decoration: InputDecoration(
                 hintText:
-                    'Enter specific production, quality, or CAD directives...',
+                    'Enter instructions or record voice directive below...',
                 hintStyle: const TextStyle(
                   color: AppColors.muted,
                   fontSize: 12,
@@ -290,11 +407,86 @@ class __InstructionComposerSheetState
                 ),
               ),
             ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _isRecording ? AppColors.dangerLight : AppColors.canvas,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _isRecording ? AppColors.danger : AppColors.outline,
+                ),
+              ),
+              child: Row(
+                children: [
+                  IconButton.filled(
+                    onPressed: _isSubmitting ? null : _toggleRecording,
+                    style: IconButton.styleFrom(
+                      backgroundColor: _isRecording
+                          ? AppColors.danger
+                          : AppColors.emerald,
+                    ),
+                    icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isRecording
+                              ? 'Recording $minutes:$seconds'
+                              : _recordingPath == null
+                                  ? 'Tap Mic to record voice'
+                                  : 'Voice note ready · $minutes:$seconds',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                            color: _isRecording
+                                ? AppColors.danger
+                                : AppColors.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _recordingPath != null && !_isRecording
+                              ? 'Tap ▶️ on right to preview before sending'
+                              : 'High quality M4A voice directive',
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_recordingPath != null && !_isRecording)
+                    IconButton.filled(
+                      tooltip: _isPlaying ? 'Pause preview' : 'Play preview',
+                      onPressed: _togglePreview,
+                      style: IconButton.styleFrom(
+                        backgroundColor: _isPlaying
+                            ? AppColors.warning
+                            : AppColors.emeraldLight,
+                      ),
+                      icon: Icon(
+                        _isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: _isPlaying
+                            ? AppColors.pureWhite
+                            : AppColors.emerald,
+                        size: 24,
+                      ),
+                    ),
+                ],
+              ),
+            ),
             const SizedBox(height: 20),
             CommonButton.primary(
-              label: 'Dispatch Directive',
+              label: _isSubmitting ? 'Dispatching...' : 'Dispatch Directive',
               icon: Icons.send_rounded,
-              onPressed: _sendDirective,
+              onPressed: _isSubmitting ? null : _sendDirective,
             ),
           ],
         ),

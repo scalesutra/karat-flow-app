@@ -351,16 +351,21 @@ class KaratFlowApiRepository {
 
   Future<ApiThreeDDesign> reviewThreeDDesign({
     required String id,
-    required String status, // 'APPROVED'
+    required String status, // 'APPROVED' | 'REJECTED'
     String adminInstructions = '',
+    String? feedbackAudioUrl,
   }) async {
+    final body = <String, dynamic>{'status': status};
+    if (adminInstructions.isNotEmpty) {
+      body['adminInstructions'] = adminInstructions;
+    }
+    if (feedbackAudioUrl != null && feedbackAudioUrl.isNotEmpty) {
+      body['feedbackAudioUrl'] = feedbackAudioUrl;
+    }
+
     final response = await _api.patch(
       ApiEndpoints.reviewThreeD(id),
-      data: {
-        'status': status,
-        if (adminInstructions.isNotEmpty)
-          'adminInstructions': adminInstructions,
-      },
+      data: body,
     );
     final data = response.data['data'] as Map<String, dynamic>;
     return ApiThreeDDesign.fromJson(data);
@@ -514,10 +519,7 @@ class KaratFlowApiRepository {
   Future<void> reportWorkerTaskFailure(String id, String reason) async {
     await _api.post(
       ApiEndpoints.reportWorkerTaskFailure(id),
-      data: {
-        'failureReason': reason,
-        'reason': reason,
-      },
+      data: {'failureReason': reason, 'reason': reason},
     );
   }
 

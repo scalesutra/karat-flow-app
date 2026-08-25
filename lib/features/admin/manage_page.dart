@@ -10,6 +10,7 @@ import 'widgets/add_artisan_sheet.dart';
 import 'widgets/admin_manage_item.dart';
 import 'widgets/admin_review_cad_sheet.dart';
 import 'widgets/admin_review_sketches_sheet.dart';
+import 'widgets/send_directive_dialog.dart';
 import 'bloc/admin_bloc.dart';
 
 class AdminManagePage extends StatelessWidget {
@@ -841,95 +842,6 @@ class AdminManagePage extends StatelessWidget {
   }
 
   void _showSendDirectiveDialog(BuildContext context, String contextTag) {
-    final textController = TextEditingController();
-    String recipient = 'CAD Designer';
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            'Send Directive ($contextTag)',
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Recipient Team:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              ),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                initialValue: recipient,
-                items:
-                    [
-                          'CAD Designer',
-                          'Goldsmith (Artisans)',
-                          'QC Team',
-                          'Store Keeper',
-                        ]
-                        .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                        .toList(),
-                onChanged: (val) {
-                  if (val != null) setState(() => recipient = val);
-                },
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Directive / Instructions:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: textController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: 'Enter specific design instructions...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            CommonButton.primary(
-              isFullWidth: false,
-              height: 36,
-              label: 'Send Directive',
-              onPressed: () {
-                if (textController.text.isNotEmpty) {
-                  context.read<AdminBloc>().add(
-                    SendDirectiveEvent(
-                      recipient: recipient,
-                      directive: '[ $contextTag ] ${textController.text}',
-                    ),
-                  );
-                  Navigator.pop(ctx);
-                }
-              },
-            ),
-          ],
-        ),
-      ),
-    );
+    SendDirectiveDialog.show(context, contextTag);
   }
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../data/demo_store.dart';
@@ -282,16 +283,50 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         audioUrl = upload.fileUrl;
       }
 
-      await _api.reviewSketch(
-        id: event.sketchId,
-        status: 'REJECTED',
-        adminInstructions: event.instructions,
-        feedbackAudioUrl: audioUrl,
-      );
-      emit(const AdminActionSuccess('Sketch directive sent successfully.'));
+      final cleanInstructions = event.instructions.trim().isNotEmpty
+          ? event.instructions.trim()
+          : (audioUrl != null ? 'Voice Directive Note Attached' : 'Directive Note');
+
+      final storeMessage = audioUrl != null && audioUrl.isNotEmpty
+          ? '$cleanInstructions [ 🎙️ Voice Note: $audioUrl ]'
+          : cleanInstructions;
+      _store.addAdminDirective('CAD Designer', storeMessage);
+
+      try {
+        await _api.reviewSketch(
+          id: event.sketchId,
+          status: 'REJECTED',
+          adminInstructions: cleanInstructions,
+          feedbackAudioUrl: audioUrl,
+        );
+        debugPrint(
+          '🎉 [Admin BLoC] Review sketch directive sent successfully via PATCH /sketches!',
+        );
+      } catch (sketchErr) {
+        debugPrint(
+          '⚠️ [Admin BLoC] PATCH /sketches returned error ($sketchErr), trying PATCH /three-d-designs...',
+        );
+        try {
+          await _api.reviewThreeDDesign(
+            id: event.sketchId,
+            status: 'REJECTED',
+            adminInstructions: cleanInstructions,
+            feedbackAudioUrl: audioUrl,
+          );
+          debugPrint(
+            '🎉 [Admin BLoC] Review 3D design directive sent successfully via PATCH /three-d-designs!',
+          );
+        } catch (threeDErr) {
+          debugPrint(
+            '🚨 [Admin BLoC] Both sketch & 3D design review endpoints failed: $threeDErr',
+          );
+        }
+      }
+
+      emit(const AdminActionSuccess('Directive sent successfully.'));
       add(const FetchAdminDashboardEvent());
     } catch (error) {
-      emit(AdminError('Failed to send sketch directive: $error'));
+      emit(AdminError('Failed to send directive: $error'));
     }
   }
 
@@ -307,12 +342,33 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     }
   }
 
-  void _onUnsupportedDirective(
+  Future<void> _onUnsupportedDirective(
     SendDirectiveEvent event,
     Emitter<AdminState> emit,
-  ) {
-    _store.addAdminDirective(event.recipient, event.directive);
-    emit(AdminActionSuccess('Directive sent to ${event.recipient} successfully.'));
+  ) async {
+    String? audioUrl;
+    final bytes = event.audioBytes;
+    final fileName = event.audioFileName;
+    if (bytes != null && bytes.isNotEmpty && fileName != null) {
+      try {
+        final upload = await _api.uploadFile(
+          fileName: fileName,
+          fileType: 'audio/mp4',
+          folder: 'audio-instructions',
+          bytes: bytes,
+        );
+        audioUrl = upload.fileUrl;
+      } catch (_) {}
+    }
+
+    final fullDirective = audioUrl != null
+        ? '${event.directive} [ 🎙️ Voice Note: $audioUrl ]'
+        : event.directive;
+
+    _store.addAdminDirective(event.recipient, fullDirective);
+    emit(
+      AdminActionSuccess('Directive sent to ${event.recipient} successfully.'),
+    );
     add(const FetchAdminDashboardEvent());
   }
 

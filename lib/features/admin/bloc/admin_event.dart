@@ -34,10 +34,17 @@ final class AddArtisanEvent extends AdminEvent {
 
 /// Send creative or operational governance directive
 final class SendDirectiveEvent extends AdminEvent {
-  const SendDirectiveEvent({required this.recipient, required this.directive});
+  const SendDirectiveEvent({
+    required this.recipient,
+    required this.directive,
+    this.audioFileName,
+    this.audioBytes,
+  });
 
   final String recipient;
   final String directive;
+  final String? audioFileName;
+  final Uint8List? audioBytes;
 }
 
 /// Approve 2D sketch design
