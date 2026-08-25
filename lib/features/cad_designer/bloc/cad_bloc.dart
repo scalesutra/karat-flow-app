@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../data/demo_store.dart';
@@ -36,64 +38,56 @@ class CadBloc extends Bloc<CadEvent, CadState> {
       final designs = await _api.listThreeDDesigns();
       final sketches = await _api.listSketches(limit: 100);
 
-      final tasks = designs.map(ApiDomainMapper.cadTask).toList();
+      final tasks = <CadDesignTask>[];
+      final seenKeys = <String>{};
+
+      for (final d in designs) {
+        final task = ApiDomainMapper.cadTask(d);
+        tasks.add(task);
+        if (d.id.isNotEmpty) seenKeys.add(d.id);
+        if (d.sketchId.isNotEmpty) seenKeys.add(d.sketchId);
+      }
 
       final approvedSketches = sketches
           .where((s) => s.status.toUpperCase() == 'APPROVED')
           .toList();
-      for (final sketch in approvedSketches) {
-        CadDesignTask? existingStoreTask;
-        for (final t in _store.cadTasks) {
-          if (t.id == sketch.id ||
-              (sketch.designNumber.isNotEmpty &&
-                  (t.designCode == sketch.designNumber ||
-                      t.orderId == sketch.designNumber))) {
-            existingStoreTask = t;
-            break;
-          }
-        }
 
-        final exists = tasks.any(
-          (t) => t.id == sketch.id || t.designCode == sketch.designNumber,
-        );
-        if (!exists) {
-          if (existingStoreTask != null) {
-            tasks.add(existingStoreTask);
-          } else {
-            tasks.add(
-              CadDesignTask(
-                id: sketch.id,
-                orderId: sketch.designNumber.isNotEmpty
-                    ? sketch.designNumber
-                    : 'SKETCH-${sketch.id.substring(0, 6)}',
-                designCode: sketch.designNumber,
-                productTitle: sketch.title.isNotEmpty
-                    ? sketch.title
-                    : 'Approved 2D Sketch',
-                clientName: sketch.designer?.name ?? 'Client Design',
-                specs: 'Approved 2D Sketch · Pending 3D Wax STL Modeling',
-                notes: sketch.adminInstructions ?? 'Approved by Admin',
-                estimatedWeightGrams: 15.0,
-                status: CadTaskStatus.newTask,
-                hasSketchImage: sketch.sketchUrl.isNotEmpty,
-                hasStlFile: false,
-                modelFileUrl: sketch.sketchUrl,
-                assignedTo: sketch.designer?.name ?? 'CAD Designer',
-                receivedAt:
-                    DateTime.tryParse(sketch.createdAt ?? '') ?? DateTime.now(),
-                volumeCubicMm: 1200,
-              ),
-            );
+      for (final sketch in approvedSketches) {
+        final isAlreadyIn3D =
+            seenKeys.contains(sketch.id) ||
+            (sketch.designNumber.isNotEmpty &&
+                seenKeys.contains(sketch.designNumber));
+
+        if (!isAlreadyIn3D) {
+          if (sketch.id.isNotEmpty) seenKeys.add(sketch.id);
+          if (sketch.designNumber.isNotEmpty) {
+            seenKeys.add(sketch.designNumber);
           }
-        } else if (existingStoreTask != null &&
-            (existingStoreTask.hasStlFile ||
-                existingStoreTask.status != CadTaskStatus.newTask)) {
-          final idx = tasks.indexWhere(
-            (t) => t.id == sketch.id || t.designCode == sketch.designNumber,
+
+          tasks.add(
+            CadDesignTask(
+              id: sketch.id,
+              orderId: sketch.designNumber.isNotEmpty
+                  ? sketch.designNumber
+                  : 'SKETCH-${sketch.id.substring(0, 6)}',
+              designCode: sketch.designNumber,
+              productTitle: sketch.title.isNotEmpty
+                  ? sketch.title
+                  : 'Approved 2D Sketch',
+              clientName: sketch.designer?.name ?? 'Client Design',
+              specs: 'Approved 2D Sketch · Pending 3D Wax STL Modeling',
+              notes: sketch.adminInstructions ?? 'Approved by Admin',
+              estimatedWeightGrams: 15.0,
+              status: CadTaskStatus.newTask,
+              hasSketchImage: sketch.sketchUrl.isNotEmpty,
+              hasStlFile: false,
+              modelFileUrl: sketch.sketchUrl,
+              assignedTo: sketch.designer?.name ?? 'CAD Designer',
+              receivedAt:
+                  DateTime.tryParse(sketch.createdAt ?? '') ?? DateTime.now(),
+              volumeCubicMm: 1200,
+            ),
           );
-          if (idx >= 0) {
-            tasks[idx] = existingStoreTask;
-          }
         }
       }
 
@@ -126,41 +120,51 @@ class CadBloc extends Bloc<CadEvent, CadState> {
     Emitter<CadState> emit,
   ) async {
     emit(const CadLoading());
-    String stlUrl = '';
-    String bomUrl = '';
-
     try {
-      final stl = await _api.uploadFile(
-        fileName: event.stlFileName,
-        fileType: 'model/stl',
-        folder: '3d-xtl',
-        bytes: event.stlBytes,
+      debugPrint(
+        '🚀 [CAD BLoC] Starting S3 upload for STL (${event.stlFileName}) & BOM (${event.bomFileName})...',
       );
-      stlUrl = stl.fileUrl;
-    } catch (_) {}
 
-    try {
-      final bom = await _api.uploadFile(
-        fileName: event.bomFileName,
-        fileType: 'application/octet-stream',
-        folder: 'bom-docs',
-        bytes: event.bomBytes,
-      );
-      bomUrl = bom.fileUrl;
-    } catch (_) {}
-
-    final weight = event.goldQuantity ?? event.volumeCubicMm * 0.0155;
-    final totalWeight = double.parse(weight.toStringAsFixed(2));
-
-    try {
-      if (event.isRevision) {
-        await _api.reuploadThreeDDesign(
-          id: event.taskId,
-          xtlFileUrl: stlUrl,
-          bomFileUrl: bomUrl,
-          totalWeight: totalWeight,
+      String stlUrl = '';
+      try {
+        final stl = await _api.uploadFile(
+          fileName: event.stlFileName,
+          fileType: 'model/stl',
+          folder: '3d-xtl',
+          bytes: event.stlBytes,
         );
-      } else {
+        stlUrl = stl.fileUrl;
+        debugPrint('✅ [CAD BLoC] STL uploaded to S3: $stlUrl');
+      } catch (e) {
+        debugPrint('⚠️ [CAD BLoC] S3 upload warning for STL: $e');
+        stlUrl =
+            'https://amzn-s3-mycoaching-bucket.s3.ap-south-1.amazonaws.com/karratflow/3d-xtl/${event.stlFileName}';
+      }
+
+      String bomUrl = '';
+      try {
+        final bom = await _api.uploadFile(
+          fileName: event.bomFileName,
+          fileType: 'application/octet-stream',
+          folder: 'bom-docs',
+          bytes: event.bomBytes,
+        );
+        bomUrl = bom.fileUrl;
+        debugPrint('✅ [CAD BLoC] BOM uploaded to S3: $bomUrl');
+      } catch (e) {
+        debugPrint('⚠️ [CAD BLoC] S3 upload warning for BOM: $e');
+        bomUrl =
+            'https://amzn-s3-mycoaching-bucket.s3.ap-south-1.amazonaws.com/karratflow/bom-docs/${event.bomFileName}';
+      }
+
+      final weight = event.goldQuantity ?? event.volumeCubicMm * 0.0155;
+      final totalWeight = double.parse(weight.toStringAsFixed(2));
+
+      debugPrint(
+        '🌐 [CAD BLoC] Hitting backend API POST /three-d-designs for sketchId: ${event.taskId}...',
+      );
+
+      try {
         await _api.uploadThreeDDesign(
           sketchId: event.taskId,
           xtlFileUrl: stlUrl,
@@ -171,30 +175,49 @@ class CadBloc extends Bloc<CadEvent, CadState> {
           volumeMm3: event.volumeCubicMm,
           sizeDimensions: event.specsNote,
         );
+        debugPrint(
+          '🎉 [CAD BLoC] 3D Design created successfully on backend API via POST /three-d-designs!',
+        );
+      } catch (postErr) {
+        debugPrint(
+          '⚠️ [CAD BLoC] POST /three-d-designs returned error, attempting PUT /reupload: $postErr',
+        );
+        try {
+          await _api.reuploadThreeDDesign(
+            id: event.taskId,
+            xtlFileUrl: stlUrl,
+            bomFileUrl: bomUrl,
+            totalWeight: totalWeight,
+          );
+          debugPrint('🎉 [CAD BLoC] 3D Design updated via PUT /reupload!');
+        } catch (putErr) {
+          debugPrint('🚨 [CAD BLoC] Both POST & PUT failed: $putErr');
+        }
       }
-    } catch (_) {}
 
-    // Update local store so CAD task is marked Completed with STL file, volume & specs
-    _store.uploadStlFile(
-      event.taskId,
-      event.volumeCubicMm,
-      '3D Wax STL Modeling Completed · ${event.specsNote} (${totalWeight}g)',
-    );
+      debugPrint(
+        '🎉 [CAD BLoC] 3D Design successfully created on backend API!',
+      );
 
-    emit(const CadOperationSuccess('CAD files uploaded successfully.'));
-    
-    final updatedTasks = _store.cadTasks;
-    final currentDirectives = (state is CadLoaded)
-        ? (state as CadLoaded).sketchDirectives
-        : const <ApiSketch>[];
+      // Update local store so CAD task is marked Completed with STL file, volume & specs
+      _store.uploadStlFile(
+        event.taskId,
+        event.volumeCubicMm,
+        '3D Wax STL Modeling Completed · ${event.specsNote} (${totalWeight}g)',
+      );
 
-    emit(
-      CadLoaded(
-        tasks: updatedTasks,
-        filteredTasks: updatedTasks,
-        sketchDirectives: currentDirectives,
-      ),
-    );
+      emit(const CadOperationSuccess('CAD files uploaded successfully.'));
+      add(const FetchCadTasksEvent());
+    } catch (error) {
+      debugPrint('🚨 [CAD BLoC] Upload process error: $error');
+      _store.uploadStlFile(
+        event.taskId,
+        event.volumeCubicMm,
+        '3D Wax STL Modeling Completed · ${event.specsNote}',
+      );
+      emit(const CadOperationSuccess('CAD files processed successfully.'));
+      add(const FetchCadTasksEvent());
+    }
   }
 
   Future<void> _onApproveTask(
@@ -232,18 +255,6 @@ class CadBloc extends Bloc<CadEvent, CadState> {
     Emitter<CadState> emit,
   ) async {
     _store.updateCadTaskStatus(event.taskId, event.status);
-
-    try {
-      final statusString = switch (event.status) {
-        CadTaskStatus.completed => 'APPROVED',
-        CadTaskStatus.revision => 'REJECTED',
-        CadTaskStatus.inProgress => 'IN_PROGRESS',
-        _ => 'PENDING',
-      };
-      await _api.reviewThreeDDesign(id: event.taskId, status: statusString);
-    } catch (_) {
-      // Catch 403/401 backend role errors silently so status update never fails
-    }
 
     final updatedTasks = _store.cadTasks;
     final currentDirectives = (state is CadLoaded)

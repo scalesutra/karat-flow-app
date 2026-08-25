@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'api_endpoints.dart';
@@ -79,13 +78,10 @@ class ApiClient {
           return handler.next(response);
         },
         onError: (DioException error, handler) async {
-          debugPrint(
-            '❌ [API ERR] ${error.response?.statusCode ?? 'NO_STATUS'} <- ${error.requestOptions.method} ${error.requestOptions.uri} | Message: ${error.message}',
-          );
-
-          if (error.response?.data != null) {
-            debugPrint('⚠️ [API ERR DATA] ${error.response?.data}');
-          }
+          final statusCode = error.response?.statusCode ?? 'NO_STATUS';
+          final path = error.requestOptions.path;
+          final method = error.requestOptions.method;
+          debugPrint('❌ [API ERR] $statusCode <- $method $path');
 
           final isAuthEndpoint =
               error.requestOptions.path.contains('/auth/login') ||

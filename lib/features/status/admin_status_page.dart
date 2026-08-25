@@ -486,7 +486,9 @@ class _StatusCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            item.id,
+                            item.id.length > 10
+                                ? 'ORD-${item.id.substring(0, 6)}'
+                                : item.id,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(

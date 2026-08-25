@@ -568,7 +568,9 @@ class StatusDetailPage extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          order.id,
+                          order.id.length > 10
+                              ? 'ORD-${order.id.substring(0, 6)}'
+                              : order.id,
                           style: const TextStyle(
                             color: AppColors.gold,
                             fontWeight: FontWeight.w900,

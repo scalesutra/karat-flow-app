@@ -224,6 +224,7 @@ class ApiThreeDDesign {
     this.goldQuantity = 0.0,
     this.volumeMm3 = 0.0,
     this.sizeDimensions = '',
+    this.sketch,
   });
 
   factory ApiThreeDDesign.fromJson(Map<String, dynamic> json) {
@@ -239,6 +240,9 @@ class ApiThreeDDesign {
       goldQuantity: (json['goldQuantity'] as num?)?.toDouble() ?? 0.0,
       volumeMm3: (json['volumeMm3'] as num?)?.toDouble() ?? 0.0,
       sizeDimensions: json['sizeDimensions'] as String? ?? '',
+      sketch: json['sketch'] != null
+          ? ApiSketch.fromJson(json['sketch'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -253,6 +257,7 @@ class ApiThreeDDesign {
   final double goldQuantity;
   final double volumeMm3;
   final String sizeDimensions;
+  final ApiSketch? sketch;
 }
 
 // ── 7. Order & Part Models ──────────────────────────────────────────

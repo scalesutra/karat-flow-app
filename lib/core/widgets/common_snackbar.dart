@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../constants/app_colors.dart';
+import '../network/api_error_handler.dart';
 
 abstract final class CommonSnackbar {
   /// Base method to show a customized, floating snackbar
@@ -116,6 +117,25 @@ abstract final class CommonSnackbar {
       backgroundColor: AppColors.danger,
       textColor: AppColors.pureWhite,
       duration: duration,
+    );
+  }
+
+  /// Displays a clean, human-readable backend API error without technical jargon or stack traces
+  static void apiError(
+    BuildContext? context, {
+    required dynamic error,
+    String? title = 'Notice',
+    String fallback = 'Operation could not be completed. Please try again.',
+  }) {
+    final cleanMsg = ApiErrorHandler.parseMessage(error, fallback: fallback);
+    show(
+      context,
+      message: cleanMsg,
+      title: title,
+      icon: Icons.error_outline_rounded,
+      backgroundColor: AppColors.danger,
+      textColor: AppColors.pureWhite,
+      duration: const Duration(seconds: 4),
     );
   }
 

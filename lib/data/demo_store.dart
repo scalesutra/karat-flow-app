@@ -804,7 +804,9 @@ class DemoStore extends ChangeNotifier {
       _cadTasks.where((t) => t.status == CadTaskStatus.revision).length;
 
   void updateCadTaskStatus(String taskId, CadTaskStatus newStatus) {
-    final index = _cadTasks.indexWhere((t) => t.id == taskId);
+    final index = _cadTasks.indexWhere(
+      (t) => t.id == taskId || t.designCode == taskId || t.orderId == taskId,
+    );
     if (index >= 0) {
       _cadTasks[index] = _cadTasks[index].copyWith(
         status: newStatus,

@@ -285,6 +285,7 @@ class CadTaskCard extends StatelessWidget {
                           final selectedBlock = blockFile!;
                           final stlBytes = _readBytes(selectedStl);
                           final blockBytes = _readBytes(selectedBlock);
+                          final cadBloc = context.read<CadBloc>();
 
                           Navigator.pop(ctx);
                           showModalBottomSheet<void>(
@@ -295,18 +296,16 @@ class CadTaskCard extends StatelessWidget {
                               initialVolume: 1680.0,
                               onCalculate: (vol, weight, metalType) {
                                 Navigator.pop(calcCtx);
-                                context.read<CadBloc>().add(
+                                cadBloc.add(
                                   UploadCadFilesEvent(
-                                    taskId: task.id == task.orderId
-                                        ? task.orderId
-                                        : task.id,
+                                    taskId: task.id,
                                     volumeCubicMm: vol,
                                     specsNote: metalType,
                                     stlFileName: selectedStl.name,
                                     stlBytes: stlBytes,
                                     bomFileName: selectedBlock.name,
                                     bomBytes: blockBytes,
-                                    isRevision: task.id != task.orderId,
+                                    isRevision: false,
                                     goldQuantity: weight,
                                   ),
                                 );

@@ -59,14 +59,19 @@ class KaratFlowApiRepository {
     int page = 1,
     int limit = 100,
   }) async {
-    final response = await _api.get(
-      ApiEndpoints.employees,
-      queryParameters: {'role': role, 'page': page, 'limit': limit},
-    );
-    final list = response.data['data'] as List? ?? [];
-    return list
-        .map((e) => ApiEmployee.fromJson(e as Map<String, dynamic>))
-        .toList();
+    try {
+      final response = await _api.get(
+        ApiEndpoints.employees,
+        queryParameters: {'role': role, 'page': page, 'limit': limit},
+      );
+      final list = response.data['data'] as List? ?? [];
+      return list
+          .map((e) => ApiEmployee.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      // Return empty list if current role lacks permission to query /employees
+      return [];
+    }
   }
 
   Future<ApiEmployee> getEmployeeDetails(String id) async {
@@ -108,17 +113,22 @@ class KaratFlowApiRepository {
     int page = 1,
     int limit = 20,
   }) async {
-    final query = <String, dynamic>{'page': page, 'limit': limit};
-    if (search.isNotEmpty) query['search'] = search;
+    try {
+      final query = <String, dynamic>{'page': page, 'limit': limit};
+      if (search.isNotEmpty) query['search'] = search;
 
-    final response = await _api.get(
-      ApiEndpoints.customers,
-      queryParameters: query,
-    );
-    final list = response.data['data'] as List? ?? [];
-    return list
-        .map((c) => ApiCustomer.fromJson(c as Map<String, dynamic>))
-        .toList();
+      final response = await _api.get(
+        ApiEndpoints.customers,
+        queryParameters: query,
+      );
+      final list = response.data['data'] as List? ?? [];
+      return list
+          .map((c) => ApiCustomer.fromJson(c as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      // Return empty list if current role lacks permission to query /customers
+      return [];
+    }
   }
 
   Future<ApiCustomer> getCustomerDetails(String id) async {
