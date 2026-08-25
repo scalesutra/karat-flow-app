@@ -42,34 +42,58 @@ class CadBloc extends Bloc<CadEvent, CadState> {
           .where((s) => s.status.toUpperCase() == 'APPROVED')
           .toList();
       for (final sketch in approvedSketches) {
+        CadDesignTask? existingStoreTask;
+        for (final t in _store.cadTasks) {
+          if (t.id == sketch.id ||
+              (sketch.designNumber.isNotEmpty &&
+                  (t.designCode == sketch.designNumber ||
+                      t.orderId == sketch.designNumber))) {
+            existingStoreTask = t;
+            break;
+          }
+        }
+
         final exists = tasks.any(
           (t) => t.id == sketch.id || t.designCode == sketch.designNumber,
         );
         if (!exists) {
-          tasks.add(
-            CadDesignTask(
-              id: sketch.id,
-              orderId: sketch.designNumber.isNotEmpty
-                  ? sketch.designNumber
-                  : 'SKETCH-${sketch.id.substring(0, 6)}',
-              designCode: sketch.designNumber,
-              productTitle: sketch.title.isNotEmpty
-                  ? sketch.title
-                  : 'Approved 2D Sketch',
-              clientName: sketch.designer?.name ?? 'Client Design',
-              specs: 'Approved 2D Sketch · Pending 3D Wax STL Modeling',
-              notes: sketch.adminInstructions ?? 'Approved by Admin',
-              estimatedWeightGrams: 15.0,
-              status: CadTaskStatus.newTask,
-              hasSketchImage: sketch.sketchUrl.isNotEmpty,
-              hasStlFile: false,
-              modelFileUrl: sketch.sketchUrl,
-              assignedTo: sketch.designer?.name ?? 'CAD Designer',
-              receivedAt:
-                  DateTime.tryParse(sketch.createdAt ?? '') ?? DateTime.now(),
-              volumeCubicMm: 1200,
-            ),
+          if (existingStoreTask != null) {
+            tasks.add(existingStoreTask);
+          } else {
+            tasks.add(
+              CadDesignTask(
+                id: sketch.id,
+                orderId: sketch.designNumber.isNotEmpty
+                    ? sketch.designNumber
+                    : 'SKETCH-${sketch.id.substring(0, 6)}',
+                designCode: sketch.designNumber,
+                productTitle: sketch.title.isNotEmpty
+                    ? sketch.title
+                    : 'Approved 2D Sketch',
+                clientName: sketch.designer?.name ?? 'Client Design',
+                specs: 'Approved 2D Sketch · Pending 3D Wax STL Modeling',
+                notes: sketch.adminInstructions ?? 'Approved by Admin',
+                estimatedWeightGrams: 15.0,
+                status: CadTaskStatus.newTask,
+                hasSketchImage: sketch.sketchUrl.isNotEmpty,
+                hasStlFile: false,
+                modelFileUrl: sketch.sketchUrl,
+                assignedTo: sketch.designer?.name ?? 'CAD Designer',
+                receivedAt:
+                    DateTime.tryParse(sketch.createdAt ?? '') ?? DateTime.now(),
+                volumeCubicMm: 1200,
+              ),
+            );
+          }
+        } else if (existingStoreTask != null &&
+            (existingStoreTask.hasStlFile ||
+                existingStoreTask.status != CadTaskStatus.newTask)) {
+          final idx = tasks.indexWhere(
+            (t) => t.id == sketch.id || t.designCode == sketch.designNumber,
           );
+          if (idx >= 0) {
+            tasks[idx] = existingStoreTask;
+          }
         }
       }
 
@@ -150,8 +174,12 @@ class CadBloc extends Bloc<CadEvent, CadState> {
       }
     } catch (_) {}
 
-    // Update local store so CAD task is marked Completed with STL file
-    _store.updateCadTaskStatus(event.taskId, CadTaskStatus.completed);
+    // Update local store so CAD task is marked Completed with STL file, volume & specs
+    _store.uploadStlFile(
+      event.taskId,
+      event.volumeCubicMm,
+      '3D Wax STL Modeling Completed · ${event.specsNote} (${totalWeight}g)',
+    );
 
     emit(const CadOperationSuccess('CAD files uploaded successfully.'));
     

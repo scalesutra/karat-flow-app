@@ -828,7 +828,9 @@ class DemoStore extends ChangeNotifier {
   }
 
   void uploadStlFile(String taskId, double volumeCubicMm, String newSpecs) {
-    final index = _cadTasks.indexWhere((t) => t.id == taskId);
+    final index = _cadTasks.indexWhere(
+      (t) => t.id == taskId || t.designCode == taskId || t.orderId == taskId,
+    );
     if (index >= 0) {
       _cadTasks[index] = _cadTasks[index].copyWith(
         hasStlFile: true,
