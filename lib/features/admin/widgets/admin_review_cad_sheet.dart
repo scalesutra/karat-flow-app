@@ -9,6 +9,7 @@ import '../../../../core/widgets/common_snackbar.dart';
 import '../../../../data/demo_store.dart';
 import '../../../../domain/models.dart';
 import '../../cad_designer/bloc/cad_bloc.dart';
+import 'sketch_directive_dialog.dart';
 
 /// Modal bottom sheet for Admin Review of 3D CAD Models
 class AdminReviewCadSheet extends StatelessWidget {
@@ -248,12 +249,24 @@ class AdminReviewCadSheet extends StatelessWidget {
                                     Expanded(
                                       child: CommonButton.outlined(
                                         height: 34,
-                                        icon: Icons.edit_note,
-                                        label: 'Directive',
+                                        icon: Icons.mic_none_outlined,
+                                        label: 'Voice Directive',
                                         onPressed: () {
                                           Navigator.pop(context);
-                                          onSendDirective(
-                                            'CAD Modification: ${task.designCode}',
+                                          SketchDirectiveDialog.show(
+                                            context,
+                                            JewelleryDesign(
+                                              id: task.id,
+                                              name: task.productTitle,
+                                              code: task.designCode,
+                                              category: JewelleryCategory.all,
+                                              purity: '',
+                                              grossWeightGrams:
+                                                  task.estimatedWeightGrams,
+                                              imageUrl: task.modelFileUrl ?? '',
+                                              description: task.specs,
+                                              isPopular: false,
+                                            ),
                                           );
                                         },
                                       ),

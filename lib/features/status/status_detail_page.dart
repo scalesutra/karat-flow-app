@@ -375,7 +375,9 @@ class StatusDetailPage extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  lot.id,
+                                  lot.id.length > 10
+                                      ? 'LOT-${lot.id.substring(0, 6).toUpperCase()}'
+                                      : lot.id,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
@@ -755,7 +757,9 @@ class StatusDetailPage extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  lot.id,
+                                  lot.id.length > 10
+                                      ? 'LOT-${lot.id.substring(0, 6).toUpperCase()}'
+                                      : lot.id,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
@@ -1085,7 +1089,9 @@ class StatusDetailPage extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  lot.id,
+                                  lot.id.length > 10
+                                      ? 'LOT-${lot.id.substring(0, 6).toUpperCase()}'
+                                      : lot.id,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,

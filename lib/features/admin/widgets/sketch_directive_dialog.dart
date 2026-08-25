@@ -111,48 +111,70 @@ class _SketchDirectiveDialogState extends State<SketchDirectiveDialog> {
   Future<void> _togglePreview() async {
     final path = _recordingPath;
     if (path == null) return;
-    if (_isPlaying) {
-      await _player.pause();
-      if (mounted) setState(() => _isPlaying = false);
-      return;
+    try {
+      if (_isPlaying) {
+        await _player.pause();
+        if (mounted) setState(() => _isPlaying = false);
+        return;
+      }
+      await _player.stop();
+      await _player.play(DeviceFileSource(path));
+      if (mounted) setState(() => _isPlaying = true);
+    } catch (e) {
+      if (mounted) {
+        CommonSnackbar.error(
+          context,
+          title: 'Playback Error',
+          message: 'Could not play voice preview.',
+        );
+      }
     }
-    await _player.play(DeviceFileSource(path));
-    if (mounted) setState(() => _isPlaying = true);
   }
 
   Future<void> _submit() async {
+    if (_isRecording) await _stopRecording();
     final instructions = _instructionsController.text.trim();
-    if (instructions.isEmpty) {
+    final path = _recordingPath;
+
+    if (instructions.isEmpty && path == null) {
       CommonSnackbar.error(
         context,
-        title: 'Instructions required',
-        message: 'Enter correction instructions before sending.',
+        title: 'Directive Content Required',
+        message:
+            'Please enter text instructions or record a voice directive.',
       );
       return;
     }
-    if (_isRecording) await _stopRecording();
     if (!mounted) return;
+    final navigator = Navigator.of(context);
+    final bloc = context.read<AdminBloc>();
+
+    if (_isPlaying) {
+      await _player.stop();
+      if (mounted) setState(() => _isPlaying = false);
+    }
 
     setState(() => _isSubmitting = true);
-    final path = _recordingPath;
     final bytes = path == null ? null : await File(path).readAsBytes();
     if (!mounted) return;
-    context.read<AdminBloc>().add(
+
+    bloc.add(
       ReviewSketchDirectiveEvent(
         sketchId: widget.design.id,
-        instructions: instructions,
-        audioFileName: path == null
-            ? null
-            : path.split(Platform.pathSeparator).last,
+        instructions: instructions.isNotEmpty
+            ? instructions
+            : 'Voice Directive Attached',
+        audioFileName: path?.split(Platform.pathSeparator).last,
         audioBytes: bytes,
       ),
     );
-    Navigator.pop(context);
+    navigator.pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final seconds = _elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final seconds =
+        _elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
     final minutes = _elapsed.inMinutes.toString().padLeft(2, '0');
 
     return AlertDialog(
@@ -168,15 +190,15 @@ class _SketchDirectiveDialogState extends State<SketchDirectiveDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Correction instructions',
+              'Correction instructions (Optional if voice recorded)',
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
             ),
             const SizedBox(height: 6),
             TextField(
               controller: _instructionsController,
-              maxLines: 4,
+              maxLines: 3,
               decoration: InputDecoration(
-                hintText: 'Enter instructions for the CAD designer...',
+                hintText: 'Enter instructions or record voice directive below...',
                 filled: true,
                 fillColor: AppColors.canvas,
                 border: OutlineInputBorder(
@@ -214,17 +236,22 @@ class _SketchDirectiveDialogState extends State<SketchDirectiveDialog> {
                           _isRecording
                               ? 'Recording $minutes:$seconds'
                               : _recordingPath == null
-                              ? 'Add voice directive'
-                              : 'Voice directive ready - $minutes:$seconds',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
+                                  ? 'Tap Mic to record voice'
+                                  : 'Voice directive ready · $minutes:$seconds',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
                             fontSize: 12,
+                            color: _isRecording
+                                ? AppColors.danger
+                                : AppColors.ink,
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text(
-                          'M4A audio will be uploaded securely before review.',
-                          style: TextStyle(
+                        Text(
+                          _recordingPath != null && !_isRecording
+                              ? 'Tap ▶️ on right to preview before sending'
+                              : 'High quality M4A audio directive',
+                          style: const TextStyle(
                             color: AppColors.muted,
                             fontSize: 10,
                           ),
@@ -233,12 +260,22 @@ class _SketchDirectiveDialogState extends State<SketchDirectiveDialog> {
                     ),
                   ),
                   if (_recordingPath != null && !_isRecording)
-                    IconButton(
+                    IconButton.filled(
                       tooltip: _isPlaying ? 'Pause preview' : 'Play preview',
                       onPressed: _togglePreview,
+                      style: IconButton.styleFrom(
+                        backgroundColor: _isPlaying
+                            ? AppColors.warning
+                            : AppColors.emeraldLight,
+                      ),
                       icon: Icon(
-                        _isPlaying ? Icons.pause_circle : Icons.play_circle,
-                        color: AppColors.emerald,
+                        _isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: _isPlaying
+                            ? AppColors.pureWhite
+                            : AppColors.emerald,
+                        size: 24,
                       ),
                     ),
                 ],

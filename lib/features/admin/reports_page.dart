@@ -473,7 +473,9 @@ class _OrderReportRow extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                order.id,
+                order.id.length > 10
+                    ? 'ORD-${order.id.substring(0, 6).toUpperCase()}'
+                    : order.id,
                 style: const TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 13,

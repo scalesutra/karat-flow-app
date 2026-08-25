@@ -78,10 +78,10 @@ abstract final class ApiDomainMapper {
     final sketchTitle = (value.sketch?.title.isNotEmpty == true)
         ? value.sketch!.title
         : ((value.sketch?.designNumber.isNotEmpty == true)
-            ? value.sketch!.designNumber
-            : (value.sizeDimensions.isNotEmpty
-                ? value.sizeDimensions
-                : '3D CAD Design'));
+              ? value.sketch!.designNumber
+              : (value.sizeDimensions.isNotEmpty
+                    ? value.sizeDimensions
+                    : '3D CAD Design'));
 
     final code = (value.sketch?.designNumber.isNotEmpty == true)
         ? value.sketch!.designNumber
@@ -106,7 +106,8 @@ abstract final class ApiDomainMapper {
       hasStlFile: value.xtlFileUrl?.isNotEmpty ?? false,
       modelFileUrl: value.xtlFileUrl ?? value.sketch?.sketchUrl,
       assignedTo: 'CAD Designer',
-      receivedAt: DateTime.tryParse(value.sketch?.createdAt ?? '') ??
+      receivedAt:
+          DateTime.tryParse(value.sketch?.createdAt ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       volumeCubicMm: value.volumeMm3,
     );
@@ -129,8 +130,9 @@ abstract final class ApiDomainMapper {
       craft: readableRole,
       shift: 'Day Shift (9 AM - 7 PM)',
       activeLotsCount: value.workerAssignmentsCount,
-      status:
-          value.isActive ? EmployeeStatus.available : EmployeeStatus.blocked,
+      status: value.isActive
+          ? EmployeeStatus.available
+          : EmployeeStatus.blocked,
       todayEfficiencyPercent: 95,
       currentAssignment: value.workerAssignmentsCount > 0
           ? '${value.workerAssignmentsCount} active lots assigned'
@@ -138,21 +140,31 @@ abstract final class ApiDomainMapper {
     );
   }
 
-  static WorkshopLot workerTask(ApiWorkerTask value) => WorkshopLot(
-    id: value.id,
-    orderId: value.orderId,
-    designCode: value.designNumber,
-    productTitle: value.designNumber,
-    stage: stage(value.stageName),
-    assignedEmployee: value.assignedEmployeeName,
-    assignedEmployeeRole: value.status,
-    pieces: value.quantity,
-    issueWeightGrams: value.grossWeight,
-    targetWeightGrams: value.grossWeight,
-    tone: value.status == 'FAILED' ? HealthTone.critical : HealthTone.healthy,
-    blockerReason: value.status == 'FAILED' ? value.instructions : null,
-    lastUpdatedTime: '',
-  );
+  static WorkshopLot workerTask(ApiWorkerTask value) {
+    final lotCode = value.designNumber.isNotEmpty
+        ? value.designNumber
+        : (value.id.length > 10
+              ? 'LOT-${value.id.substring(0, 6).toUpperCase()}'
+              : value.id);
+
+    return WorkshopLot(
+      id: lotCode,
+      orderId: value.orderId,
+      designCode: value.designNumber,
+      productTitle: value.designNumber.isNotEmpty
+          ? value.designNumber
+          : 'Jewellery Lot $lotCode',
+      stage: stage(value.stageName),
+      assignedEmployee: value.assignedEmployeeName,
+      assignedEmployeeRole: value.status,
+      pieces: value.quantity,
+      issueWeightGrams: value.grossWeight,
+      targetWeightGrams: value.grossWeight,
+      tone: value.status == 'FAILED' ? HealthTone.critical : HealthTone.healthy,
+      blockerReason: value.status == 'FAILED' ? value.instructions : null,
+      lastUpdatedTime: '',
+    );
+  }
 
   static WorkshopLot pendingPart(Map<String, dynamic> value) {
     final part = value['orderPart'] is Map
