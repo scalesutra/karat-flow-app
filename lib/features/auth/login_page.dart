@@ -61,10 +61,10 @@ class _LoginPageState extends State<LoginPage> {
               'FRONT_OFFICE' => AppRole.frontOffice,
               'PRODUCTION_MANAGER' => AppRole.processManager,
               'PROCESS_MANAGER' => AppRole.processManager,
-              'RAW_DESIGNER' => AppRole.cadDesigner,
+              'RAW_DESIGNER' => AppRole.rawDesigner,
               'THREE_D_DESIGNER' => AppRole.cadDesigner,
               'CAD_DESIGNER' => AppRole.cadDesigner,
-              'OTHER_EMPLOYEE' => AppRole.processManager,
+              'OTHER_EMPLOYEE' => AppRole.workshopArtisan,
               _ => AppRole.admin,
             };
             roleController.setRole(targetRole);

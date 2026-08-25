@@ -4,7 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../features/admin/bloc/admin_bloc.dart';
 import '../../features/cad_designer/bloc/cad_bloc.dart';
 import '../../features/front_office/bloc/orders_bloc.dart';
+import '../../features/raw_designer/bloc/sketch_bloc.dart';
 import '../../features/workshop/bloc/workshop_bloc.dart';
+import '../../features/workshop_artisan/bloc/artisan_bloc.dart';
 import 'common_snackbar.dart';
 
 class LiveBlocFeedback extends StatelessWidget {
@@ -79,6 +81,40 @@ class LiveBlocFeedback extends StatelessWidget {
               CommonSnackbar.error(
                 context,
                 title: 'Admin API Error',
+                message: message,
+              );
+            }
+          },
+        ),
+        BlocListener<SketchBloc, SketchState>(
+          listener: (context, state) {
+            if (state case SketchActionSuccess(:final message)) {
+              CommonSnackbar.success(
+                context,
+                title: 'Sketch Updated',
+                message: message,
+              );
+            } else if (state case SketchError(:final message)) {
+              CommonSnackbar.error(
+                context,
+                title: 'Sketch API Error',
+                message: message,
+              );
+            }
+          },
+        ),
+        BlocListener<ArtisanBloc, ArtisanState>(
+          listener: (context, state) {
+            if (state case ArtisanActionSuccess(:final message)) {
+              CommonSnackbar.success(
+                context,
+                title: 'Workshop Task Updated',
+                message: message,
+              );
+            } else if (state case ArtisanError(:final message)) {
+              CommonSnackbar.error(
+                context,
+                title: 'Worker Task API Error',
                 message: message,
               );
             }

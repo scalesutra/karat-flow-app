@@ -17,11 +17,14 @@ import '../front_office/clients_page.dart';
 import '../front_office/designs_page.dart';
 import '../front_office/front_office_more_page.dart';
 import '../front_office/orders_page.dart';
+import '../raw_designer/raw_designer_dashboard_page.dart';
+import '../profile/role_profile_page.dart';
 import '../status/admin_status_page.dart';
 import '../tasks/task_pages.dart';
 import '../workshop/product_manager_page.dart';
 import '../workshop/team_page.dart';
 import '../workshop/workshop_more_page.dart';
+import '../workshop_artisan/artisan_dashboard_page.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({
@@ -159,6 +162,20 @@ class _AppShellState extends State<AppShell> {
       ClientsPage(store: widget.store),
       FrontOfficeMorePage(store: widget.store),
     ],
+    AppRole.rawDesigner => const [
+      RawDesignerDashboardPage(),
+      RoleProfilePage(
+        title: 'Raw Designer Profile',
+        description: 'Review your authenticated studio identity and session.',
+      ),
+    ],
+    AppRole.workshopArtisan => const [
+      ArtisanDashboardPage(),
+      RoleProfilePage(
+        title: 'Workshop Artisan Profile',
+        description: 'Review your authenticated workshop identity and session.',
+      ),
+    ],
   };
 
   void _select(int index) => setState(() => _selectedIndex = index);
@@ -168,12 +185,16 @@ class _AppShellState extends State<AppShell> {
     AppRole.frontOffice => AppStrings.frontOfficeSubtitle.trClean,
     AppRole.processManager => AppStrings.workshopSubtitle.trClean,
     AppRole.cadDesigner => AppStrings.cadSubtitle.trClean,
+    AppRole.rawDesigner => 'Raw Design Studio',
+    AppRole.workshopArtisan => 'My Workshop Bench',
   };
 
   static IndicatorTheme _indicatorTheme(AppRole role) => switch (role) {
     AppRole.processManager => IndicatorTheme.workshop,
     AppRole.frontOffice => IndicatorTheme.frontOffice,
     AppRole.cadDesigner => IndicatorTheme.cad,
+    AppRole.rawDesigner => IndicatorTheme.cad,
+    AppRole.workshopArtisan => IndicatorTheme.workshop,
     AppRole.admin => IndicatorTheme.universal,
   };
 }
@@ -239,6 +260,14 @@ List<_Destination> _destinations(AppRole role, DemoStore store) {
         Icons.auto_awesome_mosaic_outlined,
       ),
       _Destination(AppStrings.navMore.trClean, Icons.more_horiz),
+    ],
+    AppRole.rawDesigner => [
+      _Destination('Sketches', Icons.draw_outlined),
+      _Destination('Profile', Icons.person_outline_rounded),
+    ],
+    AppRole.workshopArtisan => [
+      _Destination('My Tasks', Icons.handyman_outlined),
+      _Destination('Profile', Icons.person_outline_rounded),
     ],
   };
 }

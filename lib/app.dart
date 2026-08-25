@@ -12,7 +12,9 @@ import 'features/admin/bloc/admin_bloc.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/cad_designer/bloc/cad_bloc.dart';
 import 'features/front_office/bloc/orders_bloc.dart';
+import 'features/raw_designer/bloc/sketch_bloc.dart';
 import 'features/workshop/bloc/workshop_bloc.dart';
+import 'features/workshop_artisan/bloc/artisan_bloc.dart';
 import 'routes/app_pages.dart';
 
 class JewelleryOpsApp extends StatefulWidget {
@@ -50,6 +52,8 @@ class _JewelleryOpsAppState extends State<JewelleryOpsApp> {
         BlocProvider<WorkshopBloc>(create: (_) => WorkshopBloc(store: _store)),
         BlocProvider<CadBloc>(create: (_) => CadBloc(store: _store)),
         BlocProvider<AdminBloc>(create: (_) => AdminBloc(store: _store)),
+        BlocProvider<SketchBloc>(create: (_) => SketchBloc()),
+        BlocProvider<ArtisanBloc>(create: (_) => ArtisanBloc()),
       ],
       child: GetMaterialApp(
         title: 'KaratFlow',

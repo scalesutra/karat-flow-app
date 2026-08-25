@@ -125,6 +125,8 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
     AppRole.frontOffice => Icons.storefront_outlined,
     AppRole.processManager => Icons.precision_manufacturing_outlined,
     AppRole.cadDesigner => Icons.view_in_ar_outlined,
+    AppRole.rawDesigner => Icons.draw_outlined,
+    AppRole.workshopArtisan => Icons.handyman_outlined,
   };
 }
 

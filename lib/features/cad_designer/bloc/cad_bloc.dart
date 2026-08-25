@@ -33,9 +33,25 @@ class CadBloc extends Bloc<CadEvent, CadState> {
     emit(const CadLoading());
     try {
       final designs = await _api.listThreeDDesigns();
+      final sketches = await _api.listSketches(limit: 100);
       final tasks = designs.map(ApiDomainMapper.cadTask).toList();
+      final sketchDirectives = sketches
+          .where((sketch) {
+            final hasText =
+                sketch.adminInstructions?.trim().isNotEmpty ?? false;
+            final hasAudio =
+                sketch.feedbackAudioUrl?.trim().isNotEmpty ?? false;
+            return hasText || hasAudio;
+          })
+          .toList(growable: false);
       _store.setCadTasks(tasks);
-      emit(CadLoaded(tasks: tasks, filteredTasks: tasks));
+      emit(
+        CadLoaded(
+          tasks: tasks,
+          filteredTasks: tasks,
+          sketchDirectives: sketchDirectives,
+        ),
+      );
     } catch (error) {
       emit(CadError('Failed to fetch CAD tasks: $error'));
     }
@@ -138,6 +154,7 @@ class CadBloc extends Bloc<CadEvent, CadState> {
       CadLoaded(
         tasks: current.tasks,
         filteredTasks: filtered,
+        sketchDirectives: current.sketchDirectives,
         selectedFilter: event.status,
       ),
     );

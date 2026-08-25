@@ -6,13 +6,17 @@ enum AppRole {
   admin,
   frontOffice,
   processManager,
-  cadDesigner;
+  cadDesigner,
+  rawDesigner,
+  workshopArtisan;
 
   String get label => switch (this) {
     AppRole.admin => 'Admin',
     AppRole.frontOffice => 'Front Office',
     AppRole.processManager => 'Process Manager',
     AppRole.cadDesigner => 'CAD Designer',
+    AppRole.rawDesigner => 'Raw Designer',
+    AppRole.workshopArtisan => 'Workshop Artisan',
   };
 
   String get shortDescription => switch (this) {
@@ -20,6 +24,8 @@ enum AppRole {
     AppRole.frontOffice => 'Client orders, design catalog & cart management',
     AppRole.processManager => 'Workshop lot assignment, stage overview & team',
     AppRole.cadDesigner => '3D CAD modeling, STL uploads & design tasks',
+    AppRole.rawDesigner => 'Pencil sketch creation, review and revisions',
+    AppRole.workshopArtisan => 'Assigned bench work and task completion',
   };
 }
 

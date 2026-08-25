@@ -18,10 +18,7 @@ class SketchDirectiveDialog extends StatefulWidget {
 
   final JewelleryDesign design;
 
-  static Future<void> show(
-    BuildContext context,
-    JewelleryDesign design,
-  ) {
+  static Future<void> show(BuildContext context, JewelleryDesign design) {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -30,8 +27,7 @@ class SketchDirectiveDialog extends StatefulWidget {
   }
 
   @override
-  State<SketchDirectiveDialog> createState() =>
-      _SketchDirectiveDialogState();
+  State<SketchDirectiveDialog> createState() => _SketchDirectiveDialogState();
 }
 
 class _SketchDirectiveDialogState extends State<SketchDirectiveDialog> {
@@ -49,10 +45,7 @@ class _SketchDirectiveDialogState extends State<SketchDirectiveDialog> {
   @override
   void initState() {
     super.initState();
-    _instructionsController = TextEditingController(
-      text:
-          'Please adjust prong height and check shank thickness for ${widget.design.name} (${widget.design.code}).',
-    );
+    _instructionsController = TextEditingController();
     _playerCompleteSubscription = _player.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _isPlaying = false);
     });
@@ -148,7 +141,9 @@ class _SketchDirectiveDialogState extends State<SketchDirectiveDialog> {
       ReviewSketchDirectiveEvent(
         sketchId: widget.design.id,
         instructions: instructions,
-        audioFileName: path == null ? null : path.split(Platform.pathSeparator).last,
+        audioFileName: path == null
+            ? null
+            : path.split(Platform.pathSeparator).last,
         audioBytes: bytes,
       ),
     );
@@ -193,9 +188,7 @@ class _SketchDirectiveDialogState extends State<SketchDirectiveDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: _isRecording
-                    ? AppColors.dangerLight
-                    : AppColors.canvas,
+                color: _isRecording ? AppColors.dangerLight : AppColors.canvas,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: _isRecording ? AppColors.danger : AppColors.outline,
@@ -231,7 +224,10 @@ class _SketchDirectiveDialogState extends State<SketchDirectiveDialog> {
                         const SizedBox(height: 2),
                         const Text(
                           'M4A audio will be uploaded securely before review.',
-                          style: TextStyle(color: AppColors.muted, fontSize: 10),
+                          style: TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 10,
+                          ),
                         ),
                       ],
                     ),

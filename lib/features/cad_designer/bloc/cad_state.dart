@@ -1,4 +1,5 @@
 import '../../../domain/models.dart';
+import '../../../data/models/api_models.dart';
 
 /// Base CAD State (Minimal & clear)
 sealed class CadState {
@@ -20,11 +21,13 @@ final class CadLoaded extends CadState {
   const CadLoaded({
     required this.tasks,
     required this.filteredTasks,
+    this.sketchDirectives = const [],
     this.selectedFilter,
   });
 
   final List<CadDesignTask> tasks;
   final List<CadDesignTask> filteredTasks;
+  final List<ApiSketch> sketchDirectives;
   final CadTaskStatus? selectedFilter;
 }
 

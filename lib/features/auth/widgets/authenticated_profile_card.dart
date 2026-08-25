@@ -157,6 +157,9 @@ class AuthenticatedProfileCard extends StatelessWidget {
       'PROCESS_MANAGER': 'Production Manager',
       'PRODUCTION_MANAGER': 'Production Manager',
       'CAD_DESIGNER': 'CAD Designer',
+      'THREE_D_DESIGNER': 'CAD Designer',
+      'RAW_DESIGNER': 'Raw Designer',
+      'OTHER_EMPLOYEE': 'Workshop Artisan',
     };
     final normalized = role.trim().toUpperCase();
     if (normalized.isEmpty) return 'Role unavailable';

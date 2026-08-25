@@ -13,3 +13,4 @@ export 'common_snackbar.dart';
 export 'common_language_picker.dart';
 export 'common_progress_indicator.dart';
 export 'common_logout_dialog.dart';
+export 'common_role_dashboard.dart';
