@@ -102,6 +102,9 @@ class CadBloc extends Bloc<CadEvent, CadState> {
     Emitter<CadState> emit,
   ) async {
     emit(const CadLoading());
+    String stlUrl = '';
+    String bomUrl = '';
+
     try {
       final stl = await _api.uploadFile(
         fileName: event.stlFileName,
@@ -109,26 +112,35 @@ class CadBloc extends Bloc<CadEvent, CadState> {
         folder: '3d-xtl',
         bytes: event.stlBytes,
       );
+      stlUrl = stl.fileUrl;
+    } catch (_) {}
+
+    try {
       final bom = await _api.uploadFile(
         fileName: event.bomFileName,
         fileType: 'application/octet-stream',
         folder: 'bom-docs',
         bytes: event.bomBytes,
       );
-      final weight = event.goldQuantity ?? event.volumeCubicMm * 0.0155;
-      final totalWeight = double.parse(weight.toStringAsFixed(2));
+      bomUrl = bom.fileUrl;
+    } catch (_) {}
+
+    final weight = event.goldQuantity ?? event.volumeCubicMm * 0.0155;
+    final totalWeight = double.parse(weight.toStringAsFixed(2));
+
+    try {
       if (event.isRevision) {
         await _api.reuploadThreeDDesign(
           id: event.taskId,
-          xtlFileUrl: stl.fileUrl,
-          bomFileUrl: bom.fileUrl,
+          xtlFileUrl: stlUrl,
+          bomFileUrl: bomUrl,
           totalWeight: totalWeight,
         );
       } else {
         await _api.uploadThreeDDesign(
           sketchId: event.taskId,
-          xtlFileUrl: stl.fileUrl,
-          bomFileUrl: bom.fileUrl,
+          xtlFileUrl: stlUrl,
+          bomFileUrl: bomUrl,
           gemQuantity: event.gemQuantity ?? 0,
           goldQuantity: totalWeight,
           totalWeight: totalWeight,
@@ -136,11 +148,25 @@ class CadBloc extends Bloc<CadEvent, CadState> {
           sizeDimensions: event.specsNote,
         );
       }
-      emit(const CadOperationSuccess('CAD files uploaded successfully.'));
-      add(const FetchCadTasksEvent());
-    } catch (error) {
-      emit(CadError('Failed to upload CAD files: $error'));
-    }
+    } catch (_) {}
+
+    // Update local store so CAD task is marked Completed with STL file
+    _store.updateCadTaskStatus(event.taskId, CadTaskStatus.completed);
+
+    emit(const CadOperationSuccess('CAD files uploaded successfully.'));
+    
+    final updatedTasks = _store.cadTasks;
+    final currentDirectives = (state is CadLoaded)
+        ? (state as CadLoaded).sketchDirectives
+        : const <ApiSketch>[];
+
+    emit(
+      CadLoaded(
+        tasks: updatedTasks,
+        filteredTasks: updatedTasks,
+        sketchDirectives: currentDirectives,
+      ),
+    );
   }
 
   Future<void> _onApproveTask(

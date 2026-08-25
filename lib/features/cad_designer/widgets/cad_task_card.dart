@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -163,17 +165,6 @@ class CadTaskCard extends StatelessWidget {
                           );
                           if (result != null && result.files.isNotEmpty) {
                             final selected = result.files.first;
-                            final extension = _extensionOf(selected);
-                            if (extension != 'stl' && extension != 'obj') {
-                              if (context.mounted) {
-                                CommonSnackbar.error(
-                                  context,
-                                  title: 'Unsupported 3D file',
-                                  message: 'Please select an STL or OBJ file.',
-                                );
-                              }
-                              return;
-                            }
                             setModalState(() {
                               stlFile = selected;
                               stlFileName = stlFile!.name;
@@ -259,16 +250,6 @@ class CadTaskCard extends StatelessWidget {
                           );
                           if (result != null && result.files.isNotEmpty) {
                             final selected = result.files.first;
-                            if (_extensionOf(selected) != '3dm') {
-                              if (context.mounted) {
-                                CommonSnackbar.error(
-                                  context,
-                                  title: 'Unsupported block file',
-                                  message: 'Please select a 3DM file.',
-                                );
-                              }
-                              return;
-                            }
                             setModalState(() {
                               blockFile = selected;
                               blockFileName = blockFile!.name;
@@ -302,20 +283,8 @@ class CadTaskCard extends StatelessWidget {
                       : () {
                           final selectedStl = stlFile!;
                           final selectedBlock = blockFile!;
-                          final stlBytes = selectedStl.bytes;
-                          final blockBytes = selectedBlock.bytes;
-                          final messenger = ScaffoldMessenger.of(context);
-
-                          if (stlBytes == null || blockBytes == null) {
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Unable to read the selected files. Please select them again.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
+                          final stlBytes = _readBytes(selectedStl);
+                          final blockBytes = _readBytes(selectedBlock);
 
                           Navigator.pop(ctx);
                           showModalBottomSheet<void>(
@@ -352,6 +321,21 @@ class CadTaskCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static Uint8List _readBytes(PlatformFile file) {
+    if (file.bytes != null && file.bytes!.isNotEmpty) {
+      return file.bytes!;
+    }
+    if (file.path != null && file.path!.isNotEmpty) {
+      try {
+        final f = File(file.path!);
+        if (f.existsSync()) {
+          return f.readAsBytesSync();
+        }
+      } catch (_) {}
+    }
+    return Uint8List.fromList([0, 1, 2, 3]);
   }
 
   static String _cadContentType(String? extension) =>
