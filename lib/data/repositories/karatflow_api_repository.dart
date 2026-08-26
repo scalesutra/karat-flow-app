@@ -178,30 +178,13 @@ class KaratFlowApiRepository {
     return ApiCustomer.fromJson(data);
   }
 
-  static const List<ApiStage> defaultStages = [
-    ApiStage(id: 'stage-1', name: 'In Queue', stageNumber: 1),
-    ApiStage(id: 'stage-2', name: 'CAD & Wax', stageNumber: 2),
-    ApiStage(id: 'stage-3', name: 'Casting', stageNumber: 3),
-    ApiStage(id: 'stage-4', name: 'Filing & Assembly', stageNumber: 4),
-    ApiStage(id: 'stage-5', name: 'Stone Setting', stageNumber: 5),
-    ApiStage(id: 'stage-6', name: 'Polishing', stageNumber: 6),
-    ApiStage(id: 'stage-7', name: 'Quality Check & Packing', stageNumber: 7),
-    ApiStage(id: 'stage-8', name: 'Ready for Dispatch', stageNumber: 8),
-  ];
-
   // ── SECTION 4: Dynamic Production Stages (/stages) ───────────────
   Future<List<ApiStage>> listStages() async {
-    try {
-      final response = await _api.get(ApiEndpoints.stages);
-      final list = response.data['data'] as List? ?? [];
-      final stages = list
-          .map((s) => ApiStage.fromJson(s as Map<String, dynamic>))
-          .toList();
-      if (stages.isNotEmpty) return stages;
-    } catch (_) {
-      // Fallback to default production stages on network failure
-    }
-    return defaultStages;
+    final response = await _api.get(ApiEndpoints.stages);
+    final list = response.data['data'] as List? ?? [];
+    return list
+        .map((s) => ApiStage.fromJson(s as Map<String, dynamic>))
+        .toList();
   }
 
   Future<ApiStage> createStage({
@@ -534,14 +517,15 @@ class KaratFlowApiRepository {
     );
   }
 
-  Future<void> transitionPartNextStage({
+  Future<Map<String, dynamic>?> transitionPartNextStage({
     required String partId,
     String notes = '',
   }) async {
-    await _api.post(
+    final response = await _api.post(
       ApiEndpoints.productionTransition(partId),
       data: {'notes': notes},
     );
+    return response.data['data'] as Map<String, dynamic>?;
   }
 
   Future<void> rollbackPartStage({
@@ -552,6 +536,26 @@ class KaratFlowApiRepository {
     await _api.post(
       ApiEndpoints.productionRollback(partId),
       data: {'targetStageId': targetStageId, 'reason': reason},
+    );
+  }
+
+  Future<void> blockOrderPart({
+    required String partId,
+    required String reason,
+  }) async {
+    await _api.post(
+      ApiEndpoints.productionBlock(partId),
+      data: {'reason': reason},
+    );
+  }
+
+  Future<void> unblockOrderPart({
+    required String partId,
+    String? notes,
+  }) async {
+    await _api.post(
+      ApiEndpoints.productionUnblock(partId),
+      data: {if (notes?.isNotEmpty == true) 'notes': notes},
     );
   }
 

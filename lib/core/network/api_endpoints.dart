@@ -55,6 +55,10 @@ abstract final class ApiEndpoints {
       '/production/parts/$partId/transition';
   static String productionRollback(String partId) =>
       '/production/parts/$partId/rollback';
+  static String productionBlock(String partId) =>
+      '/production/parts/$partId/block';
+  static String productionUnblock(String partId) =>
+      '/production/parts/$partId/unblock';
 
   // ── SECTION 9: Workshop Worker Tasks (/worker-tasks) ─────────────
   static const String workerTasks = '/worker-tasks';

@@ -44,6 +44,20 @@ final class RollbackLotStageEvent extends WorkshopEvent {
   final String reason;
 }
 
+final class BlockLotPartEvent extends WorkshopEvent {
+  const BlockLotPartEvent({required this.partId, required this.reason});
+
+  final String partId;
+  final String reason;
+}
+
+final class UnblockLotPartEvent extends WorkshopEvent {
+  const UnblockLotPartEvent({required this.partId, this.notes});
+
+  final String partId;
+  final String? notes;
+}
+
 final class StartWorkerTaskEvent extends WorkshopEvent {
   const StartWorkerTaskEvent(this.taskId);
 

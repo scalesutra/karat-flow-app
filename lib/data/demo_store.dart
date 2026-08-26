@@ -10,16 +10,7 @@ import 'models/api_models.dart';
 import '../domain/models.dart';
 
 class DemoStore extends ChangeNotifier {
-  static const List<ApiStage> _defaultStages = [
-    ApiStage(id: 'stage-1', name: 'In Queue', stageNumber: 1),
-    ApiStage(id: 'stage-2', name: 'CAD & Wax', stageNumber: 2),
-    ApiStage(id: 'stage-3', name: 'Casting', stageNumber: 3),
-    ApiStage(id: 'stage-4', name: 'Filing & Assembly', stageNumber: 4),
-    ApiStage(id: 'stage-5', name: 'Stone Setting', stageNumber: 5),
-    ApiStage(id: 'stage-6', name: 'Polishing', stageNumber: 6),
-    ApiStage(id: 'stage-7', name: 'Quality Check & Packing', stageNumber: 7),
-    ApiStage(id: 'stage-8', name: 'Ready for Dispatch', stageNumber: 8),
-  ];
+  static const _adminDirectivesStorageKey = 'karatflow.admin_directives.v1';
 
   static final DemoStore _instance = DemoStore.empty();
   static DemoStore get instance => _instance;
@@ -40,7 +31,7 @@ class DemoStore extends ChangeNotifier {
       _orders = [],
       _clients = [],
       _lots = [],
-      _stages = List.from(_defaultStages),
+      _stages = [],
       _recentScans = [],
       _team = [],
       _stock = [],
@@ -682,6 +673,91 @@ class DemoStore extends ChangeNotifier {
     }
   }
 
+  void toggleLotHold(String lotId, {required bool isBlocked, String? reason}) {
+    if (lotId.isEmpty) return;
+    bool updated = false;
+    final lowerLotId = lotId.toLowerCase();
+
+    for (int i = 0; i < _lots.length; i++) {
+      final lot = _lots[i];
+      final matchesLot =
+          lot.id == lotId ||
+          lot.designCode.toLowerCase() == lowerLotId ||
+          lot.productTitle.toLowerCase() == lowerLotId ||
+          (lot.id.isNotEmpty &&
+              (lot.id.contains(lotId) || lotId.contains(lot.id))) ||
+          (lot.designCode.isNotEmpty &&
+              (lot.designCode.toLowerCase().contains(lowerLotId) ||
+                  lowerLotId.contains(lot.designCode.toLowerCase())));
+
+      if (matchesLot) {
+        _lots[i] = lot.copyWith(
+          tone: isBlocked ? HealthTone.critical : HealthTone.healthy,
+          blockerReason: isBlocked
+              ? (reason?.isNotEmpty == true ? reason : 'On Hold')
+              : null,
+          clearBlocker: !isBlocked,
+          lastUpdatedTime: 'Just now',
+        );
+        updated = true;
+
+        for (int j = 0; j < _orders.length; j++) {
+          if (_orders[j].id == lot.orderId ||
+              (lot.orderId.isNotEmpty &&
+                  (_orders[j].id.contains(lot.orderId) ||
+                      lot.orderId.contains(_orders[j].id))) ||
+              (lot.designCode.isNotEmpty &&
+                  _orders[j].itemsSummary.toLowerCase().contains(
+                    lot.designCode.toLowerCase(),
+                  ))) {
+            _orders[j] = _orders[j].copyWith(
+              isBlocked: isBlocked,
+              blockedReason: isBlocked ? reason : null,
+            );
+          }
+        }
+      }
+    }
+
+    // Direct match with orders
+    for (int j = 0; j < _orders.length; j++) {
+      if (_orders[j].id.toLowerCase() == lowerLotId ||
+          _orders[j].id.contains(lotId) ||
+          lotId.contains(_orders[j].id) ||
+          (lowerLotId.length > 3 &&
+              _orders[j].itemsSummary.toLowerCase().contains(lowerLotId))) {
+        _orders[j] = _orders[j].copyWith(
+          isBlocked: isBlocked,
+          blockedReason: isBlocked ? reason : null,
+        );
+        // Also toggle matching lots for this order
+        for (int i = 0; i < _lots.length; i++) {
+          if (_lots[i].orderId == _orders[j].id ||
+              (_lots[i].orderId.isNotEmpty &&
+                  _orders[j].id.contains(_lots[i].orderId)) ||
+              (_lots[i].designCode.isNotEmpty &&
+                  _orders[j].itemsSummary.toLowerCase().contains(
+                    _lots[i].designCode.toLowerCase(),
+                  ))) {
+            _lots[i] = _lots[i].copyWith(
+              tone: isBlocked ? HealthTone.critical : HealthTone.healthy,
+              blockerReason: isBlocked
+                  ? (reason?.isNotEmpty == true ? reason : 'On Hold')
+                  : null,
+              clearBlocker: !isBlocked,
+              lastUpdatedTime: 'Just now',
+            );
+          }
+        }
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      notifyListeners();
+    }
+  }
+
   List<ClientInfo> get clients => List.unmodifiable(_clients);
 
   void addClient(ClientInfo client) {
@@ -697,12 +773,19 @@ class DemoStore extends ChangeNotifier {
   List<WorkshopLot> get recentScans => List.unmodifiable(_recentScans);
 
   void allocateLotArtisan(String lotId, String artisanName) {
-    final idx = _lots.indexWhere((l) => l.id == lotId);
-    if (idx != -1) {
-      _lots[idx] = _lots[idx].copyWith(
-        assignedEmployee: artisanName,
-        lastUpdatedTime: 'Just now',
-      );
+    bool updated = false;
+    for (int i = 0; i < _lots.length; i++) {
+      if (_lots[i].id == lotId ||
+          _lots[i].designCode == lotId ||
+          (lotId.isNotEmpty && _lots[i].id.contains(lotId))) {
+        _lots[i] = _lots[i].copyWith(
+          assignedEmployee: artisanName,
+          lastUpdatedTime: 'Just now',
+        );
+        updated = true;
+      }
+    }
+    if (updated) {
       notifyListeners();
     }
   }
@@ -760,34 +843,75 @@ class DemoStore extends ChangeNotifier {
   }
 
   void advanceLotStage(String lotId) {
-    final index = _lots.indexWhere((l) => l.id == lotId);
-    if (index >= 0) {
-      final currentStage = _lots[index].stage;
-      final nextIndex = currentStage.index + 1;
-      if (nextIndex < WorkshopStage.values.length) {
-        final newStage = WorkshopStage.values[nextIndex];
-        _lots[index] = _lots[index].copyWith(
-          stage: newStage,
-          lastUpdatedTime: 'Just now',
-          tone: newStage == WorkshopStage.readyForDispatch
-              ? HealthTone.healthy
-              : _lots[index].tone,
-        );
-        recordScan(_lots[index]);
-        notifyListeners();
+    bool updated = false;
+    for (int i = 0; i < _lots.length; i++) {
+      if (_lots[i].id == lotId ||
+          _lots[i].designCode == lotId ||
+          (lotId.isNotEmpty && _lots[i].id.contains(lotId))) {
+        final currentStage = _lots[i].stage;
+        final nextIndex = currentStage.index + 1;
+        if (nextIndex < WorkshopStage.values.length) {
+          final newStage = WorkshopStage.values[nextIndex];
+          _lots[i] = _lots[i].copyWith(
+            stage: newStage,
+            lastUpdatedTime: 'Just now',
+            tone: newStage == WorkshopStage.readyForDispatch
+                ? HealthTone.healthy
+                : _lots[i].tone,
+          );
+          recordScan(_lots[i]);
+          updated = true;
+        }
       }
+    }
+    if (updated) {
+      notifyListeners();
     }
   }
 
-  void assignLotToEmployee(String lotId, String employeeName, String role) {
+  void splitWorkshopLot({
+    required String lotId,
+    required int movedPieces,
+    required WorkshopStage targetStage,
+  }) {
     final index = _lots.indexWhere((l) => l.id == lotId);
     if (index >= 0) {
-      _lots[index] = _lots[index].copyWith(
-        assignedEmployee: employeeName,
-        assignedEmployeeRole: role,
-        lastUpdatedTime: 'Just now',
-      );
-      recordScan(_lots[index]);
+      final sourceLot = _lots[index];
+      if (movedPieces >= sourceLot.pieces) {
+        _lots[index] = sourceLot.copyWith(
+          stage: targetStage,
+          lastUpdatedTime: 'Just now',
+        );
+      } else {
+        final originalCount = sourceLot.pieces;
+        final remainingPieces = (originalCount - movedPieces).clamp(
+          1,
+          originalCount,
+        );
+        _lots[index] = sourceLot.copyWith(
+          pieces: remainingPieces,
+          lastUpdatedTime: 'Just now',
+        );
+        final newLotId = sourceLot.id;
+        final splitLot = WorkshopLot(
+          id: newLotId,
+          orderId: sourceLot.orderId,
+          designCode: sourceLot.designCode,
+          productTitle: sourceLot.productTitle,
+          stage: targetStage,
+          assignedEmployee: 'Unassigned',
+          assignedEmployeeRole: sourceLot.assignedEmployeeRole,
+          pieces: movedPieces,
+          issueWeightGrams:
+              sourceLot.issueWeightGrams * (movedPieces / originalCount),
+          targetWeightGrams:
+              sourceLot.targetWeightGrams * (movedPieces / originalCount),
+          tone: HealthTone.healthy,
+          blockerReason: null,
+          lastUpdatedTime: 'Just now',
+        );
+        _lots.insert(0, splitLot);
+      }
       notifyListeners();
     }
   }
@@ -980,9 +1104,17 @@ class DemoStore extends ChangeNotifier {
   }
 
   void setOrders(List<CustomerOrder> orders) {
+    final uniqueOrders = <CustomerOrder>[];
+    final seenIds = <String>{};
+    for (final o in orders) {
+      final key = o.id.isNotEmpty ? o.id : o.clientFirmName;
+      if (seenIds.add(key)) {
+        uniqueOrders.add(o);
+      }
+    }
     _orders
       ..clear()
-      ..addAll(orders);
+      ..addAll(uniqueOrders);
     notifyListeners();
   }
 
@@ -994,21 +1126,75 @@ class DemoStore extends ChangeNotifier {
   }
 
   void setLots(List<WorkshopLot> lots) {
+    if (_lots.isEmpty) {
+      _lots
+        ..clear()
+        ..addAll(lots);
+      notifyListeners();
+      return;
+    }
+
+    final mergedLots = <WorkshopLot>[];
+    final processedIds = <String>{};
+
+    for (final newLot in lots) {
+      final existingMatches = _lots
+          .where(
+            (l) =>
+                l.id == newLot.id ||
+                (l.orderId.isNotEmpty &&
+                    l.orderId == newLot.orderId &&
+                    l.designCode == newLot.designCode &&
+                    l.stage == newLot.stage),
+          )
+          .toList();
+
+      if (existingMatches.isNotEmpty) {
+        for (final existing in existingMatches) {
+          if (!processedIds.contains(existing.id)) {
+            processedIds.add(existing.id);
+            final assigned =
+                (newLot.assignedEmployee.isNotEmpty &&
+                    newLot.assignedEmployee != 'Unassigned')
+                ? newLot.assignedEmployee
+                : existing.assignedEmployee;
+            mergedLots.add(
+              existing.copyWith(
+                assignedEmployee: assigned,
+                tone: newLot.tone,
+                blockerReason: newLot.blockerReason,
+              ),
+            );
+          }
+        }
+      } else {
+        if (!processedIds.contains(newLot.id)) {
+          processedIds.add(newLot.id);
+          mergedLots.add(newLot);
+        }
+      }
+    }
+
+    // Preserve any local split lots that were not in incoming API list
+    for (final local in _lots) {
+      if (!processedIds.contains(local.id)) {
+        processedIds.add(local.id);
+        mergedLots.add(local);
+      }
+    }
+
     _lots
       ..clear()
-      ..addAll(lots);
+      ..addAll(mergedLots);
     notifyListeners();
   }
 
   void setStages(List<ApiStage> stages) {
-    final active = stages.where((stage) => stage.isActive).toList();
-    if (active.isNotEmpty) {
-      _stages
-        ..clear()
-        ..addAll(active);
-      _stages.sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
-      notifyListeners();
-    }
+    _stages
+      ..clear()
+      ..addAll(stages.where((stage) => stage.isActive));
+    _stages.sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+    notifyListeners();
   }
 
   void setCadTasks(List<CadDesignTask> tasks) {

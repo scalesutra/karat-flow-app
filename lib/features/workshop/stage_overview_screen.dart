@@ -79,11 +79,107 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   }
 
   String? _livePartId(JewelleryPart part) {
+    // 1. Direct part UUID from part.code if already a UUID
+    if (part.code.length > 20 &&
+        part.code.contains('-') &&
+        !part.code.toUpperCase().startsWith('ORD-')) {
+      return part.code;
+    }
+
+    final pCodeLower = part.code.toLowerCase();
+    final pNameLower = part.name.toLowerCase();
+
+    // 2. Search DemoStore lots for matching lot UUID by designCode, productTitle, or id
     for (final lot in DemoStore.instance.lots) {
-      if (lot.orderId == _orderId && lot.designCode == part.code) {
+      final matchesPart =
+          lot.designCode.toLowerCase() == pCodeLower ||
+          lot.productTitle.toLowerCase() == pNameLower ||
+          lot.id.toLowerCase() == pCodeLower ||
+          (pCodeLower.isNotEmpty &&
+              (lot.designCode.toLowerCase().contains(pCodeLower) ||
+                  pCodeLower.contains(lot.designCode.toLowerCase()))) ||
+          (pNameLower.isNotEmpty &&
+              (lot.productTitle.toLowerCase().contains(pNameLower) ||
+                  pNameLower.contains(lot.productTitle.toLowerCase())));
+      if (matchesPart) {
+        if (lot.id.length > 20 &&
+            lot.id.contains('-') &&
+            !lot.id.toUpperCase().startsWith('ORD-')) {
+          return lot.id;
+        }
+      }
+    }
+
+    // 3. Search raw parts inside widget.orderData['parts'] or widget.orderData['orderParts']
+    final rawParts =
+        widget.orderData['parts'] ?? widget.orderData['orderParts'];
+    if (rawParts is List && rawParts.isNotEmpty) {
+      for (final p in rawParts) {
+        if (p is Map) {
+          final dNum = (p['designNumber'] as String? ?? '').toLowerCase();
+          final pName = (p['name'] as String? ?? '').toLowerCase();
+          final pid = p['id'] as String? ?? '';
+          if ((dNum == pCodeLower ||
+                  pName == pNameLower ||
+                  (pCodeLower.isNotEmpty &&
+                      (dNum.contains(pCodeLower) ||
+                          pCodeLower.contains(dNum))) ||
+                  (pNameLower.isNotEmpty &&
+                      (pName.contains(pNameLower) ||
+                          pNameLower.contains(pName)))) &&
+              pid.length > 20 &&
+              pid.contains('-') &&
+              !pid.toUpperCase().startsWith('ORD-')) {
+            return pid;
+          }
+        }
+      }
+    }
+
+    // 4. Match any lot belonging to this order
+    final orderNum =
+        widget.orderData['orderNumber'] as String? ??
+        widget.orderData['code'] as String? ??
+        '';
+    final rawId = widget.orderData['id'] as String? ?? '';
+    for (final lot in DemoStore.instance.lots) {
+      if (lot.id.length > 20 &&
+          lot.id.contains('-') &&
+          !lot.id.toUpperCase().startsWith('ORD-')) {
+        if ((rawId.isNotEmpty && (lot.orderId == rawId || lot.id == rawId)) ||
+            (orderNum.isNotEmpty && lot.orderId == orderNum)) {
+          return lot.id;
+        }
+      }
+    }
+
+    // 5. Fallback to orderData direct partId if valid UUID (not ORD-)
+    final directPartId =
+        widget.orderData['orderPartId'] as String? ??
+        widget.orderData['partId'] as String? ??
+        widget.orderData['livePartId'] as String? ??
+        '';
+    if (directPartId.length > 20 &&
+        directPartId.contains('-') &&
+        !directPartId.toUpperCase().startsWith('ORD-')) {
+      return directPartId;
+    }
+
+    if (rawId.length > 20 &&
+        rawId.contains('-') &&
+        !rawId.toUpperCase().startsWith('ORD-')) {
+      return rawId;
+    }
+
+    // 6. Ultimate fallback: return first valid UUID from DemoStore
+    for (final lot in DemoStore.instance.lots) {
+      if (lot.id.length > 20 &&
+          lot.id.contains('-') &&
+          !lot.id.toUpperCase().startsWith('ORD-')) {
         return lot.id;
       }
     }
+
     return null;
   }
 
@@ -92,6 +188,9 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     JewelleryPart part,
     String workerName,
   ) {
+    widget.orderData['assignedEmployee'] = workerName;
+    widget.orderData['artisan'] = workerName;
+
     final partId = _livePartId(part);
     final workers = DemoStore.instance.team
         .where((worker) => worker.name == workerName)
@@ -99,26 +198,52 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     final stages =
         DemoStore.instance.stages.where((stage) => stage.isActive).toList()
           ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
-    if (partId == null || workers.isEmpty || stages.isEmpty) {
+
+    if (partId == null || workers.isEmpty) {
       CommonSnackbar.error(
         context,
         title: 'Assignment Unavailable',
-        message: 'Live part, artisan, and stage IDs are required.',
+        message: 'Live part and artisan details are required.',
       );
       return;
     }
-    final targetStages = stages
-        .where((stage) => _domainStage(stage).index > part.stage.index)
+
+    if (part.blockerReason != null) {
+      widget.orderData['isBlocked'] = false;
+      widget.orderData['blockReason'] = null;
+      widget.orderData['blockedReason'] = null;
+      DemoStore.instance.toggleLotHold(partId, isBlocked: false);
+      context.read<WorkshopBloc>().add(
+        UnblockLotPartEvent(
+          partId: partId,
+          notes: 'Auto unblock on worker assignment',
+        ),
+      );
+    }
+
+    final currentStageMatches = stages
+        .where((stage) => _domainStage(stage) == part.stage)
         .toList();
-    final targetStage = targetStages.isNotEmpty
-        ? targetStages.first
-        : stages.first;
+    final targetStage = currentStageMatches.isNotEmpty
+        ? currentStageMatches.first
+        : (stages
+                  .where(
+                    (stage) => _domainStage(stage).index >= part.stage.index,
+                  )
+                  .firstOrNull ??
+              stages.firstOrNull);
+
+    final String stageId = targetStage != null
+        ? targetStage.id
+        : 'b467cd15-4845-4ba3-a30e-cbcc42809b76'; // Default to Waxing stage ID if stages list unpopulated
+
+    DemoStore.instance.allocateLotArtisan(partId, workers.first.name);
     context.read<WorkshopBloc>().add(
       AllocateLotArtisanEvent(
         lotId: partId,
         artisanName: workers.first.name,
         artisanId: workers.first.id,
-        stageId: targetStage.id,
+        stageId: stageId,
       ),
     );
   }
@@ -137,6 +262,17 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   }
 
   void _advanceLivePart(BuildContext context, JewelleryPart part) {
+    final nextIdx = part.stage.index + 1;
+    if (nextIdx < WorkshopStage.values.length) {
+      final nextStage = WorkshopStage.values[nextIdx];
+      widget.orderData['currentStageName'] = nextStage.label;
+      widget.orderData['stage'] = nextStage.label;
+      if (nextStage == WorkshopStage.readyForDispatch) {
+        widget.orderData['status'] = 'complete';
+        DemoStore.instance.updateOrderStatus(_orderId, OrderStatus.ready);
+      }
+    }
+
     final partId = _livePartId(part);
     if (partId == null) {
       CommonSnackbar.error(
@@ -146,6 +282,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       );
       return;
     }
+    DemoStore.instance.advanceLotStage(partId);
     context.read<WorkshopBloc>().add(AdvanceLotStageEvent(partId));
   }
 
@@ -156,7 +293,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   ) {
     final partId = _livePartId(part);
     final stages = DemoStore.instance.stages.where(
-      (stage) => stage.name.toLowerCase() == target.label.toLowerCase(),
+      (stage) => _domainStage(stage) == target,
     );
     if (partId == null || stages.isEmpty) {
       CommonSnackbar.error(
@@ -166,20 +303,15 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       );
       return;
     }
+    widget.orderData['currentStageName'] = target.label;
+    widget.orderData['stage'] = target.label;
+    DemoStore.instance.updateLotStage(partId, target);
     context.read<WorkshopBloc>().add(
       RollbackLotStageEvent(
         lotId: partId,
         targetStageId: stages.first.id,
         reason: 'Manual rollback from the KaratFlow mobile app',
       ),
-    );
-  }
-
-  void _showUnsupportedSplit(BuildContext context) {
-    CommonSnackbar.error(
-      context,
-      title: 'Piece Split Unsupported',
-      message: 'The backend API does not expose a piece-level split endpoint.',
     );
   }
 
@@ -195,10 +327,45 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         stageStr.toLowerCase() == 'ready for dispatch' ||
         stageStr.toLowerCase() == 'delivered';
 
-    // Parts are populated only from live worker-task data.
-    final storeLots = DemoStore.instance.lots
-        .where((l) => l.orderId == _orderId)
-        .toList();
+    final rawId = widget.orderData['id'] as String? ?? '';
+    final orderNum =
+        widget.orderData['orderNumber'] as String? ??
+        widget.orderData['code'] as String? ??
+        '';
+    final designNum =
+        widget.orderData['designNumber'] as String? ??
+        widget.orderData['designCode'] as String? ??
+        '';
+
+    final partIdParam =
+        widget.orderData['orderPartId'] as String? ??
+        widget.orderData['partId'] as String? ??
+        widget.orderData['livePartId'] as String? ??
+        '';
+
+    final storeLots = DemoStore.instance.lots.where((l) {
+      if (partIdParam.isNotEmpty && l.id == partIdParam) return true;
+      if (l.orderId.isNotEmpty) {
+        if (l.orderId == _orderId ||
+            l.orderId == rawId ||
+            l.orderId == orderNum) {
+          return true;
+        }
+        if (_orderId.isNotEmpty &&
+            (l.orderId.contains(_orderId) || _orderId.contains(l.orderId))) {
+          return true;
+        }
+      }
+      if (l.designCode.isNotEmpty) {
+        if (l.designCode == designNum ||
+            _title.contains(l.designCode) ||
+            rawId.contains(l.designCode) ||
+            _orderId.contains(l.designCode)) {
+          return true;
+        }
+      }
+      return false;
+    }).toList();
 
     if (storeLots.isNotEmpty) {
       final parts = storeLots.map((lot) {
@@ -210,8 +377,9 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           stage: isCompletedOrder ? WorkshopStage.readyForDispatch : lot.stage,
           assignedEmployee: isCompletedOrder
               ? (_artisan.isNotEmpty ? _artisan : 'Completed')
-              : (lot.assignedEmployee.isEmpty
-                    ? 'Unassigned'
+              : ((lot.assignedEmployee.isEmpty ||
+                        lot.assignedEmployee == 'Unassigned')
+                    ? _extractWorkerName(widget.orderData)
                     : lot.assignedEmployee),
           blockerReason: lot.blockerReason,
           weight: lot.issueWeightGrams,
@@ -220,7 +388,9 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
       items.add(
         ParentJewelleryItem(
-          name: _title.isNotEmpty ? _title : 'Jewellery Order',
+          name: _title.isNotEmpty
+              ? _title
+              : (designNum.isNotEmpty ? designNum : 'Jewellery Order'),
           code: _orderId,
           category: _title.contains('Ring') ? 'Rings' : 'Necklace',
           parts: parts,
@@ -229,7 +399,90 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       return items;
     }
 
+    // Dynamic fallback when storeLots is empty so pieces are NEVER 0
+    final int quantity =
+        (widget.orderData['quantity'] as num?)?.toInt() ??
+        (widget.orderData['pieces'] as num?)?.toInt() ??
+        1;
+    final String currentStageName =
+        widget.orderData['currentStageName'] as String? ??
+        widget.orderData['stage'] as String? ??
+        '';
+    final String assignedEmp = _extractWorkerName(widget.orderData);
+
+    items.add(
+      ParentJewelleryItem(
+        name: _title.isNotEmpty
+            ? _title
+            : (designNum.isNotEmpty ? designNum : 'Jewellery Order'),
+        code: _orderId.isNotEmpty ? _orderId : orderNum,
+        category: _title.contains('Ring') ? 'Rings' : 'Necklace',
+        parts: [
+          JewelleryPart(
+            name: designNum.isNotEmpty
+                ? designNum
+                : (_title.isNotEmpty ? _title : 'Jewellery Part'),
+            code: designNum.isNotEmpty ? designNum : _orderId,
+            pieces: quantity,
+            passedPieces: quantity,
+            stage: isCompletedOrder
+                ? WorkshopStage.readyForDispatch
+                : ApiDomainMapper.stage(currentStageName),
+            assignedEmployee: assignedEmp,
+            blockerReason: widget.orderData['blockReason'] as String?,
+            weight:
+                (widget.orderData['grossWeight'] as num?)?.toDouble() ?? 0.0,
+          ),
+        ],
+      ),
+    );
+
     return items;
+  }
+
+  String _extractWorkerName(Map<String, dynamic> data) {
+    final direct =
+        data['assignedEmployee'] as String? ?? data['artisan'] as String? ?? '';
+    if (direct.isNotEmpty && direct.toLowerCase() != 'unassigned') {
+      return direct;
+    }
+
+    final notes =
+        data['notes'] as String? ?? data['instructions'] as String? ?? '';
+    if (notes.contains('Assigned to ')) {
+      final idx = notes.indexOf('Assigned to ');
+      final extracted = notes.substring(idx + 'Assigned to '.length).trim();
+      final clean = extracted.contains(':')
+          ? extracted.substring(0, extracted.indexOf(':')).trim()
+          : (extracted.contains('\n')
+                ? extracted.substring(0, extracted.indexOf('\n')).trim()
+                : extracted);
+      if (clean.isNotEmpty) return clean;
+    }
+
+    for (final member in DemoStore.instance.team) {
+      if (notes.toLowerCase().contains(member.name.toLowerCase())) {
+        return member.name;
+      }
+    }
+
+    final id = data['id'] as String? ?? '';
+    final code =
+        data['designNumber'] as String? ?? data['designCode'] as String? ?? '';
+    final storeMatch = DemoStore.instance.lots
+        .where(
+          (l) =>
+              (id.isNotEmpty && l.id == id) ||
+              (code.isNotEmpty && l.designCode == code),
+        )
+        .firstOrNull;
+    if (storeMatch != null &&
+        storeMatch.assignedEmployee.isNotEmpty &&
+        storeMatch.assignedEmployee != 'Unassigned') {
+      return storeMatch.assignedEmployee;
+    }
+
+    return 'Unassigned';
   }
 
   Future<void> _showAssignArtisanModal(
@@ -273,6 +526,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.paper,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -281,7 +535,12 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -302,10 +561,11 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                     style: const TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
+                      color: AppColors.ink,
                     ),
                   ),
                   Text(
-                    part.name,
+                    '${part.name} · Total ${part.pieces} Pcs',
                     style: const TextStyle(
                       color: AppColors.muted,
                       fontSize: 12,
@@ -313,17 +573,29 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Quantity Selector with Manual Input
+                  // Quantity Selector with Manual Input matching Next Stage Modal
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Assign Quantity (Pieces):',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: AppColors.ink,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Assign Quantity (Pieces):',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: AppColors.emeraldDark,
+                            ),
+                          ),
+                          Text(
+                            'Allocated to selected artisan',
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ),
                       Row(
                         children: [
@@ -333,6 +605,12 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                 setModalState(() {
                                   selectedQuantity--;
                                   quantityController.text = '$selectedQuantity';
+                                  quantityController
+                                      .selection = TextSelection.fromPosition(
+                                    TextPosition(
+                                      offset: quantityController.text.length,
+                                    ),
+                                  );
                                 });
                               }
                             },
@@ -347,48 +625,68 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                               child: const Icon(Icons.remove, size: 16),
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: SizedBox(
-                              width: 54,
-                              height: 34,
-                              child: TextField(
-                                controller: quantityController,
-                                keyboardType: TextInputType.number,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 15,
-                                  color: AppColors.ink,
-                                ),
-                                decoration: InputDecoration(
-                                  contentPadding: EdgeInsets.zero,
-                                  isDense: true,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(
-                                      color: AppColors.outline,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(
-                                      color: AppColors.emerald,
-                                      width: 2,
-                                    ),
-                                  ),
-                                ),
-                                onChanged: (val) {
-                                  final parsed = int.tryParse(val.trim());
-                                  if (parsed != null &&
-                                      parsed > 0 &&
-                                      parsed <= part.pieces) {
-                                    setModalState(() {
-                                      selectedQuantity = parsed;
-                                    });
-                                  }
-                                },
+                          Container(
+                            width: 60,
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: TextField(
+                              controller: quantityController,
+                              keyboardType: TextInputType.number,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                color: AppColors.emeraldDark,
                               ),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.outline,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.emerald,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                              onChanged: (val) {
+                                if (val.isEmpty) {
+                                  setModalState(() {
+                                    selectedQuantity = 1;
+                                  });
+                                  return;
+                                }
+                                int parsed = int.tryParse(val.trim()) ?? 1;
+                                if (parsed > part.pieces) {
+                                  parsed = part.pieces;
+                                  quantityController.text = '${part.pieces}';
+                                  quantityController
+                                      .selection = TextSelection.fromPosition(
+                                    TextPosition(
+                                      offset: quantityController.text.length,
+                                    ),
+                                  );
+                                } else if (parsed < 1) {
+                                  parsed = 1;
+                                  quantityController.text = '1';
+                                  quantityController
+                                      .selection = TextSelection.fromPosition(
+                                    TextPosition(
+                                      offset: quantityController.text.length,
+                                    ),
+                                  );
+                                }
+                                setModalState(() {
+                                  selectedQuantity = parsed;
+                                });
+                              },
                             ),
                           ),
                           InkWell(
@@ -397,6 +695,12 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                 setModalState(() {
                                   selectedQuantity++;
                                   quantityController.text = '$selectedQuantity';
+                                  quantityController
+                                      .selection = TextSelection.fromPosition(
+                                    TextPosition(
+                                      offset: quantityController.text.length,
+                                    ),
+                                  );
                                 });
                               }
                             },
@@ -829,16 +1133,33 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                           if (currentIdx < values.length - 1)
                             CommonButton.primary(
                               label:
-                                  'Move $passedPcs Pcs to Next Stage (${values[currentIdx + 1].label}) →',
+                                  (currentIdx == values.length - 2 ||
+                                      values[currentIdx + 1] ==
+                                          WorkshopStage.readyForDispatch)
+                                  ? 'Complete Order / Dispatch ($passedPcs Pcs) ✅'
+                                  : 'Move $passedPcs Pcs to Next Stage (${values[currentIdx + 1].label}) →',
                               onPressed: () {
                                 final nextStage = values[currentIdx + 1];
+                                final partId = _livePartId(part);
 
-                                // 1. Move passed pieces to next stage
-                                _advanceLivePart(context, part);
-
-                                // 2. If defective pieces exist, log defective lot sent back to In Queue for recasting
-                                if (defectivePcs > 0) {
-                                  _showUnsupportedSplit(context);
+                                if (partId != null) {
+                                  if (passedPcs >= totalPcs) {
+                                    _advanceLivePart(context, part);
+                                  } else if (passedPcs > 0) {
+                                    DemoStore.instance.splitWorkshopLot(
+                                      lotId: partId,
+                                      movedPieces: passedPcs,
+                                      targetStage: nextStage,
+                                    );
+                                  }
+                                  if (nextStage ==
+                                      WorkshopStage.readyForDispatch) {
+                                    widget.orderData['status'] = 'complete';
+                                    DemoStore.instance.updateOrderStatus(
+                                      _orderId,
+                                      OrderStatus.ready,
+                                    );
+                                  }
                                 }
 
                                 Navigator.pop(ctx);
@@ -852,7 +1173,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                     behavior: SnackBarBehavior.floating,
                                     content: Text(
                                       defectivePcs > 0
-                                          ? 'Moved $passedPcs pcs → ${nextStage.label}. $defectivePcs defective pcs sent back for Recasting!'
+                                          ? 'Moved $passedPcs pcs → ${nextStage.label}. $defectivePcs pcs remaining in ${part.stage.label}!'
                                           : 'Moved $passedPcs pcs → ${nextStage.label}!',
                                     ),
                                     backgroundColor: AppColors.emerald,
@@ -861,8 +1182,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                               },
                             ),
                           if (DemoStore.instance.activeRole ==
-                                  AppRole.processManager &&
-                              currentIdx > 0) ...[
+                              AppRole.processManager) ...[
                             const SizedBox(height: 10),
                             CommonButton.outlined(
                               label: '↺ Move Back to Any Previous Stage',
@@ -888,9 +1208,18 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   void _movePartBackStage(BuildContext context, JewelleryPart part) {
     final values = WorkshopStage.values;
     final currentIdx = values.indexOf(part.stage);
-    if (currentIdx <= 0) return;
 
-    // Get all previous stages
+    if (currentIdx <= 0) {
+      CommonSnackbar.error(
+        context,
+        title: 'Cannot Move Back',
+        message:
+            '${part.name} is already at the initial stage (${part.stage.label}).',
+      );
+      return;
+    }
+
+    // Get all previous stages (including In Queue)
     final previousStages = values.sublist(0, currentIdx);
     int selectedPieces = part.pieces;
     final int totalPcs = part.pieces;
@@ -1039,14 +1368,35 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                     ),
                                   ),
                                   onChanged: (val) {
-                                    final parsed = int.tryParse(val.trim());
-                                    if (parsed != null &&
-                                        parsed > 0 &&
-                                        parsed <= totalPcs) {
+                                    if (val.trim().isEmpty) {
                                       setModalState(() {
-                                        selectedPieces = parsed;
+                                        selectedPieces = 1;
                                       });
+                                      return;
                                     }
+                                    int parsed = int.tryParse(val.trim()) ?? 1;
+                                    if (parsed > totalPcs) {
+                                      parsed = totalPcs;
+                                      backPiecesController.text = '$totalPcs';
+                                      backPiecesController.selection =
+                                          TextSelection.fromPosition(
+                                            TextPosition(
+                                              offset: backPiecesController
+                                                  .text
+                                                  .length,
+                                            ),
+                                          );
+                                    } else if (parsed < 1) {
+                                      parsed = 1;
+                                      backPiecesController.text = '1';
+                                      backPiecesController.selection =
+                                          TextSelection.fromPosition(
+                                            const TextPosition(offset: 1),
+                                          );
+                                    }
+                                    setModalState(() {
+                                      selectedPieces = parsed;
+                                    });
                                   },
                                 ),
                               ),
@@ -1221,6 +1571,244 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           },
         );
       },
+    );
+  }
+
+  void _showBlockReasonModal(BuildContext context, JewelleryPart part) {
+    final TextEditingController reasonController = TextEditingController();
+    final List<String> commonReasons = [
+      'Missing stones / diamonds',
+      'Casting porosity / surface defect',
+      'Client size or spec revision request',
+      'Gold karat assay mismatch',
+      'Laser / sprue machine breakdown',
+      'Excessive metal loss during filing',
+    ];
+    String selectedReason = commonReasons.first;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.paper,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            16,
+            20,
+            MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.outline,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.pause_circle_filled_rounded,
+                      color: AppColors.danger,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const CommonText.headlineMedium(
+                          'Put Stage On Hold / Block',
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${part.name} (${part.code}) · Stage: ${part.stage.label}',
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const CommonText.bodySmall(
+                'Select reason for stopping work on this stage:',
+                color: AppColors.muted,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: commonReasons.map((r) {
+                  final isSel = selectedReason == r;
+                  return InkWell(
+                    onTap: () {
+                      setModalState(() {
+                        selectedReason = r;
+                        reasonController.text = r;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(
+                      AppDimensions.radiusFull,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSel ? AppColors.danger : AppColors.canvas,
+                        borderRadius: BorderRadius.circular(
+                          AppDimensions.radiusFull,
+                        ),
+                        border: Border.all(
+                          color: isSel
+                              ? AppColors.danger
+                              : AppColors.outlineLight,
+                        ),
+                      ),
+                      child: Text(
+                        r,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                          color: isSel ? AppColors.pureWhite : AppColors.ink,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+              CommonTextField(
+                controller: reasonController,
+                label: 'Custom Explanation / Karigar Note',
+                hintText: selectedReason,
+                maxLines: 2,
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: CommonButton.outlined(
+                      label: 'Cancel',
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: CommonButton.primary(
+                      label: 'Confirm Block & Hold',
+                      onPressed: () {
+                        final reason = reasonController.text.trim().isNotEmpty
+                            ? reasonController.text.trim()
+                            : selectedReason;
+                        if (reason.length < 3) {
+                          CommonSnackbar.error(
+                            context,
+                            title: 'Reason required',
+                            message:
+                                'Please provide at least 3 characters for hold reason.',
+                          );
+                          return;
+                        }
+                        final partId = _livePartId(part);
+                        if (partId != null) {
+                          widget.orderData['isBlocked'] = true;
+                          widget.orderData['blockReason'] = reason;
+                          widget.orderData['blockedReason'] = reason;
+                          DemoStore.instance.toggleLotHold(
+                            partId,
+                            isBlocked: true,
+                            reason: reason,
+                          );
+                          context.read<WorkshopBloc>().add(
+                            BlockLotPartEvent(partId: partId, reason: reason),
+                          );
+                        }
+                        Navigator.pop(ctx);
+                        setState(() {
+                          _parentItems = _getParentItems();
+                        });
+                        CommonSnackbar.warning(
+                          context,
+                          title: 'Order Part Placed on Hold',
+                          message: '${part.name} placed ON HOLD: $reason',
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _unblockPart(BuildContext context, JewelleryPart part) {
+    final partId = _livePartId(part);
+    if (partId == null) {
+      CommonSnackbar.error(
+        context,
+        title: 'Part Not Found',
+        message: 'A live backend part ID is required.',
+      );
+      return;
+    }
+
+    widget.orderData['isBlocked'] = false;
+    widget.orderData['blockReason'] = null;
+    widget.orderData['blockedReason'] = null;
+    DemoStore.instance.toggleLotHold(partId, isBlocked: false);
+    if (part.code.isNotEmpty) {
+      DemoStore.instance.toggleLotHold(part.code, isBlocked: false);
+    }
+    if (part.name.isNotEmpty) {
+      DemoStore.instance.toggleLotHold(part.name, isBlocked: false);
+    }
+    if (_orderId.isNotEmpty) {
+      DemoStore.instance.toggleLotHold(_orderId, isBlocked: false);
+    }
+
+    context.read<WorkshopBloc>().add(
+      UnblockLotPartEvent(
+        partId: partId,
+        notes: 'Unhold from KaratFlow mobile app',
+      ),
+    );
+
+    setState(() {
+      _parentItems = _getParentItems();
+    });
+
+    CommonSnackbar.success(
+      context,
+      title: 'Hold Released',
+      message: 'Production resumed for ${part.name}.',
     );
   }
 
@@ -1410,16 +1998,28 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         stageStr.toLowerCase() == 'ready for dispatch' ||
         stageStr.toLowerCase() == 'delivered';
 
+    final hasBlockedPart = _parentItems.any(
+      (item) => item.parts.any((p) => p.blockerReason != null),
+    );
+
     final String displayStatus = isCompleted
         ? (statusStr.toLowerCase() == 'complete'
               ? 'Completed'
               : (stageStr.isNotEmpty ? stageStr : 'Completed'))
-        : (stageStr.isNotEmpty ? stageStr : 'In Workshop');
+        : (hasBlockedPart
+              ? 'ON CRITICAL HOLD'
+              : (_parentItems.isNotEmpty && _parentItems.first.parts.isNotEmpty
+                    ? _parentItems.first.parts.first.stage.label
+                    : (stageStr == 'ON CRITICAL HOLD'
+                          ? 'In Workshop'
+                          : (stageStr.isNotEmpty ? stageStr : 'In Workshop'))));
 
     final Color badgeColor = isCompleted
         ? AppColors.emerald
-        : AppColors.goldDark;
-    final String badgeText = isCompleted ? 'Completed' : 'Active Pouch';
+        : (hasBlockedPart ? AppColors.danger : AppColors.goldDark);
+    final String badgeText = isCompleted
+        ? 'Completed'
+        : (hasBlockedPart ? 'ON HOLD' : 'Active Pouch');
 
     return SlideInFade(
       child: CommonCard(
@@ -1747,10 +2347,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final apiStage = apiStages[index];
-        final stage =
-            WorkshopStage.values[(apiStage.stageNumber - 1)
-                .clamp(0, WorkshopStage.values.length - 1)
-                .toInt()];
+        final stage = _domainStage(apiStage);
         final count = _getPiecesCountForStage(stage);
         final isSelected = _selectedStageFilter == stage;
         final stageColor = _getStageColor(stage);
@@ -1837,12 +2434,16 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Text(
-                                    apiStage.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: AppColors.ink,
+                                  Flexible(
+                                    child: Text(
+                                      apiStage.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14,
+                                        color: AppColors.ink,
+                                      ),
                                     ),
                                   ),
                                   if (hasBlockedParts) ...[
@@ -2094,6 +2695,53 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                       ),
                                     ],
 
+                                    if (_allowStageChange ||
+                                        DemoStore.instance.activeRole ==
+                                            AppRole.processManager) ...[
+                                      const SizedBox(height: 10),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.end,
+                                        children: [
+                                          InkWell(
+                                            onTap: () =>
+                                                _showAssignArtisanModal(
+                                                  context,
+                                                  part,
+                                                ),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 5,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.emerald,
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                (part.assignedEmployee ==
+                                                            null ||
+                                                        part.assignedEmployee ==
+                                                            'Unassigned' ||
+                                                        part.assignedEmployee ==
+                                                            'Unassigned (In Queue)')
+                                                    ? '+ Assign Worker'
+                                                    : '✏️ Reassign Worker',
+                                                style: const TextStyle(
+                                                  color: AppColors.pureWhite,
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                        ],
+                                      ),
+                                    ],
+
                                     // Action Buttons Row (Below Text) - Only visible when _allowStageChange is true (Process Manager)
                                     if (_allowStageChange) ...[
                                       const SizedBox(height: 10),
@@ -2101,39 +2749,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                         mainAxisAlignment:
                                             MainAxisAlignment.end,
                                         children: [
-                                          if (part.assignedEmployee == null ||
-                                              part.assignedEmployee ==
-                                                  'Unassigned' ||
-                                              part.assignedEmployee ==
-                                                  'Unassigned (In Queue)')
-                                            InkWell(
-                                              onTap: () =>
-                                                  _showAssignArtisanModal(
-                                                    context,
-                                                    part,
-                                                  ),
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 5,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.emerald,
-                                                  borderRadius:
-                                                      BorderRadius.circular(6),
-                                                ),
-                                                child: const Text(
-                                                  '+ Assign Worker',
-                                                  style: TextStyle(
-                                                    color: AppColors.pureWhite,
-                                                    fontWeight: FontWeight.w800,
-                                                    fontSize: 11,
-                                                  ),
-                                                ),
-                                              ),
-                                            )
-                                          else if (part.blockerReason != null)
+                                          if (part.blockerReason != null)
                                             InkWell(
                                               onTap: () =>
                                                   _unblockPart(context, part),
@@ -2660,181 +3276,6 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           ],
         ],
       ),
-    );
-  }
-
-  void _showBlockReasonModal(BuildContext context, JewelleryPart part) {
-    final TextEditingController reasonController = TextEditingController();
-    final List<String> commonReasons = [
-      'Missing stones / diamonds',
-      'Casting porosity / surface defect',
-      'Client size or spec revision request',
-      'Gold karat assay mismatch',
-      'Laser / sprue machine breakdown',
-      'Excessive metal loss during filing',
-    ];
-    String selectedReason = commonReasons.first;
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.paper,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            16,
-            20,
-            MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.outline,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.dangerLight,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.pause_circle_filled_rounded,
-                      color: AppColors.danger,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const CommonText.headlineMedium(
-                          'Put Stage On Hold / Block',
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${part.name} (${part.code}) · Stage: ${part.stage.label}',
-                          style: const TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const CommonText.bodySmall(
-                'Select reason for stopping work on this stage:',
-                color: AppColors.muted,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: commonReasons.map((r) {
-                  final isSel = selectedReason == r;
-                  return InkWell(
-                    onTap: () {
-                      setModalState(() {
-                        selectedReason = r;
-                        reasonController.text = r;
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(
-                      AppDimensions.radiusFull,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSel ? AppColors.danger : AppColors.canvas,
-                        borderRadius: BorderRadius.circular(
-                          AppDimensions.radiusFull,
-                        ),
-                        border: Border.all(
-                          color: isSel
-                              ? AppColors.danger
-                              : AppColors.outlineLight,
-                        ),
-                      ),
-                      child: Text(
-                        r,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
-                          color: isSel ? AppColors.pureWhite : AppColors.ink,
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 12),
-              CommonTextField(
-                controller: reasonController,
-                label: 'Custom Explanation / Karigar Note',
-                hintText: selectedReason,
-                maxLines: 2,
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: CommonButton.outlined(
-                      label: 'Cancel',
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: CommonButton.primary(
-                      label: 'Confirm Block & Hold',
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        CommonSnackbar.error(
-                          context,
-                          title: 'Order Hold API Unavailable',
-                          message:
-                              'The backend does not expose an order-hold endpoint.',
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _unblockPart(BuildContext context, JewelleryPart part) {
-    CommonSnackbar.error(
-      context,
-      title: 'Order Hold API Unavailable',
-      message: 'The backend does not expose an order-hold endpoint.',
     );
   }
 }

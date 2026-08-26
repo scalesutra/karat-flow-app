@@ -6,7 +6,10 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_images.dart';
 import '../../core/localization/localization.dart';
 import '../../core/network/token_storage_service.dart';
+import '../../core/services/live_data_bloc_coordinator.dart';
 import '../../data/repositories/karatflow_api_repository.dart';
+import '../../domain/models.dart';
+import '../../routes/app_pages.dart';
 import '../../routes/app_routes.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -121,7 +124,23 @@ class _SplashScreenState extends State<SplashScreen>
           '🎉 [SplashScreen] Session verified for ${profile.name} (${profile.role}). Navigating directly to App Shell...',
         );
         await tokenStorage.saveUserRole(profile.role.toLowerCase());
+        final targetRole = switch (profile.role.toUpperCase()) {
+          'ADMIN' => AppRole.admin,
+          'FRONTIER' || 'FRONT_OFFICE' => AppRole.frontOffice,
+          'PRODUCTION_MANAGER' || 'PROCESS_MANAGER' => AppRole.processManager,
+          'RAW_DESIGNER' => AppRole.rawDesigner,
+          'THREE_D_DESIGNER' || 'CAD_DESIGNER' => AppRole.cadDesigner,
+          'OTHER_EMPLOYEE' => AppRole.workshopArtisan,
+          _ => AppRole.admin,
+        };
+        if (Get.isRegistered<AppRoleController>()) {
+          Get.find<AppRoleController>().setRole(targetRole);
+        } else {
+          final roleController = Get.put(AppRoleController());
+          roleController.setRole(targetRole);
+        }
         if (mounted) {
+          LiveDataBlocCoordinator.refreshForRole(context, targetRole);
           Get.offAllNamed(Routes.shell);
           return;
         }

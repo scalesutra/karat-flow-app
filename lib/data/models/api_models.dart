@@ -340,6 +340,8 @@ class ApiOrderPart {
     this.grossWeight = 0.0,
     this.currentStage = '',
     this.status = 'ASSIGNED',
+    this.isBlocked = false,
+    this.blockReason,
   });
 
   factory ApiOrderPart.fromJson(Map<String, dynamic> json) {
@@ -356,6 +358,8 @@ class ApiOrderPart {
       grossWeight: (json['grossWeight'] as num?)?.toDouble() ?? 0.0,
       currentStage: stgName,
       status: json['status'] as String? ?? 'ASSIGNED',
+      isBlocked: json['isBlocked'] as bool? ?? false,
+      blockReason: json['blockReason'] as String? ?? json['notes'] as String?,
     );
   }
 
@@ -365,6 +369,8 @@ class ApiOrderPart {
   final double grossWeight;
   final String currentStage;
   final String status;
+  final bool isBlocked;
+  final String? blockReason;
 }
 
 // ── 8. Workshop Worker Task Models ──────────────────────────────────

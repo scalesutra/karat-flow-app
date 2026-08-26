@@ -6,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/live_data_bloc_coordinator.dart';
 import '../../core/widgets/common_button.dart';
-import '../../core/widgets/common_card.dart';
 import '../../core/widgets/common_progress_indicator.dart';
 import '../../core/widgets/common_snackbar.dart';
 import '../../core/widgets/common_text_field.dart';
@@ -44,13 +43,6 @@ class _LoginPageState extends State<LoginPage> {
     context.read<AuthBloc>().add(
       AuthLoginSubmitted(username: email, password: password),
     );
-  }
-
-  void _quickFill(String email, String password) {
-    setState(() {
-      _emailController.text = email;
-      _passwordController.text = password;
-    });
   }
 
   @override
@@ -510,113 +502,6 @@ class _LoginPageState extends State<LoginPage> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 20),
-
-                          // ── 3. Quick Role Credentials Card ─────────────────
-                          CommonCard(
-                            backgroundColor: AppColors.paper,
-                            padding: const EdgeInsets.all(18),
-                            borderRadius: BorderRadius.circular(20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.flash_on_rounded,
-                                      size: 18,
-                                      color: AppColors.gold,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Quick Role Login Presets',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.ink,
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    const Text(
-                                      'Tap to fill',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.muted,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    _RolePresetChip(
-                                      label: 'Admin',
-                                      icon: Icons.admin_panel_settings_outlined,
-                                      color: AppColors.emerald,
-                                      bgColor: AppColors.emeraldLight,
-                                      onTap: () => _quickFill(
-                                        'admin@karratflow.com',
-                                        'Admin@123',
-                                      ),
-                                    ),
-                                    _RolePresetChip(
-                                      label: 'Front Office',
-                                      icon: Icons.storefront_outlined,
-                                      color: AppColors.goldDark,
-                                      bgColor: AppColors.goldLight,
-                                      onTap: () => _quickFill(
-                                        'frontier@karratflow.com',
-                                        'Frontier@123',
-                                      ),
-                                    ),
-                                    _RolePresetChip(
-                                      label: 'Process Manager',
-                                      icon: Icons
-                                          .precision_manufacturing_outlined,
-                                      color: AppColors.emeraldDark,
-                                      bgColor: AppColors.sage,
-                                      onTap: () => _quickFill(
-                                        'pm@karratflow.com',
-                                        'Manager@123',
-                                      ),
-                                    ),
-                                    _RolePresetChip(
-                                      label: 'Raw Sketcher',
-                                      icon: Icons.draw_outlined,
-                                      color: AppColors.goldDark,
-                                      bgColor: AppColors.goldLight,
-                                      onTap: () => _quickFill(
-                                        'sketcher@karratflow.com',
-                                        'Sketcher@123',
-                                      ),
-                                    ),
-                                    _RolePresetChip(
-                                      label: 'CAD Designer',
-                                      icon: Icons.view_in_ar_outlined,
-                                      color: AppColors.info,
-                                      bgColor: AppColors.infoLight,
-                                      onTap: () => _quickFill(
-                                        'cad@karratflow.com',
-                                        'Designer@123',
-                                      ),
-                                    ),
-                                    _RolePresetChip(
-                                      label: 'Artisan Bench',
-                                      icon: Icons.handyman_outlined,
-                                      color: AppColors.emerald,
-                                      bgColor: AppColors.emeraldLight,
-                                      onTap: () => _quickFill(
-                                        'artisan@karratflow.com',
-                                        'Artisan@123',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -627,43 +512,6 @@ class _LoginPageState extends State<LoginPage> {
           );
         },
       ),
-    );
-  }
-}
-
-class _RolePresetChip extends StatelessWidget {
-  const _RolePresetChip({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.bgColor,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color color;
-  final Color bgColor;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ActionChip(
-      avatar: Icon(icon, size: 15, color: color),
-      label: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
-      ),
-      backgroundColor: bgColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: color.withValues(alpha: 0.3)),
-      ),
-      onPressed: onTap,
     );
   }
 }

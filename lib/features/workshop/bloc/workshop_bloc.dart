@@ -24,6 +24,8 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     on<AdvanceLotStageEvent>(_onAdvanceLotStage);
     on<AllocateLotArtisanEvent>(_onAllocateArtisan);
     on<RollbackLotStageEvent>(_onRollbackStage);
+    on<BlockLotPartEvent>(_onBlockPart);
+    on<UnblockLotPartEvent>(_onUnblockPart);
     on<StartWorkerTaskEvent>(_onStartWorkerTask);
     on<CompleteWorkerTaskEvent>(_onCompleteWorkerTask);
     on<ReportWorkerFailureEvent>(_onReportWorkerFailure);
@@ -43,17 +45,27 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
       final role = (await _tokenStorage.getUserRole() ?? '').toUpperCase();
       final stages = await _api.listStages();
       final isWorker = role == 'OTHER_EMPLOYEE';
-      final lots = isWorker
-          ? (await _api.listWorkerTasks())
-                .map(ApiDomainMapper.workerTask)
-                .toList()
-          : (await _api.listPendingProductionFloor())
-                .map(
-                  (item) => ApiDomainMapper.pendingPart(
-                    Map<String, dynamic>.from(item as Map),
-                  ),
-                )
-                .toList();
+      final isFrontier = role == 'FRONTIER' || role == 'SALES_EXECUTIVE';
+      List<WorkshopLot> lots = [];
+      if (isWorker) {
+        lots = (await _api.listWorkerTasks())
+            .map(ApiDomainMapper.workerTask)
+            .toList();
+      } else if (!isFrontier) {
+        try {
+          lots = (await _api.listPendingProductionFloor())
+              .map(
+                (item) => ApiDomainMapper.pendingPart(
+                  Map<String, dynamic>.from(item as Map),
+                ),
+              )
+              .toList();
+        } catch (_) {
+          lots = _store.lots;
+        }
+      } else {
+        lots = _store.lots;
+      }
       final canManageAssignments =
           role == 'ADMIN' ||
           role == 'PRODUCTION_MANAGER' ||
@@ -66,6 +78,15 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
         ..setLots(lots)
         ..setTeam(team)
         ..setStages(stages);
+
+      for (final lot in lots) {
+        _store.toggleLotHold(
+          lot.id,
+          isBlocked: lot.blockerReason != null,
+          reason: lot.blockerReason,
+        );
+      }
+
       emit(
         WorkshopLoaded(
           lots: lots,
@@ -84,11 +105,19 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     Emitter<WorkshopState> emit,
   ) async {
     try {
-      await _api.transitionPartNextStage(
+      final data = await _api.transitionPartNextStage(
         partId: event.lotId,
         notes: 'Stage advanced from KaratFlow mobile app',
       );
-      _store.advanceLotStage(event.lotId);
+      final currentStage = data?['currentStage'] as String?;
+      final isComplete = data?['isComplete'] as bool? ?? false;
+      if (isComplete || currentStage == 'ALL_STAGES_COMPLETED') {
+        _store.updateLotStage(event.lotId, WorkshopStage.readyForDispatch);
+      } else if (currentStage != null && currentStage.isNotEmpty) {
+        _store.updateLotStage(event.lotId, ApiDomainMapper.stage(currentStage));
+      } else {
+        _store.advanceLotStage(event.lotId);
+      }
       emit(const WorkshopStageUpdated('Part advanced successfully.'));
     } catch (error) {
       emit(WorkshopError('Failed to advance part: $error'));
@@ -142,6 +171,50 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
       add(const FetchWorkshopLotsEvent());
     } catch (error) {
       emit(WorkshopError('Failed to rollback part: $error'));
+    }
+  }
+
+  Future<void> _onBlockPart(
+    BlockLotPartEvent event,
+    Emitter<WorkshopState> emit,
+  ) async {
+    _store.toggleLotHold(event.partId, isBlocked: true, reason: event.reason);
+    emit(
+      WorkshopLoaded(
+        lots: _store.lots,
+        filteredLots: _store.lots,
+        team: _store.team,
+        apiStages: _store.stages,
+      ),
+    );
+    try {
+      await _api.blockOrderPart(partId: event.partId, reason: event.reason);
+      emit(const WorkshopStageUpdated('Part blocked / placed on hold.'));
+      add(const FetchWorkshopLotsEvent());
+    } catch (error) {
+      emit(WorkshopError('Failed to block order part: $error'));
+    }
+  }
+
+  Future<void> _onUnblockPart(
+    UnblockLotPartEvent event,
+    Emitter<WorkshopState> emit,
+  ) async {
+    _store.toggleLotHold(event.partId, isBlocked: false);
+    emit(
+      WorkshopLoaded(
+        lots: _store.lots,
+        filteredLots: _store.lots,
+        team: _store.team,
+        apiStages: _store.stages,
+      ),
+    );
+    try {
+      await _api.unblockOrderPart(partId: event.partId, notes: event.notes);
+      emit(const WorkshopStageUpdated('Part unblocked / hold released.'));
+      add(const FetchWorkshopLotsEvent());
+    } catch (error) {
+      emit(WorkshopError('Failed to unblock order part: $error'));
     }
   }
 
@@ -216,14 +289,6 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     final index = _store.stages.indexWhere((stage) => stage.id == stageId);
     if (index < 0) return WorkshopStage.inQueue;
     final apiStage = _store.stages[index];
-    final byName = ApiDomainMapper.stage(apiStage.name);
-    if (byName != WorkshopStage.inQueue ||
-        apiStage.name.trim().toLowerCase().contains('queue')) {
-      return byName;
-    }
-    final stageIndex = (apiStage.stageNumber - 1)
-        .clamp(0, WorkshopStage.values.length - 1)
-        .toInt();
-    return WorkshopStage.values[stageIndex];
+    return ApiDomainMapper.stage(apiStage.name);
   }
 }

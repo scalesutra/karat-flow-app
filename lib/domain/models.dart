@@ -496,8 +496,10 @@ class WorkshopLot {
     WorkshopStage? stage,
     String? assignedEmployee,
     String? assignedEmployeeRole,
+    int? pieces,
     HealthTone? tone,
     String? blockerReason,
+    bool clearBlocker = false,
     String? lastUpdatedTime,
   }) {
     return WorkshopLot(
@@ -508,11 +510,15 @@ class WorkshopLot {
       stage: stage ?? this.stage,
       assignedEmployee: assignedEmployee ?? this.assignedEmployee,
       assignedEmployeeRole: assignedEmployeeRole ?? this.assignedEmployeeRole,
-      pieces: pieces,
+      pieces: pieces ?? this.pieces,
       issueWeightGrams: issueWeightGrams,
       targetWeightGrams: targetWeightGrams,
       tone: tone ?? this.tone,
-      blockerReason: blockerReason ?? this.blockerReason,
+      blockerReason: clearBlocker
+          ? null
+          : (tone == HealthTone.healthy
+                ? null
+                : (blockerReason ?? this.blockerReason)),
       lastUpdatedTime: lastUpdatedTime ?? this.lastUpdatedTime,
     );
   }

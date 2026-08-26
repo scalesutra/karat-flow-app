@@ -1,3 +1,4 @@
+import '../demo_store.dart';
 import '../models/api_models.dart';
 import '../../domain/models.dart';
 
@@ -15,6 +16,10 @@ abstract final class ApiDomainMapper {
 
   static CustomerOrder order(ApiOrder value) {
     final firstPart = value.parts.firstOrNull;
+    final blockedPart = value.parts.where((p) => p.isBlocked).firstOrNull;
+    final isBlocked = blockedPart != null;
+    final blockReason = blockedPart?.blockReason;
+
     return CustomerOrder(
       id: value.orderNumber.isNotEmpty ? value.orderNumber : value.id,
       clientFirmName: value.customerName.isNotEmpty
@@ -47,6 +52,8 @@ abstract final class ApiDomainMapper {
                 .join(', '),
       currentWorkshopStage: firstPart?.currentStage ?? '',
       responsibleManager: '',
+      isBlocked: isBlocked,
+      blockedReason: blockReason,
     );
   }
 
@@ -264,13 +271,14 @@ abstract final class ApiDomainMapper {
         : value;
     final rawOrder = part['order'] ?? value['order'];
     final order = rawOrder is Map ? rawOrder : const <String, dynamic>{};
+    final lotId = part['id'] as String? ?? value['id'] as String? ?? '';
     final orderId =
-        order['orderNumber'] as String? ??
         order['id'] as String? ??
-        part['orderNumber'] as String? ??
+        order['orderNumber'] as String? ??
         part['orderId'] as String? ??
-        value['orderNumber'] as String? ??
+        part['orderNumber'] as String? ??
         value['orderId'] as String? ??
+        value['orderNumber'] as String? ??
         '';
     final designNumber =
         part['designNumber'] as String? ??
@@ -294,23 +302,108 @@ abstract final class ApiDomainMapper {
         part['stage'] ??
         value['currentStage'] ??
         value['stage'];
-    final stageName = rawStage is Map
+    String stageName = rawStage is Map
         ? rawStage['name'] as String? ?? ''
         : rawStage as String? ?? '';
+    final stageId =
+        latestAssignment['stageId'] as String? ??
+        part['currentStageId'] as String? ??
+        part['stageId'] as String? ??
+        value['currentStageId'] as String? ??
+        value['stageId'] as String? ??
+        '';
+    if (stageId.isNotEmpty) {
+      final matched = DemoStore.instance.stages
+          .where((s) => s.id == stageId)
+          .firstOrNull;
+      if (matched != null && matched.name.isNotEmpty) {
+        stageName = matched.name;
+      }
+    }
+
     final rawEmployee =
         latestAssignment['assignedEmployee'] ??
         latestAssignment['employee'] ??
         part['assignedEmployee'] ??
         value['assignedEmployee'];
-    final employeeName = rawEmployee is Map
+    String employeeName = rawEmployee is Map
         ? rawEmployee['name'] as String? ?? ''
         : rawEmployee as String? ?? '';
+
+    if (employeeName.isEmpty || employeeName.trim().isEmpty) {
+      final instructions =
+          latestAssignment['instructions'] as String? ??
+          part['instructions'] as String? ??
+          value['instructions'] as String? ??
+          '';
+      if (instructions.startsWith('Assigned to ')) {
+        employeeName = instructions.substring('Assigned to '.length).trim();
+      }
+    }
+
+    final empId =
+        latestAssignment['assignedEmployeeId'] as String? ??
+        part['assignedEmployeeId'] as String? ??
+        value['assignedEmployeeId'] as String? ??
+        '';
+    if ((employeeName.isEmpty || employeeName.trim().isEmpty) &&
+        empId.isNotEmpty) {
+      final matched = DemoStore.instance.team
+          .where(
+            (m) =>
+                m.id == empId || (m.name.isNotEmpty && empId.contains(m.name)),
+          )
+          .firstOrNull;
+      if (matched != null) {
+        employeeName = matched.name;
+      }
+    }
+
+    // Preserve previously assigned worker from store if API omits employee details
+    if (employeeName.isEmpty || employeeName.trim().isEmpty) {
+      final existingLot = DemoStore.instance.lots
+          .where(
+            (l) =>
+                l.id == lotId ||
+                (l.orderId.isNotEmpty &&
+                    l.orderId == orderId &&
+                    l.designCode == designNumber),
+          )
+          .firstOrNull;
+      if (existingLot != null &&
+          existingLot.assignedEmployee.isNotEmpty &&
+          existingLot.assignedEmployee != 'Unassigned') {
+        employeeName = existingLot.assignedEmployee;
+      }
+    }
+
+    if (employeeName.isEmpty || employeeName.trim().isEmpty) {
+      employeeName = 'Unassigned';
+    }
+    final isBlocked =
+        part['isBlocked'] as bool? ?? value['isBlocked'] as bool? ?? false;
+    final blockReason =
+        part['blockReason'] as String? ??
+        part['notes'] as String? ??
+        value['blockReason'] as String? ??
+        value['notes'];
+    final statusStr =
+        (part['status'] as String? ?? value['status'] as String? ?? '')
+            .toUpperCase();
+    final isFailedOrHold =
+        isBlocked ||
+        statusStr == 'FAILED' ||
+        statusStr == 'HOLD' ||
+        statusStr == 'ON_HOLD';
+
     return WorkshopLot(
       id: part['id'] as String? ?? value['id'] as String? ?? '',
       orderId: orderId,
       designCode: designNumber,
       productTitle: designNumber.isNotEmpty ? designNumber : 'Order Part',
-      stage: stageName.isEmpty ? WorkshopStage.inQueue : stage(stageName),
+      stage: stageName.isEmpty
+          ? (stageId.isNotEmpty ? stage(stageId) : WorkshopStage.inQueue)
+          : stage(stageName),
       assignedEmployee: employeeName,
       assignedEmployeeRole:
           latestAssignment['status'] as String? ??
@@ -322,23 +415,47 @@ abstract final class ApiDomainMapper {
           0,
       issueWeightGrams: grossWeight,
       targetWeightGrams: grossWeight,
-      tone: HealthTone.healthy,
-      blockerReason: null,
+      tone: isFailedOrHold ? HealthTone.critical : HealthTone.healthy,
+      blockerReason: isFailedOrHold
+          ? (blockReason?.isNotEmpty == true
+                ? blockReason
+                : 'Part placed on hold / failed in process')
+          : null,
       lastUpdatedTime: '',
     );
   }
 
-  static WorkshopStage stage(String name) => switch (name.toLowerCase()) {
-    'queue' || 'in queue' => WorkshopStage.inQueue,
-    'waxing' || 'cad & wax' || 'cad and wax' => WorkshopStage.cadAndWax,
-    'casting' => WorkshopStage.casting,
-    'filing & assembly' || 'filing' => WorkshopStage.filingAndAssembly,
-    'stone setting' || 'setting' => WorkshopStage.stoneSetting,
-    'polishing' => WorkshopStage.polishing,
-    'quality check & packing' ||
-    'quality check' ||
-    'qc' => WorkshopStage.qualityCheck,
-    'ready' || 'ready for dispatch' => WorkshopStage.readyForDispatch,
-    _ => WorkshopStage.inQueue,
-  };
+  static WorkshopStage stage(String nameOrId) {
+    if (nameOrId.trim().isEmpty) return WorkshopStage.inQueue;
+
+    // Resolve stage UUID ID if passed
+    final matchedApiStage = DemoStore.instance.stages
+        .where((s) => s.id == nameOrId)
+        .firstOrNull;
+    final lookup = (matchedApiStage?.name ?? nameOrId).trim().toLowerCase();
+
+    if (lookup.contains('queue')) return WorkshopStage.inQueue;
+    if (lookup.contains('wax')) return WorkshopStage.cadAndWax;
+    if (lookup.contains('cast')) return WorkshopStage.casting;
+    if (lookup.contains('filing') || lookup.contains('assembly')) {
+      return WorkshopStage.filingAndAssembly;
+    }
+    if (lookup.contains('setting') || lookup.contains('stone')) {
+      return WorkshopStage.stoneSetting;
+    }
+    if (lookup.contains('polish')) return WorkshopStage.polishing;
+    if (lookup.contains('quality') ||
+        lookup.contains('qc') ||
+        lookup.contains('pack')) {
+      return WorkshopStage.qualityCheck;
+    }
+    if (lookup.contains('ready') ||
+        lookup.contains('dispatch') ||
+        lookup.contains('completed') ||
+        lookup.contains('complete') ||
+        lookup.contains('all_stages_completed')) {
+      return WorkshopStage.readyForDispatch;
+    }
+    return WorkshopStage.inQueue;
+  }
 }
