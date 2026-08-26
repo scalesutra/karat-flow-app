@@ -68,8 +68,8 @@ class ApiClient {
 
       if (response.statusCode == 200 && response.data != null) {
         final data = response.data!['data'] as Map<String, dynamic>?;
-        final newToken = data?['token'] as String? ?? '';
-        final newRefreshToken = data?['refreshToken'] as String? ?? '';
+        final newToken = (data?['token'] ?? data?['accessToken']) as String? ?? '';
+        final newRefreshToken = (data?['refreshToken'] ?? data?['refresh_token']) as String? ?? '';
 
         if (newToken.isNotEmpty) {
           await _tokenStorage.saveAccessToken(newToken);
