@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
@@ -12,6 +13,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/widgets/common_button.dart';
 import '../../core/widgets/common_snackbar.dart';
 import '../../data/demo_store.dart';
+import '../../domain/directive_recipients.dart';
 import '../../domain/models.dart';
 import '../admin/bloc/admin_bloc.dart';
 
@@ -28,22 +30,14 @@ Future<Instruction?> showInstructionComposer(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(ctx).viewInsets.bottom,
-      ),
-      child: _InstructionComposerSheet(
-        store: store,
-        target: target,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+      child: _InstructionComposerSheet(store: store, target: target),
     ),
   );
 }
 
 class _InstructionComposerSheet extends StatefulWidget {
-  const _InstructionComposerSheet({
-    required this.store,
-    this.target,
-  });
+  const _InstructionComposerSheet({required this.store, this.target});
 
   final DemoStore store;
   final WorkItem? target;
@@ -53,28 +47,24 @@ class _InstructionComposerSheet extends StatefulWidget {
       __InstructionComposerSheetState();
 }
 
-class __InstructionComposerSheetState
-    extends State<_InstructionComposerSheet> {
+class __InstructionComposerSheetState extends State<_InstructionComposerSheet> {
   late final TextEditingController _textController;
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _player = AudioPlayer();
+  final ImagePicker _imagePicker = ImagePicker();
   StreamSubscription<void>? _playerCompleteSubscription;
 
-  String _selectedRecipient = 'CAD Designer';
+  String _selectedRecipient = DirectiveRecipients.allTeams;
   Timer? _timer;
   String? _recordingPath;
+  XFile? _selectedImage;
+  Uint8List? _selectedImageBytes;
   Duration _elapsed = Duration.zero;
   bool _isRecording = false;
   bool _isPlaying = false;
   bool _isSubmitting = false;
 
-  final List<String> _recipients = const [
-    'CAD Designer',
-    'Goldsmith (Artisans)',
-    'QC Team',
-    'Vault / Store Keeper',
-    'Sales & Orders',
-  ];
+  final List<String> _recipients = DirectiveRecipients.options;
 
   final List<String> _quickTags = const [
     '⚡ Priority Processing',
@@ -90,6 +80,7 @@ class __InstructionComposerSheetState
     _playerCompleteSubscription = _player.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _isPlaying = false);
     });
+    _recoverLostImage();
   }
 
   @override
@@ -177,19 +168,19 @@ class __InstructionComposerSheetState
 
   Future<void> _sendDirective() async {
     if (_isRecording) await _stopRecording();
+    if (!mounted) return;
     final text = _textController.text.trim();
     final path = _recordingPath;
 
-    if (text.isEmpty && path == null) {
+    if (text.isEmpty && path == null && _selectedImageBytes == null) {
       CommonSnackbar.error(
         context,
         title: 'Empty Directive',
-        message: 'Please enter instructions or record a voice directive.',
+        message: 'Enter instructions, record voice, or attach an image.',
       );
       return;
     }
 
-    if (!mounted) return;
     final navigator = Navigator.of(context);
     final bloc = context.read<AdminBloc>();
 
@@ -199,16 +190,19 @@ class __InstructionComposerSheetState
     }
 
     setState(() => _isSubmitting = true);
-    final Uint8List? bytes =
-        path == null ? null : await File(path).readAsBytes();
+    final Uint8List? bytes = path == null
+        ? null
+        : await File(path).readAsBytes();
 
-    final targetInfo =
-        widget.target != null ? '[ ${widget.target!.title} ] ' : '';
-    final messageBody =
-        text.isNotEmpty ? text : 'Voice Directive Note Attached';
+    final targetInfo = widget.target != null
+        ? '[ ${widget.target!.title} ] '
+        : '';
+    final messageBody = text.isNotEmpty
+        ? text
+        : path != null
+        ? 'Voice Directive Note Attached'
+        : 'Image Directive Note Attached';
     final fullMessage = '$targetInfo$messageBody';
-
-    widget.store.addAdminDirective(_selectedRecipient, fullMessage);
 
     try {
       bloc.add(
@@ -217,6 +211,8 @@ class __InstructionComposerSheetState
           directive: fullMessage,
           audioFileName: path?.split(Platform.pathSeparator).last,
           audioBytes: bytes,
+          imageFileName: _selectedImage?.name,
+          imageBytes: _selectedImageBytes,
         ),
       );
     } catch (_) {}
@@ -232,11 +228,51 @@ class __InstructionComposerSheetState
     navigator.pop();
   }
 
+  Future<void> _recoverLostImage() async {
+    try {
+      final response = await _imagePicker.retrieveLostData();
+      final file = response.files?.firstOrNull;
+      if (file == null || !mounted) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _selectedImage = file;
+        _selectedImageBytes = bytes;
+      });
+    } catch (error) {
+      debugPrint('Could not recover interrupted image selection: $error');
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final file = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1800,
+        requestFullMetadata: false,
+      );
+      if (file == null || !mounted) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _selectedImage = file;
+        _selectedImageBytes = bytes;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      CommonSnackbar.error(
+        context,
+        title: 'Image unavailable',
+        message: 'Could not attach the selected image: $error',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final targetLabel = widget.target?.title ?? 'General Workshop Directive';
-    final seconds =
-        _elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final seconds = _elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
     final minutes = _elapsed.inMinutes.toString().padLeft(2, '0');
 
     return SafeArea(
@@ -316,8 +352,9 @@ class __InstructionComposerSheetState
                         style: TextStyle(
                           color: isSelected ? Colors.white : AppColors.ink,
                           fontSize: 11,
-                          fontWeight:
-                              isSelected ? FontWeight.w800 : FontWeight.w600,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                         ),
                       ),
                       selected: isSelected,
@@ -408,6 +445,58 @@ class __InstructionComposerSheetState
               ),
             ),
             const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => _pickImage(ImageSource.camera),
+                    icon: const Icon(Icons.camera_alt_outlined),
+                    label: const Text('Camera'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => _pickImage(ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text('Gallery'),
+                  ),
+                ),
+              ],
+            ),
+            if (_selectedImageBytes != null) ...[
+              const SizedBox(height: 8),
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.memory(
+                      _selectedImageBytes!,
+                      height: 130,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: IconButton.filled(
+                      tooltip: 'Remove image',
+                      onPressed: () => setState(() {
+                        _selectedImage = null;
+                        _selectedImageBytes = null;
+                      }),
+                      icon: const Icon(Icons.close, size: 18),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -437,8 +526,8 @@ class __InstructionComposerSheetState
                           _isRecording
                               ? 'Recording $minutes:$seconds'
                               : _recordingPath == null
-                                  ? 'Tap Mic to record voice'
-                                  : 'Voice note ready · $minutes:$seconds',
+                              ? 'Tap Mic to record voice'
+                              : 'Voice note ready · $minutes:$seconds',
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 12,

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_dimensions.dart';
-import '../../../../core/widgets/common_progress_indicator.dart';
-import '../../../../data/demo_store.dart';
-import '../../../../data/models/api_models.dart';
+import 'package:jewellery_ops_mobile/core/constants/app_colors.dart';
+import 'package:jewellery_ops_mobile/core/constants/app_dimensions.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_progress_indicator.dart';
+import 'package:jewellery_ops_mobile/data/demo_store.dart';
+import 'package:jewellery_ops_mobile/data/models/api_models.dart';
+import 'package:jewellery_ops_mobile/domain/models.dart';
 import '../bloc/workshop_bloc.dart';
-import '../../../../domain/models.dart';
 import 'stage_lots_modal.dart';
 
 /// Workshop Process Manager - Stages Pipeline Aggregation Tab
@@ -17,30 +17,40 @@ class StagesPipelineTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final allLots = store.lots;
-    final stageGroups = store.stages.map((apiStage) {
-      final st = _domainStage(apiStage);
-      final stageLots = allLots.where((l) => l.stage == st).toList();
-      return {
-        'stageEnum': st,
-        'stageId': apiStage.id,
-        'name': apiStage.name,
-        'count': stageLots.length,
-        'color': switch (st) {
-          WorkshopStage.inQueue => AppColors.warning,
-          WorkshopStage.cadAndWax => AppColors.emerald,
-          WorkshopStage.casting => const Color(0xFFFFD18A),
-          WorkshopStage.filingAndAssembly => AppColors.emeraldDark,
-          WorkshopStage.stoneSetting => AppColors.goldDark,
-          WorkshopStage.polishing => AppColors.emerald,
-          WorkshopStage.qualityCheck => const Color(0xFF1E824C),
-          WorkshopStage.readyForDispatch => AppColors.emerald,
-        },
-        'lots': stageLots,
-      };
-    }).toList();
+    return BlocBuilder<WorkshopBloc, WorkshopState>(
+      builder: (context, state) {
+        if (state is WorkshopLoading) {
+          return const Center(
+            child: CommonProgressIndicator.workshop(
+              label: 'Syncing Process Manager Pipeline...',
+            ),
+          );
+        }
 
-    return CommonRefreshIndicator(
+        final allLots = store.lots;
+        final stageGroups = store.stages.map((apiStage) {
+          final st = _domainStage(apiStage);
+          final stageLots = allLots.where((l) => l.stage == st).toList();
+          return {
+            'stageEnum': st,
+            'stageId': apiStage.id,
+            'name': apiStage.name,
+            'count': stageLots.length,
+            'color': switch (st) {
+              WorkshopStage.inQueue => AppColors.warning,
+              WorkshopStage.cadAndWax => AppColors.emerald,
+              WorkshopStage.casting => const Color(0xFFFFD18A),
+              WorkshopStage.filingAndAssembly => AppColors.emeraldDark,
+              WorkshopStage.stoneSetting => AppColors.goldDark,
+              WorkshopStage.polishing => AppColors.emerald,
+              WorkshopStage.qualityCheck => const Color(0xFF1E824C),
+              WorkshopStage.readyForDispatch => AppColors.emerald,
+            },
+            'lots': stageLots,
+          };
+        }).toList();
+
+        return CommonRefreshIndicator(
       theme: IndicatorTheme.workshop,
       onRefresh: () async =>
           context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent()),
@@ -127,6 +137,8 @@ class StagesPipelineTab extends StatelessWidget {
             ),
         ],
       ),
+    );
+      },
     );
   }
 

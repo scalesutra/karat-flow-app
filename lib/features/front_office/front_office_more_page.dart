@@ -3,7 +3,9 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
+import '../../domain/models.dart';
 import '../auth/widgets/authenticated_profile_card.dart';
+import '../instructions/role_directives_section.dart';
 
 class FrontOfficeMorePage extends StatefulWidget {
   const FrontOfficeMorePage({super.key, required this.store});
@@ -64,6 +66,9 @@ class _FrontOfficeMorePageState extends State<FrontOfficeMorePage> {
           const SizedBox(height: 10),
 
           const AuthenticatedProfileCard(),
+          const SizedBox(height: 14),
+
+          RoleDirectivesSection(store: widget.store, role: AppRole.frontOffice),
           const SizedBox(height: 14),
 
           // 1. LIVE GOLD & SILVER TICKER

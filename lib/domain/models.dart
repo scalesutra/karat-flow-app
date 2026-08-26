@@ -538,6 +538,29 @@ class TeamMember {
   final EmployeeStatus status;
   final int todayEfficiencyPercent;
   final String currentAssignment;
+
+  TeamMember copyWith({
+    String? id,
+    String? name,
+    String? craft,
+    String? shift,
+    int? activeLotsCount,
+    EmployeeStatus? status,
+    int? todayEfficiencyPercent,
+    String? currentAssignment,
+  }) {
+    return TeamMember(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      craft: craft ?? this.craft,
+      shift: shift ?? this.shift,
+      activeLotsCount: activeLotsCount ?? this.activeLotsCount,
+      status: status ?? this.status,
+      todayEfficiencyPercent:
+          todayEfficiencyPercent ?? this.todayEfficiencyPercent,
+      currentAssignment: currentAssignment ?? this.currentAssignment,
+    );
+  }
 }
 
 class StockItem {

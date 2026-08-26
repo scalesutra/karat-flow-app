@@ -162,18 +162,22 @@ class _AppShellState extends State<AppShell> {
       ClientsPage(store: widget.store),
       FrontOfficeMorePage(store: widget.store),
     ],
-    AppRole.rawDesigner => const [
-      RawDesignerDashboardPage(),
+    AppRole.rawDesigner => [
+      const RawDesignerDashboardPage(),
       RoleProfilePage(
         title: 'Raw Designer Profile',
         description: 'Review your authenticated studio identity and session.',
+        store: widget.store,
+        role: AppRole.rawDesigner,
       ),
     ],
-    AppRole.workshopArtisan => const [
-      ArtisanDashboardPage(),
+    AppRole.workshopArtisan => [
+      const ArtisanDashboardPage(),
       RoleProfilePage(
         title: 'Workshop Artisan Profile',
         description: 'Review your authenticated workshop identity and session.',
+        store: widget.store,
+        role: AppRole.workshopArtisan,
       ),
     ],
   };

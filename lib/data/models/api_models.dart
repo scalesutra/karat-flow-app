@@ -177,6 +177,7 @@ class ApiSketch {
     this.feedbackImageUrl,
     this.designer,
     this.createdAt,
+    this.category,
   });
 
   factory ApiSketch.fromJson(Map<String, dynamic> json) {
@@ -194,6 +195,7 @@ class ApiSketch {
           ? ApiUser.fromJson(json['designer'] as Map<String, dynamic>)
           : null,
       createdAt: json['createdAt'] as String?,
+      category: json['category'] as String?,
     );
   }
 
@@ -208,6 +210,7 @@ class ApiSketch {
   final String? feedbackImageUrl;
   final ApiUser? designer;
   final String? createdAt;
+  final String? category;
 }
 
 // ── 6. 3D CAD Models ────────────────────────────────────────────────
@@ -228,6 +231,11 @@ class ApiThreeDDesign {
     this.feedbackAudioUrl,
     this.feedbackImageUrl,
     this.sketch,
+    this.category,
+    this.stock,
+    this.stockStatus,
+    this.price,
+    this.description,
   });
 
   factory ApiThreeDDesign.fromJson(Map<String, dynamic> json) {
@@ -249,6 +257,11 @@ class ApiThreeDDesign {
       sketch: json['sketch'] != null
           ? ApiSketch.fromJson(json['sketch'] as Map<String, dynamic>)
           : null,
+      category: json['category'] as String?,
+      stock: json['stock'] as int?,
+      stockStatus: json['stockStatus'] as String?,
+      price: (json['price'] as num?)?.toDouble(),
+      description: json['description'] as String?,
     );
   }
 
@@ -267,6 +280,11 @@ class ApiThreeDDesign {
   final String? feedbackAudioUrl;
   final String? feedbackImageUrl;
   final ApiSketch? sketch;
+  final String? category;
+  final int? stock;
+  final String? stockStatus;
+  final double? price;
+  final String? description;
 }
 
 // ── 7. Order & Part Models ──────────────────────────────────────────

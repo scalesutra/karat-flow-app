@@ -121,6 +121,7 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
         assignedEmployee: event.artisanName,
       );
       emit(const WorkshopStageUpdated('Part assigned successfully.'));
+      add(const FetchWorkshopLotsEvent());
     } catch (error) {
       emit(WorkshopError('Failed to assign part: $error'));
     }
@@ -138,6 +139,7 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
       );
       _store.updateLotStage(event.lotId, _stageForId(event.targetStageId));
       emit(const WorkshopStageUpdated('Part rolled back successfully.'));
+      add(const FetchWorkshopLotsEvent());
     } catch (error) {
       emit(WorkshopError('Failed to rollback part: $error'));
     }

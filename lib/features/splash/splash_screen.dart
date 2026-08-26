@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_images.dart';
 import '../../core/localization/localization.dart';
+import '../../core/network/token_storage_service.dart';
+import '../../data/repositories/karatflow_api_repository.dart';
 import '../../routes/app_routes.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -101,8 +103,42 @@ class _SplashScreenState extends State<SplashScreen>
     _navigateToNextScreen();
   }
 
-  void _navigateToNextScreen() {
-    Get.offAllNamed(Routes.login);
+  Future<void> _navigateToNextScreen() async {
+    debugPrint(
+      '🔍 [SplashScreen] Checking saved session token & authenticating on Splash...',
+    );
+    final tokenStorage = TokenStorageService();
+    final api = KaratFlowApiRepository();
+
+    try {
+      final token = await tokenStorage.getAccessToken();
+      if (token != null && token.isNotEmpty) {
+        debugPrint(
+          '👤 [SplashScreen] Token found! Validating session via GET /auth/me...',
+        );
+        final profile = await api.getProfile();
+        debugPrint(
+          '🎉 [SplashScreen] Session verified for ${profile.name} (${profile.role}). Navigating directly to App Shell...',
+        );
+        await tokenStorage.saveUserRole(profile.role.toLowerCase());
+        if (mounted) {
+          Get.offAllNamed(Routes.shell);
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        '⚠️ [SplashScreen] Token validation/refresh failed or session expired: $e',
+      );
+      await tokenStorage.clearAll();
+    }
+
+    debugPrint(
+      'ℹ️ [SplashScreen] No active valid session. Navigating to Login screen...',
+    );
+    if (mounted) {
+      Get.offAllNamed(Routes.login);
+    }
   }
 
   @override

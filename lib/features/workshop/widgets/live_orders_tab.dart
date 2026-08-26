@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_dimensions.dart';
-import '../../../../core/widgets/common_empty_state.dart';
-import '../../../../core/widgets/common_progress_indicator.dart';
-import '../../../../data/demo_store.dart';
-import '../../../../domain/models.dart';
-import '../../../../routes/app_routes.dart';
+import 'package:jewellery_ops_mobile/core/constants/app_colors.dart';
+import 'package:jewellery_ops_mobile/core/constants/app_dimensions.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_empty_state.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_progress_indicator.dart';
+import 'package:jewellery_ops_mobile/data/demo_store.dart';
+import 'package:jewellery_ops_mobile/domain/models.dart';
+import 'package:jewellery_ops_mobile/routes/app_routes.dart';
 import '../../front_office/bloc/orders_bloc.dart';
 import '../bloc/workshop_bloc.dart';
 
@@ -23,9 +23,19 @@ class LiveOrdersTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rawOrders = store.orders
-        .where((o) => o.status != OrderStatus.delivered)
-        .toList();
+    return BlocBuilder<WorkshopBloc, WorkshopState>(
+      builder: (context, state) {
+        if (state is WorkshopLoading) {
+          return const Center(
+            child: CommonProgressIndicator.workshop(
+              label: 'Syncing Process Manager Active Orders...',
+            ),
+          );
+        }
+
+        final rawOrders = store.orders
+            .where((o) => o.status != OrderStatus.delivered)
+            .toList();
 
     final filteredOrders = rawOrders.where((o) {
       if (searchQuery.isEmpty) return true;
@@ -311,6 +321,8 @@ class LiveOrdersTab extends StatelessWidget {
           );
         },
       ),
+    );
+      },
     );
   }
 }

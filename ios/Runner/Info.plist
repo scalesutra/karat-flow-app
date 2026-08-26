@@ -4,6 +4,10 @@
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>KaratFlow uses the microphone to attach voice feedback to sketch reviews.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>KaratFlow uses the camera to attach photos to admin directives.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>KaratFlow uses the photo library to attach images to admin directives.</string>
 	<!-- Temporary requirement while the documented API is served over HTTP. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>

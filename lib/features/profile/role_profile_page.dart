@@ -3,17 +3,24 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
+import '../../data/demo_store.dart';
+import '../../domain/models.dart';
 import '../auth/widgets/authenticated_profile_card.dart';
+import '../instructions/role_directives_section.dart';
 
 class RoleProfilePage extends StatelessWidget {
   const RoleProfilePage({
     super.key,
     required this.title,
     required this.description,
+    required this.store,
+    required this.role,
   });
 
   final String title;
   final String description;
+  final DemoStore store;
+  final AppRole role;
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +41,8 @@ class RoleProfilePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 const AuthenticatedProfileCard(),
+                const SizedBox(height: 14),
+                RoleDirectivesSection(store: store, role: role),
                 const SizedBox(height: 14),
                 CommonCard(
                   child: Column(

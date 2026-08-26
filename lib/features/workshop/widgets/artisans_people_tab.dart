@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_dimensions.dart';
-import '../../../../core/widgets/common_progress_indicator.dart';
-import '../../../../data/demo_store.dart';
+import 'package:jewellery_ops_mobile/core/constants/app_colors.dart';
+import 'package:jewellery_ops_mobile/core/constants/app_dimensions.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_progress_indicator.dart';
+import 'package:jewellery_ops_mobile/data/demo_store.dart';
 
 /// Workshop Process Manager - Artisans & Goldsmiths Workload Tab
 class ArtisansPeopleTab extends StatelessWidget {

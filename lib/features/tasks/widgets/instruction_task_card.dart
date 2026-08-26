@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_dimensions.dart';
-import '../../../../core/widgets/common_badge.dart';
-import '../../../../core/widgets/common_button.dart';
-import '../../../../core/widgets/common_card.dart';
-import '../../../../core/widgets/common_snackbar.dart';
-import '../../../../core/widgets/common_text.dart';
-import '../../../../data/demo_store.dart';
-import '../../../../domain/models.dart';
+import 'package:jewellery_ops_mobile/core/constants/app_colors.dart';
+import 'package:jewellery_ops_mobile/core/constants/app_dimensions.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_badge.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_button.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_card.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_snackbar.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_text.dart';
+import 'package:jewellery_ops_mobile/data/demo_store.dart';
+import 'package:jewellery_ops_mobile/domain/models.dart';
+import '../../instructions/directive_audio.dart';
 
 enum TaskDisplayMode { admin, manager }
 
@@ -27,6 +28,7 @@ class InstructionTaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isResolved = instruction.status == InstructionStatus.resolved;
+    final directiveMessage = DirectiveMessage.parse(instruction.message);
 
     return CommonCard(
       child: Column(
@@ -52,14 +54,20 @@ class InstructionTaskCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          CommonText.bodyLarge(instruction.message),
+          CommonText.bodyLarge(
+            directiveMessage.text.isEmpty
+                ? 'Directive Attachment Received'
+                : directiveMessage.text,
+          ),
           if (instruction.hasPhoto || instruction.hasVoice) ...[
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 6,
               children: [
-                if (instruction.hasVoice)
+                if (directiveMessage.hasAudio)
+                  DirectiveVoiceButton(audioUrl: directiveMessage.audioUrl!),
+                if (instruction.hasVoice && !directiveMessage.hasAudio)
                   InkWell(
                     onTap: () {
                       CommonSnackbar.info(
@@ -103,7 +111,11 @@ class InstructionTaskCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                if (instruction.hasPhoto)
+                if (directiveMessage.hasImage)
+                  DirectiveImageAttachment(
+                    imageUrl: directiveMessage.imageUrl!,
+                  ),
+                if (instruction.hasPhoto && !directiveMessage.hasImage)
                   InkWell(
                     onTap: () => _showPhotoPreview(context, instruction),
                     borderRadius: BorderRadius.circular(
@@ -174,7 +186,17 @@ class InstructionTaskCard extends StatelessWidget {
             if (instruction.status == InstructionStatus.sent)
               CommonButton.primary(
                 height: 42,
-                onPressed: () => _showUnsupportedAction(context),
+                onPressed: () {
+                  store.setInstructionStatus(
+                    instruction.id,
+                    InstructionStatus.acknowledged,
+                  );
+                  CommonSnackbar.success(
+                    context,
+                    title: 'Instruction Acknowledged',
+                    message: 'Instruction status updated to Acknowledged.',
+                  );
+                },
                 label: 'Acknowledge Instruction',
               )
             else
@@ -186,7 +208,18 @@ class InstructionTaskCard extends StatelessWidget {
                       onPressed:
                           instruction.status == InstructionStatus.inProgress
                           ? null
-                          : () => _showUnsupportedAction(context),
+                          : () {
+                              store.setInstructionStatus(
+                                instruction.id,
+                                InstructionStatus.inProgress,
+                              );
+                              CommonSnackbar.info(
+                                context,
+                                title: 'Work Started',
+                                message:
+                                    'Instruction status updated to In Progress.',
+                              );
+                            },
                       label: 'Start Work',
                     ),
                   ),
@@ -194,7 +227,17 @@ class InstructionTaskCard extends StatelessWidget {
                   Expanded(
                     child: CommonButton.primary(
                       height: 42,
-                      onPressed: () => _showUnsupportedAction(context),
+                      onPressed: () {
+                        store.setInstructionStatus(
+                          instruction.id,
+                          InstructionStatus.resolved,
+                        );
+                        CommonSnackbar.success(
+                          context,
+                          title: 'Task Resolved',
+                          message: 'Instruction marked as resolved.',
+                        );
+                      },
                       label: 'Resolve Task',
                     ),
                   ),
@@ -208,11 +251,23 @@ class InstructionTaskCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: CommonButton.outlined(
+                  child: CommonButton.primary(
                     height: 40,
-                    label: 'Mark Resolved',
-                    icon: Icons.check,
-                    onPressed: () => _showUnsupportedAction(context),
+                    label: 'Approve',
+                    icon: Icons.check_circle_outline,
+                    backgroundColor: AppColors.emerald,
+                    onPressed: () {
+                      store.setInstructionStatus(
+                        instruction.id,
+                        InstructionStatus.resolved,
+                      );
+                      CommonSnackbar.success(
+                        context,
+                        title: 'Task Approved',
+                        message:
+                            'Task directive has been approved and marked as resolved.',
+                      );
+                    },
                   ),
                 ),
               ],
@@ -220,15 +275,6 @@ class InstructionTaskCard extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-
-  void _showUnsupportedAction(BuildContext context) {
-    CommonSnackbar.error(
-      context,
-      title: 'Instructions API unavailable',
-      message:
-          'The API documentation does not provide an instruction status endpoint.',
     );
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -31,8 +32,76 @@ class ApiClient {
   final Dio _dio;
   final TokenStorageService _tokenStorage;
   bool _isRefreshing = false;
+  final List<Completer<String?>> _refreshQueue = [];
 
   Dio get rawDio => _dio;
+
+  Future<String?> _performSilentTokenRefresh() async {
+    if (_isRefreshing) {
+      final completer = Completer<String?>();
+      _refreshQueue.add(completer);
+      return completer.future;
+    }
+
+    _isRefreshing = true;
+    try {
+      final refreshToken = await _tokenStorage.getRefreshToken();
+      if (refreshToken == null || refreshToken.isEmpty) {
+        _flushQueue(null);
+        return null;
+      }
+
+      // Use isolated Dio instance for token refresh to prevent log noise & recursion
+      final refreshDio = Dio(
+        BaseOptions(
+          baseUrl: ApiEndpoints.baseUrl,
+          connectTimeout: ApiEndpoints.connectTimeout,
+          receiveTimeout: ApiEndpoints.receiveTimeout,
+          headers: {'Content-Type': 'application/json'},
+        ),
+      );
+
+      final response = await refreshDio.post<Map<String, dynamic>>(
+        ApiEndpoints.refreshToken,
+        data: {'refreshToken': refreshToken},
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data!['data'] as Map<String, dynamic>?;
+        final newToken = data?['token'] as String? ?? '';
+        final newRefreshToken = data?['refreshToken'] as String? ?? '';
+
+        if (newToken.isNotEmpty) {
+          await _tokenStorage.saveAccessToken(newToken);
+          if (newRefreshToken.isNotEmpty) {
+            await _tokenStorage.saveRefreshToken(newRefreshToken);
+          }
+          debugPrint(
+            '🎉 [TOKEN REFRESH] Session token refreshed silently in background.',
+          );
+          _flushQueue(newToken);
+          return newToken;
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [TOKEN REFRESH FAILED] Session expired: $e');
+      await _tokenStorage.clearAll();
+    } finally {
+      _isRefreshing = false;
+    }
+
+    _flushQueue(null);
+    return null;
+  }
+
+  void _flushQueue(String? newToken) {
+    for (final completer in _refreshQueue) {
+      if (!completer.isCompleted) {
+        completer.complete(newToken);
+      }
+    }
+    _refreshQueue.clear();
+  }
 
   void _setupInterceptors() {
     _dio.interceptors.add(
@@ -81,69 +150,32 @@ class ApiClient {
           final statusCode = error.response?.statusCode ?? 'NO_STATUS';
           final path = error.requestOptions.path;
           final method = error.requestOptions.method;
-          debugPrint('❌ [API ERR] $statusCode <- $method $path');
 
           final isAuthEndpoint =
               error.requestOptions.path.contains('/auth/login') ||
               error.requestOptions.path.contains('/auth/refresh-token');
 
           // Handle 401 Unauthorized with Automatic Silent Token Refresh in Background
-          if (error.response?.statusCode == 401 &&
-              !isAuthEndpoint &&
-              !_isRefreshing) {
-            _isRefreshing = true;
+          if (error.response?.statusCode == 401 && !isAuthEndpoint) {
             debugPrint(
-              '🔄 [TOKEN REFRESH] Received 401 Unauthorized. Attempting background token refresh...',
+              '🔄 [TOKEN REFRESH] 401 Unauthorized on $method $path. Refreshing token silently...',
             );
-            try {
-              final refreshToken = await _tokenStorage.getRefreshToken();
-              if (refreshToken != null && refreshToken.isNotEmpty) {
-                // Call live /auth/refresh-token
-                final refreshResponse = await _dio.post(
-                  ApiEndpoints.refreshToken,
-                  data: {'refreshToken': refreshToken},
-                  options: Options(headers: {'Authorization': null}),
-                );
-
-                if (refreshResponse.statusCode == 200) {
-                  final data =
-                      refreshResponse.data['data'] as Map<String, dynamic>;
-                  final newToken = data['token'] as String? ?? '';
-                  final newRefreshToken = data['refreshToken'] as String? ?? '';
-
-                  if (newToken.isNotEmpty) {
-                    await _tokenStorage.saveAccessToken(newToken);
-                    if (newRefreshToken.isNotEmpty) {
-                      await _tokenStorage.saveRefreshToken(newRefreshToken);
-                    }
-
-                    debugPrint(
-                      '🎉 [TOKEN REFRESH SUCCESS] Successfully refreshed access token! Retrying original request...',
-                    );
-
-                    // Retry original request seamlessly with the newly acquired token
-                    final originalOptions = error.requestOptions;
-                    originalOptions.headers['Authorization'] =
-                        'Bearer $newToken';
-
-                    _isRefreshing = false;
-                    final retryResponse = await _dio.fetch(originalOptions);
-                    return handler.resolve(retryResponse);
-                  }
-                }
-              } else {
-                debugPrint(
-                  '⚠️ [TOKEN REFRESH] No refresh token found in storage.',
-                );
+            final newToken = await _performSilentTokenRefresh();
+            if (newToken != null && newToken.isNotEmpty) {
+              final originalOptions = error.requestOptions;
+              originalOptions.headers['Authorization'] = 'Bearer $newToken';
+              try {
+                final retryResponse = await _dio.fetch(originalOptions);
+                return handler.resolve(retryResponse);
+              } catch (retryErr) {
+                return handler.next(error);
               }
-            } catch (refreshErr) {
-              debugPrint(
-                '🚨 [TOKEN REFRESH FAILED] Error refreshing token: $refreshErr',
-              );
-              await _tokenStorage.clearAll();
-            } finally {
-              _isRefreshing = false;
             }
+          }
+
+          debugPrint('❌ [API ERR] $statusCode <- $method $path');
+          if (error.response?.data != null) {
+            debugPrint('❌ [API ERR DATA] ${error.response?.data}');
           }
 
           return handler.next(error);
@@ -250,5 +282,25 @@ class ApiClient {
         headers: {'Content-Length': bytes.length},
       ),
     );
+  }
+
+  /// Downloads bytes from a public or presigned external URL without adding
+  /// the KaratFlow bearer token to the external host.
+  Future<Uint8List> getAbsoluteBytes(String url) async {
+    final downloadDio = Dio(
+      BaseOptions(
+        connectTimeout: ApiEndpoints.connectTimeout,
+        receiveTimeout: ApiEndpoints.receiveTimeout,
+      ),
+    );
+    final response = await downloadDio.get<List<int>>(
+      url,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final bytes = response.data;
+    if (bytes == null || bytes.isEmpty) {
+      throw const FormatException('The downloaded audio file is empty.');
+    }
+    return Uint8List.fromList(bytes);
   }
 }

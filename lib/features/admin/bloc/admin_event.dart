@@ -39,12 +39,16 @@ final class SendDirectiveEvent extends AdminEvent {
     required this.directive,
     this.audioFileName,
     this.audioBytes,
+    this.imageFileName,
+    this.imageBytes,
   });
 
   final String recipient;
   final String directive;
   final String? audioFileName;
   final Uint8List? audioBytes;
+  final String? imageFileName;
+  final Uint8List? imageBytes;
 }
 
 /// Approve 2D sketch design
@@ -60,12 +64,16 @@ final class ReviewSketchDirectiveEvent extends AdminEvent {
     required this.instructions,
     this.audioFileName,
     this.audioBytes,
+    this.imageFileName,
+    this.imageBytes,
   });
 
   final String sketchId;
   final String instructions;
   final String? audioFileName;
   final Uint8List? audioBytes;
+  final String? imageFileName;
+  final Uint8List? imageBytes;
 }
 
 final class UpdateEmployeeEvent extends AdminEvent {
@@ -172,4 +180,31 @@ final class ReuploadSketchEvent extends AdminEvent {
 
 final class CheckSystemHealthEvent extends AdminEvent {
   const CheckSystemHealthEvent();
+}
+
+/// Update 3D CAD product stock and catalog record via PATCH /three-d-designs/{designId}/product
+final class UpdateProductStockEvent extends AdminEvent {
+  const UpdateProductStockEvent({
+    required this.designId,
+    this.stock,
+    this.stockStatus,
+    this.price,
+    this.title,
+    this.category,
+    this.goldQuantity,
+    this.totalWeight,
+    this.description,
+    this.imageUrl,
+  });
+
+  final String designId;
+  final int? stock;
+  final String? stockStatus;
+  final double? price;
+  final String? title;
+  final String? category;
+  final double? goldQuantity;
+  final double? totalWeight;
+  final String? description;
+  final String? imageUrl;
 }

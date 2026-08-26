@@ -186,9 +186,11 @@ class _AdminStockPageState extends State<AdminStockPage> {
   }
 
   void _openReconcileDialog(BuildContext context, StockItem item) {
-    final diffController = TextEditingController(
-      text: item.discrepancyGrams.toString(),
+    final stockController = TextEditingController(
+      text: '${item.totalAvailable.toInt()}',
     );
+    final priceController = TextEditingController();
+    String selectedStatus = 'In Stock';
 
     showModalBottomSheet<void>(
       context: context,
@@ -197,58 +199,114 @@ class _AdminStockPageState extends State<AdminStockPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          16,
-          20,
-          MediaQuery.of(ctx).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.outline,
-                  borderRadius: BorderRadius.circular(2),
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setModalState) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              16,
+              20,
+              MediaQuery.of(dialogCtx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.outline,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 16),
+                CommonText.headlineMedium('Update Stock Product: ${item.name}'),
+                const SizedBox(height: 4),
+                Text(
+                  'Vault Location: ${item.vaultLocation} · Purity: ${item.purityOrGrade}',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: CommonTextField(
+                        controller: stockController,
+                        label: 'Stock Quantity',
+                        hintText: 'e.g. 5',
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: CommonTextField(
+                        controller: priceController,
+                        label: 'Price (₹)',
+                        hintText: 'e.g. 52000',
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Stock Status',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedStatus,
+                  items: const [
+                    DropdownMenuItem(value: 'In Stock', child: Text('In Stock')),
+                    DropdownMenuItem(value: 'Low Stock', child: Text('Low Stock')),
+                    DropdownMenuItem(value: 'Out of Stock', child: Text('Out of Stock')),
+                    DropdownMenuItem(value: 'Custom Made', child: Text('Custom Made')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setModalState(() => selectedStatus = val);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                CommonButton.primary(
+                  label: 'Update Stock Product (PATCH API)',
+                  onPressed: () {
+                    final stockVal = int.tryParse(stockController.text.trim());
+                    final priceVal = double.tryParse(priceController.text.trim());
+                    Navigator.pop(ctx);
+
+                    context.read<AdminBloc>().add(
+                          UpdateProductStockEvent(
+                            designId: item.id,
+                            stock: stockVal,
+                            stockStatus: selectedStatus,
+                            price: priceVal,
+                            title: item.name,
+                          ),
+                        );
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            CommonText.headlineMedium('Audit & Reconcile: ${item.name}'),
-            const SizedBox(height: 4),
-            Text(
-              'Location: ${item.vaultLocation} · Purity: ${item.purityOrGrade}',
-              style: const TextStyle(color: AppColors.muted, fontSize: 12),
-            ),
-            const SizedBox(height: 16),
-            CommonTextField(
-              controller: diffController,
-              label: 'Discrepancy Variance (${item.unit})',
-              hintText: 'e.g. 0.00',
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 20),
-            CommonButton.primary(
-              label: 'Save Physical Count',
-              onPressed: () {
-                Navigator.pop(ctx);
-                CommonSnackbar.error(
-                  context,
-                  title: 'Stock API Unavailable',
-                  message: 'The backend does not expose a stock endpoint.',
-                );
-              },
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
+
 }
 
 class _StockCard extends StatelessWidget {

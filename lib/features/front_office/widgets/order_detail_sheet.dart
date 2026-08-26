@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_dimensions.dart';
-import '../../../../core/widgets/common_button.dart';
-import '../../../../core/widgets/common_card.dart';
-import '../../../../core/widgets/common_text.dart';
-import '../../../../domain/models.dart';
-import '../../../../routes/app_routes.dart';
+import 'package:jewellery_ops_mobile/core/constants/app_colors.dart';
+import 'package:jewellery_ops_mobile/core/constants/app_dimensions.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_button.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_card.dart';
+import 'package:jewellery_ops_mobile/core/widgets/common_text.dart';
+import 'package:jewellery_ops_mobile/domain/models.dart';
+import 'package:jewellery_ops_mobile/routes/app_routes.dart';
 import 'front_office_order_card.dart';
 
 /// Front Office Customer Order Detail Bottom Sheet

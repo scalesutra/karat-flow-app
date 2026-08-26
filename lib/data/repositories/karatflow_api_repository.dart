@@ -282,6 +282,7 @@ class KaratFlowApiRepository {
     required String status, // 'APPROVED' or 'REJECTED'
     String adminInstructions = '',
     String? feedbackAudioUrl,
+    String? feedbackImageUrl,
   }) async {
     final response = await _api.patch(
       ApiEndpoints.reviewSketch(id),
@@ -290,6 +291,7 @@ class KaratFlowApiRepository {
         if (adminInstructions.isNotEmpty)
           'adminInstructions': adminInstructions,
         'feedbackAudioUrl': ?feedbackAudioUrl,
+        'feedbackImageUrl': ?feedbackImageUrl,
       },
     );
     final data = response.data['data'] as Map<String, dynamic>;
@@ -354,6 +356,7 @@ class KaratFlowApiRepository {
     required String status, // 'APPROVED' | 'REJECTED'
     String adminInstructions = '',
     String? feedbackAudioUrl,
+    String? feedbackImageUrl,
   }) async {
     final body = <String, dynamic>{'status': status};
     if (adminInstructions.isNotEmpty) {
@@ -362,10 +365,46 @@ class KaratFlowApiRepository {
     if (feedbackAudioUrl != null && feedbackAudioUrl.isNotEmpty) {
       body['feedbackAudioUrl'] = feedbackAudioUrl;
     }
+    if (feedbackImageUrl != null && feedbackImageUrl.isNotEmpty) {
+      body['feedbackImageUrl'] = feedbackImageUrl;
+    }
 
     final response = await _api.patch(
       ApiEndpoints.reviewThreeD(id),
       data: body,
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiThreeDDesign.fromJson(data);
+  }
+
+  /// PATCH /three-d-designs/{designId}/product - Update product catalog record & stock details
+  Future<ApiThreeDDesign> updateThreeDProductStock({
+    required String designId,
+    int? stock,
+    String? stockStatus,
+    double? price,
+    String? title,
+    String? category,
+    double? goldQuantity,
+    double? totalWeight,
+    String? description,
+    String? imageUrl,
+  }) async {
+    final payload = <String, dynamic>{
+      'stock': ?stock,
+      if (stockStatus?.isNotEmpty == true) 'stockStatus': stockStatus,
+      'price': ?price,
+      if (title?.isNotEmpty == true) 'title': title,
+      if (category?.isNotEmpty == true) 'category': category,
+      'goldQuantity': ?goldQuantity,
+      'totalWeight': ?totalWeight,
+      if (description?.isNotEmpty == true) 'description': description,
+      if (imageUrl?.isNotEmpty == true) 'imageUrl': imageUrl,
+    };
+
+    final response = await _api.patch(
+      ApiEndpoints.updateThreeDProduct(designId),
+      data: payload,
     );
     final data = response.data['data'] as Map<String, dynamic>;
     return ApiThreeDDesign.fromJson(data);
@@ -529,12 +568,30 @@ class KaratFlowApiRepository {
     required String fileType,
     required String folder,
   }) async {
-    final response = await _api.post(
-      ApiEndpoints.storageUploadUrl,
-      data: {'fileName': fileName, 'fileType': fileType, 'folder': folder},
-    );
-    final data = response.data['data'] as Map<String, dynamic>;
-    return ApiPresignedUrl.fromJson(data);
+    try {
+      final response = await _api.post(
+        ApiEndpoints.storageUploadUrl,
+        data: {'fileName': fileName, 'fileType': fileType, 'folder': folder},
+      );
+      final data = response.data['data'] as Map<String, dynamic>;
+      return ApiPresignedUrl.fromJson(data);
+    } catch (_) {
+      // If server rejected folder (e.g. 400 Bad Request for 'directive-images'),
+      // fallback to standard 'sketches' folder supported by storage endpoint
+      if (folder != 'sketches') {
+        final response = await _api.post(
+          ApiEndpoints.storageUploadUrl,
+          data: {
+            'fileName': fileName,
+            'fileType': fileType,
+            'folder': 'sketches',
+          },
+        );
+        final data = response.data['data'] as Map<String, dynamic>;
+        return ApiPresignedUrl.fromJson(data);
+      }
+      rethrow;
+    }
   }
 
   Future<ApiPresignedUrl> uploadFile({
@@ -569,6 +626,43 @@ class KaratFlowApiRepository {
       queryParameters: {'fileKey': fileKey},
     );
     return ApiPresignedDownloadUrl.fromJson(_dataMap(response.data));
+  }
+
+  Future<Uint8List> downloadStoredFile(String storedUrl) async {
+    final uri = Uri.tryParse(storedUrl.trim());
+    if (uri == null || !uri.hasScheme) {
+      throw const FormatException('The stored file URL is invalid.');
+    }
+
+    String targetUrl = storedUrl;
+    final fileKey = _storageFileKey(uri);
+    if (fileKey != null) {
+      final signed = await getPresignedDownloadUrl(fileKey);
+      if (signed.downloadUrl.isEmpty) {
+        throw const FormatException('Storage API returned no download URL.');
+      }
+      targetUrl = signed.downloadUrl;
+    }
+
+    return _api.getAbsoluteBytes(targetUrl);
+  }
+
+  String? _storageFileKey(Uri uri) {
+    final isSigned = uri.queryParameters.keys.any(
+      (key) => key.toLowerCase() == 'x-amz-signature',
+    );
+    if (isSigned) return null;
+
+    final proxyKey =
+        uri.queryParameters['fileKey'] ?? uri.queryParameters['key'];
+    if (proxyKey != null && proxyKey.trim().isNotEmpty) {
+      return proxyKey.trim();
+    }
+
+    final host = uri.host.toLowerCase();
+    if (!host.contains('amazonaws.com') && !host.contains('s3')) return null;
+    final key = uri.pathSegments.join('/').trim();
+    return key.isEmpty ? null : key;
   }
 
   // ── SECTION 11: Health (/health) ──────────────────────────────────

@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "com.pareek.jewellery_ops_mobile"
-        minSdk = flutter.minSdkVersion
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

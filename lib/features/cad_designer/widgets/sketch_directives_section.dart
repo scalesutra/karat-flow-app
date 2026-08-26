@@ -8,9 +8,12 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/common_card.dart';
 import '../../../core/widgets/common_snackbar.dart';
 import '../../../data/models/api_models.dart';
+import '../../../data/repositories/karatflow_api_repository.dart';
 import '../bloc/cad_bloc.dart';
 
 import '../../../data/demo_store.dart';
+import '../../../domain/models.dart';
+import '../../instructions/directive_audio.dart';
 
 class SketchDirectivesSection extends StatelessWidget {
   const SketchDirectivesSection({super.key});
@@ -26,14 +29,9 @@ class SketchDirectivesSection extends StatelessWidget {
                 ? state.sketchDirectives
                 : const <ApiSketch>[];
 
-            final storeDirectives = DemoStore.instance.adminDirectives.where((
-              d,
-            ) {
-              final r = d['recipient'] ?? '';
-              return r.contains('CAD') ||
-                  r.contains('All') ||
-                  r.contains('Designer');
-            }).toList();
+            final storeDirectives = DemoStore.instance.directivesForRole(
+              AppRole.cadDesigner,
+            );
 
             final totalCount = sketchDirectives.length + storeDirectives.length;
 
@@ -116,6 +114,7 @@ class _SketchDirectiveTile extends StatefulWidget {
 
 class _SketchDirectiveTileState extends State<_SketchDirectiveTile> {
   final AudioPlayer _player = AudioPlayer();
+  final KaratFlowApiRepository _api = KaratFlowApiRepository();
   StreamSubscription<void>? _completeSubscription;
   bool _isPlaying = false;
   bool _isLoading = false;
@@ -123,9 +122,19 @@ class _SketchDirectiveTileState extends State<_SketchDirectiveTile> {
   @override
   void initState() {
     super.initState();
-    _completeSubscription = _player.onPlayerComplete.listen((_) {
-      if (mounted) setState(() => _isPlaying = false);
-    });
+    _completeSubscription = _player.onPlayerComplete.listen(
+      (_) {
+        if (mounted) setState(() => _isPlaying = false);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _isPlaying = false;
+          });
+        }
+      },
+    );
   }
 
   @override
@@ -145,7 +154,8 @@ class _SketchDirectiveTileState extends State<_SketchDirectiveTile> {
         return;
       }
       setState(() => _isLoading = true);
-      await _player.play(UrlSource(url));
+      final bytes = await _api.downloadStoredFile(url);
+      await _player.play(BytesSource(bytes, mimeType: 'audio/mp4'));
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -235,6 +245,10 @@ class _SketchDirectiveTileState extends State<_SketchDirectiveTile> {
               label: Text(_isPlaying ? 'Pause voice note' : 'Play voice note'),
             ),
           ],
+          if (sketch.feedbackImageUrl?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            DirectiveImageAttachment(imageUrl: sketch.feedbackImageUrl!),
+          ],
         ],
       ),
     );
@@ -253,15 +267,27 @@ class _GovernanceDirectiveTile extends StatefulWidget {
 
 class _GovernanceDirectiveTileState extends State<_GovernanceDirectiveTile> {
   final AudioPlayer _player = AudioPlayer();
+  final KaratFlowApiRepository _api = KaratFlowApiRepository();
   StreamSubscription<void>? _sub;
   bool _isPlaying = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _sub = _player.onPlayerComplete.listen((_) {
-      if (mounted) setState(() => _isPlaying = false);
-    });
+    _sub = _player.onPlayerComplete.listen(
+      (_) {
+        if (mounted) setState(() => _isPlaying = false);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _isPlaying = false;
+          });
+        }
+      },
+    );
   }
 
   @override
@@ -273,27 +299,12 @@ class _GovernanceDirectiveTileState extends State<_GovernanceDirectiveTile> {
 
   @override
   Widget build(BuildContext context) {
-    final text = widget.directive['instruction'] ?? '';
-    final hasAudio = text.contains('[ 🎙️ Voice Note: ');
-    String audioUrl = '';
-    String cleanText = text;
-
-    if (hasAudio) {
-      final start =
-          text.indexOf('[ 🎙️ Voice Note: ') + '[ 🎙️ Voice Note: '.length;
-      final end = text.indexOf(' ]', start);
-      if (end != -1) {
-        audioUrl = text.substring(start, end).trim();
-        cleanText = text
-            .substring(0, text.indexOf('[ 🎙️ Voice Note: '))
-            .trim();
-      } else {
-        audioUrl = text.substring(start).replaceAll(']', '').trim();
-        cleanText = text
-            .substring(0, text.indexOf('[ 🎙️ Voice Note: '))
-            .trim();
-      }
-    }
+    // DemoStore persists governance directives as `content` and `date`.
+    // Keep the legacy keys as fallbacks for directives created elsewhere.
+    final text =
+        widget.directive['content'] ?? widget.directive['instruction'] ?? '';
+    final message = DirectiveMessage.parse(text);
+    final audioUrl = message.audioUrl ?? '';
 
     return Container(
       width: double.infinity,
@@ -322,14 +333,18 @@ class _GovernanceDirectiveTileState extends State<_GovernanceDirectiveTile> {
                 ),
               ),
               Text(
-                widget.directive['timeLabel'] ?? 'Just now',
+                widget.directive['date'] ??
+                    widget.directive['timeLabel'] ??
+                    'Just now',
                 style: const TextStyle(color: AppColors.muted, fontSize: 10),
               ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
-            cleanText.isNotEmpty ? cleanText : 'Voice Directive Note Attached',
+            message.text.isNotEmpty
+                ? message.text
+                : 'Directive Attachment Received',
             style: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 12,
@@ -340,17 +355,54 @@ class _GovernanceDirectiveTileState extends State<_GovernanceDirectiveTile> {
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () async {
+                if (_isLoading) return;
                 if (_isPlaying) {
                   await _player.pause();
                   if (mounted) setState(() => _isPlaying = false);
                 } else {
-                  await _player.play(UrlSource(audioUrl));
-                  if (mounted) setState(() => _isPlaying = true);
+                  setState(() => _isLoading = true);
+                  try {
+                    final bytes = await _api.downloadStoredFile(audioUrl);
+                    await _player.play(
+                      BytesSource(bytes, mimeType: 'audio/mp4'),
+                    );
+                    if (!mounted) return;
+                    setState(() {
+                      _isLoading = false;
+                      _isPlaying = true;
+                    });
+                  } catch (error) {
+                    if (!context.mounted) return;
+                    setState(() {
+                      _isLoading = false;
+                      _isPlaying = false;
+                    });
+                    CommonSnackbar.error(
+                      context,
+                      title: 'Audio unavailable',
+                      message: 'Could not play this directive: $error',
+                    );
+                  }
                 }
               },
-              icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-              label: Text(_isPlaying ? 'Pause voice note' : 'Play voice note'),
+              icon: _isLoading
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
+              label: Text(
+                _isLoading
+                    ? 'Loading voice note'
+                    : _isPlaying
+                    ? 'Pause voice note'
+                    : 'Play voice note',
+              ),
             ),
+          ],
+          if (message.hasImage) ...[
+            const SizedBox(height: 8),
+            DirectiveImageAttachment(imageUrl: message.imageUrl!),
           ],
         ],
       ),

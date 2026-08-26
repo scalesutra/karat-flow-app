@@ -47,16 +47,27 @@ class ProcessManagerTasksPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: store,
-      builder: (context, _) => _InstructionList(
-        title: 'My Tasks & Directives',
-        subtitle:
-            'Admin instructions stay visible until acknowledged and resolved.',
-        instructions: store.instructions,
-        mode: TaskDisplayMode.manager,
-        store: store,
-      ),
+    return BlocBuilder<WorkshopBloc, WorkshopState>(
+      builder: (context, state) {
+        if (state is WorkshopLoading) {
+          return const Center(
+            child: CommonProgressIndicator.workshop(
+              label: 'Syncing Process Manager Directives...',
+            ),
+          );
+        }
+        return AnimatedBuilder(
+          animation: store,
+          builder: (context, _) => _InstructionList(
+            title: 'My Tasks & Directives',
+            subtitle:
+                'Admin instructions stay visible until acknowledged and resolved.',
+            instructions: store.instructions,
+            mode: TaskDisplayMode.manager,
+            store: store,
+          ),
+        );
+      },
     );
   }
 }
@@ -68,9 +79,18 @@ class ProcessManagerHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: store,
-      builder: (context, _) {
+    return BlocBuilder<WorkshopBloc, WorkshopState>(
+      builder: (context, state) {
+        if (state is WorkshopLoading) {
+          return const Center(
+            child: CommonProgressIndicator.workshop(
+              label: 'Syncing Workshop Overview & Tasks...',
+            ),
+          );
+        }
+        return AnimatedBuilder(
+          animation: store,
+          builder: (context, _) {
         final active = store.instructions
             .where((item) => item.status != InstructionStatus.resolved)
             .toList();
@@ -369,6 +389,8 @@ class ProcessManagerHome extends StatelessWidget {
             ],
           ),
         );
+      },
+    );
       },
     );
   }

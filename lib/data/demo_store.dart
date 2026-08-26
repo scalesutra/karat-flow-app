@@ -1,10 +1,26 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../domain/directive_recipients.dart';
+import '../routes/app_pages.dart';
 import 'models/api_models.dart';
 import '../domain/models.dart';
 
 class DemoStore extends ChangeNotifier {
+  static const _adminDirectivesStorageKey = 'karatflow.admin_directives.v1';
+
   static final DemoStore _instance = DemoStore.empty();
   static DemoStore get instance => _instance;
+
+  AppRole get activeRole {
+    if (Get.isRegistered<AppRoleController>()) {
+      return Get.find<AppRoleController>().currentRole.value;
+    }
+    return AppRole.admin;
+  }
 
   /// Empty presentation cache. Data is populated only by successful API BLoCs.
   DemoStore.empty()
@@ -46,6 +62,44 @@ class DemoStore extends ChangeNotifier {
 
   List<Map<String, String>> get adminDirectives => _adminDirectives;
 
+  List<Map<String, String>> directivesForRole(AppRole role) => _adminDirectives
+      .where(
+        (directive) =>
+            DirectiveRecipients.matchesRole(directive['recipient'] ?? '', role),
+      )
+      .toList();
+
+  Future<void> initialize() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final stored = preferences.getString(_adminDirectivesStorageKey);
+      if (stored == null || stored.isEmpty) return;
+
+      final decoded = jsonDecode(stored);
+      if (decoded is! List) return;
+
+      final restored = decoded
+          .whereType<Map>()
+          .map(
+            (item) => item.map(
+              (key, value) => MapEntry(key.toString(), value.toString()),
+            ),
+          )
+          .where((item) => item['id']?.isNotEmpty == true)
+          .toList();
+
+      _adminDirectives
+        ..clear()
+        ..addAll(restored);
+
+      for (final directive in restored.reversed) {
+        _instructions.insert(0, _instructionForDirective(directive));
+      }
+    } catch (error) {
+      debugPrint('Could not restore saved admin directives: $error');
+    }
+  }
+
   List<Map<String, String>> cadDirectives() => _adminDirectives
       .where(
         (d) =>
@@ -68,33 +122,21 @@ class DemoStore extends ChangeNotifier {
       )
       .toList();
 
-  void addAdminDirective(String recipient, String content) {
+  Future<void> addAdminDirective(String recipient, String content) async {
     final id = 'DIR-00${_adminDirectives.length + 1}';
+    final now = DateTime.now();
     _adminDirectives.insert(0, {
       'id': id,
-      'date': '25-08-2026',
+      'date': _displayDate(now),
+      'createdAt': now.toIso8601String(),
       'recipient': recipient,
       'content': content,
       'status': 'Active',
     });
 
-    _instructions.insert(
-      0,
-      Instruction(
-        id: id,
-        targetId: id,
-        targetLabel: 'Directive to $recipient',
-        message: content,
-        createdBy: 'Admin',
-        assignedTo: recipient,
-        urgency: InstructionUrgency.urgent,
-        status: InstructionStatus.sent,
-        createdAt: DateTime.now(),
-        hasPhoto: false,
-        hasVoice: false,
-      ),
-    );
+    _instructions.insert(0, _instructionForDirective(_adminDirectives.first));
 
+    await _writeAdminDirectives(jsonEncode(_adminDirectives));
     notifyListeners();
   }
 
@@ -105,13 +147,58 @@ class DemoStore extends ChangeNotifier {
         ..._adminDirectives[index],
         'status': 'Acknowledged',
       };
+      _persistAdminDirectives();
       notifyListeners();
     }
   }
 
   void deleteDirective(String id) {
     _adminDirectives.removeWhere((d) => d['id'] == id);
+    _instructions.removeWhere((instruction) => instruction.id == id);
+    _persistAdminDirectives();
     notifyListeners();
+  }
+
+  Instruction _instructionForDirective(Map<String, String> directive) {
+    final id = directive['id'] ?? 'DIR';
+    final recipient = directive['recipient'] ?? 'All';
+    final content = directive['content'] ?? '';
+    return Instruction(
+      id: id,
+      targetId: id,
+      targetLabel: 'Directive to $recipient',
+      message: content,
+      createdBy: 'Admin',
+      assignedTo: recipient,
+      urgency: InstructionUrgency.urgent,
+      status: directive['status'] == 'Acknowledged'
+          ? InstructionStatus.acknowledged
+          : InstructionStatus.sent,
+      createdAt:
+          DateTime.tryParse(directive['createdAt'] ?? '') ?? DateTime.now(),
+      hasPhoto: content.contains('[ 🖼️ Image: '),
+      hasVoice: content.contains('[ 🎙️ Voice Note: '),
+    );
+  }
+
+  String _displayDate(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    return '$day-$month-${value.year}';
+  }
+
+  void _persistAdminDirectives() {
+    final payload = jsonEncode(_adminDirectives);
+    unawaited(_writeAdminDirectives(payload));
+  }
+
+  Future<void> _writeAdminDirectives(String payload) async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(_adminDirectivesStorageKey, payload);
+    } catch (error) {
+      debugPrint('Could not persist admin directives: $error');
+    }
   }
 
   void approveSketch(String designCode) {
@@ -634,13 +721,30 @@ class DemoStore extends ChangeNotifier {
     if (index >= 0) {
       final updated = _lots[index].copyWith(
         stage: newStage,
-        assignedEmployee: assignedEmployee,
+        assignedEmployee: assignedEmployee ?? _lots[index].assignedEmployee,
         lastUpdatedTime: 'Just now',
         tone: newStage == WorkshopStage.readyForDispatch
             ? HealthTone.healthy
             : _lots[index].tone,
       );
       _lots[index] = updated;
+
+      final empName = assignedEmployee ?? updated.assignedEmployee;
+      if (empName.isNotEmpty) {
+        final tIndex = _team.indexWhere(
+          (t) =>
+              t.name.toLowerCase() == empName.toLowerCase() || t.id == empName,
+        );
+        if (tIndex >= 0) {
+          final member = _team[tIndex];
+          _team[tIndex] = member.copyWith(
+            status: EmployeeStatus.working,
+            activeLotsCount: member.activeLotsCount + 1,
+            currentAssignment: '${updated.productTitle} (${updated.id})',
+          );
+        }
+      }
+
       recordScan(updated);
       notifyListeners();
     }

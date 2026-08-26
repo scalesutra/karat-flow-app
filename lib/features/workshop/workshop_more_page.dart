@@ -4,8 +4,10 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
+import '../../domain/models.dart';
 import '../auth/bloc/auth_bloc.dart';
 import '../auth/widgets/authenticated_profile_card.dart';
+import '../instructions/role_directives_section.dart';
 
 class WorkshopMorePage extends StatefulWidget {
   const WorkshopMorePage({super.key, required this.store});
@@ -44,6 +46,12 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
               const SizedBox(height: 10),
 
               const AuthenticatedProfileCard(),
+              const SizedBox(height: 14),
+
+              RoleDirectivesSection(
+                store: widget.store,
+                role: AppRole.processManager,
+              ),
               const SizedBox(height: 14),
 
               // 1. SHIFT CARD

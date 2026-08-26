@@ -53,17 +53,41 @@ abstract final class ApiDomainMapper {
   static String _cleanText(String? text) {
     if (text == null || text.trim().isEmpty) return '';
     if (text.contains('[ 🎙️ Voice Note: ')) {
-      final clean = text.substring(0, text.indexOf('[ 🎙️ Voice Note: ')).trim();
+      final clean = text
+          .substring(0, text.indexOf('[ 🎙️ Voice Note: '))
+          .trim();
       return clean.isNotEmpty ? clean : 'Voice Directive Note Attached';
     }
     return text.trim();
+  }
+
+  static JewelleryCategory parseCategory(String? value) {
+    if (value == null || value.trim().isEmpty) return JewelleryCategory.all;
+    final lower = value.toLowerCase();
+    if (lower.contains('ring')) return JewelleryCategory.rings;
+    if (lower.contains('necklace') ||
+        lower.contains('choker') ||
+        lower.contains('pendant')) {
+      return JewelleryCategory.necklaces;
+    }
+    if (lower.contains('earring') || lower.contains('stud')) {
+      return JewelleryCategory.earrings;
+    }
+    if (lower.contains('bangle') || lower.contains('bracelet')) {
+      return JewelleryCategory.bangles;
+    }
+    if (lower.contains('chain')) return JewelleryCategory.chains;
+    if (lower.contains('bridal') || lower.contains('set')) {
+      return JewelleryCategory.bridalSets;
+    }
+    return JewelleryCategory.all;
   }
 
   static JewelleryDesign sketch(ApiSketch value) => JewelleryDesign(
     id: value.id,
     name: value.title,
     code: value.designNumber,
-    category: JewelleryCategory.all,
+    category: parseCategory(value.category),
     purity: '',
     grossWeightGrams: 0,
     imageUrl: value.sketchUrl,
@@ -73,9 +97,11 @@ abstract final class ApiDomainMapper {
 
   static JewelleryDesign threeDDesign(ApiThreeDDesign value) => JewelleryDesign(
     id: value.id,
-    name: value.sketchId,
+    name: value.sketch?.title.isNotEmpty == true
+        ? value.sketch!.title
+        : value.sketchId,
     code: value.id,
-    category: JewelleryCategory.all,
+    category: parseCategory(value.category ?? value.sketch?.category),
     purity: '',
     grossWeightGrams: value.totalWeight,
     imageUrl: value.xtlFileUrl ?? '',
@@ -121,6 +147,61 @@ abstract final class ApiDomainMapper {
           DateTime.tryParse(value.sketch?.createdAt ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       volumeCubicMm: value.volumeMm3,
+    );
+  }
+
+  static StockItem stockItem(ApiThreeDDesign value) {
+    final title = (value.sketch?.title.isNotEmpty == true)
+        ? value.sketch!.title
+        : ((value.sketch?.designNumber.isNotEmpty == true)
+              ? value.sketch!.designNumber
+              : (value.sizeDimensions.isNotEmpty
+                    ? value.sizeDimensions
+                    : '3D CAD Product'));
+
+    final code = (value.sketch?.designNumber.isNotEmpty == true)
+        ? value.sketch!.designNumber
+        : 'SKU-${value.id.substring(0, value.id.length > 6 ? 6 : value.id.length)}';
+
+    final categoryName = (value.category?.isNotEmpty == true)
+        ? value.category!
+        : ((value.sketch?.category?.isNotEmpty == true)
+              ? value.sketch!.category!
+              : 'Jewellery Atelier');
+
+    final stockCategory = switch (categoryName.toLowerCase()) {
+      'raw gold' || 'gold' => StockCategory.rawGold,
+      'findings' || 'finding' => StockCategory.findings,
+      'gemstones' ||
+      'gems' ||
+      'diamond' ||
+      'diamonds' => StockCategory.cutDiamonds,
+      'finished' ||
+      'finished goods' ||
+      'necklaces' ||
+      'rings' => StockCategory.finishedGoods,
+      _ => StockCategory.rawGold,
+    };
+
+    final available = (value.stock != null && value.stock! > 0)
+        ? value.stock!.toDouble()
+        : (value.goldQuantity > 0 ? value.goldQuantity : value.totalWeight);
+
+    final unitLabel = value.stock != null ? 'pcs' : 'grams';
+    final statusLabel = value.stockStatus?.isNotEmpty == true
+        ? ' · ${value.stockStatus}'
+        : '';
+
+    return StockItem(
+      id: value.id,
+      name: '$title ($code)',
+      category: stockCategory,
+      purityOrGrade: '$categoryName$statusLabel',
+      totalAvailable: available,
+      reservedInLots: 0.0,
+      unit: unitLabel,
+      vaultLocation: 'Main Atelier Vault · Safe #1',
+      discrepancyGrams: 0.0,
     );
   }
 

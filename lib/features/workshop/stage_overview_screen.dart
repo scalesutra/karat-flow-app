@@ -267,6 +267,9 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     }
     String selectedWorker = workers.first.name;
     int selectedQuantity = part.pieces;
+    final TextEditingController quantityController = TextEditingController(
+      text: '$selectedQuantity',
+    );
 
     showModalBottomSheet<void>(
       context: context,
@@ -310,7 +313,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Quantity Selector
+                  // Quantity Selector with Manual Input
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -327,7 +330,10 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                           InkWell(
                             onTap: () {
                               if (selectedQuantity > 1) {
-                                setModalState(() => selectedQuantity--);
+                                setModalState(() {
+                                  selectedQuantity--;
+                                  quantityController.text = '$selectedQuantity';
+                                });
                               }
                             },
                             borderRadius: BorderRadius.circular(8),
@@ -342,20 +348,56 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                             ),
                           ),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              '$selectedQuantity',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 16,
-                                color: AppColors.ink,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: SizedBox(
+                              width: 54,
+                              height: 34,
+                              child: TextField(
+                                controller: quantityController,
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 15,
+                                  color: AppColors.ink,
+                                ),
+                                decoration: InputDecoration(
+                                  contentPadding: EdgeInsets.zero,
+                                  isDense: true,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.outline,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.emerald,
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                                onChanged: (val) {
+                                  final parsed = int.tryParse(val.trim());
+                                  if (parsed != null &&
+                                      parsed > 0 &&
+                                      parsed <= part.pieces) {
+                                    setModalState(() {
+                                      selectedQuantity = parsed;
+                                    });
+                                  }
+                                },
                               ),
                             ),
                           ),
                           InkWell(
                             onTap: () {
                               if (selectedQuantity < part.pieces) {
-                                setModalState(() => selectedQuantity++);
+                                setModalState(() {
+                                  selectedQuantity++;
+                                  quantityController.text = '$selectedQuantity';
+                                });
                               }
                             },
                             borderRadius: BorderRadius.circular(8),
@@ -386,37 +428,38 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                           color: AppColors.ink,
                         ),
                       ),
-                      InkWell(
-                        onTap: () async {
-                          final newMember = await AddArtisanSheet.show(
-                            context,
-                            DemoStore.instance,
-                          );
-                          if (newMember != null) {
-                            setModalState(() {
-                              selectedWorker = newMember.name;
-                            });
-                          }
-                        },
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.add,
-                              size: 14,
-                              color: AppColors.emeraldDark,
-                            ),
-                            SizedBox(width: 2),
-                            Text(
-                              '+ New Artisan',
-                              style: TextStyle(
+                      if (DemoStore.instance.activeRole == AppRole.admin)
+                        InkWell(
+                          onTap: () async {
+                            final newMember = await AddArtisanSheet.show(
+                              context,
+                              DemoStore.instance,
+                            );
+                            if (newMember != null) {
+                              setModalState(() {
+                                selectedWorker = newMember.name;
+                              });
+                            }
+                          },
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.add,
+                                size: 14,
                                 color: AppColors.emeraldDark,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 11,
                               ),
-                            ),
-                          ],
+                              SizedBox(width: 2),
+                              Text(
+                                '+ New Artisan',
+                                style: TextStyle(
+                                  color: AppColors.emeraldDark,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -817,7 +860,9 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                 );
                               },
                             ),
-                          if (currentIdx > 0) ...[
+                          if (DemoStore.instance.activeRole ==
+                                  AppRole.processManager &&
+                              currentIdx > 0) ...[
                             const SizedBox(height: 10),
                             CommonButton.outlined(
                               label: '↺ Move Back to Any Previous Stage',
@@ -849,6 +894,9 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     final previousStages = values.sublist(0, currentIdx);
     int selectedPieces = part.pieces;
     final int totalPcs = part.pieces;
+    final TextEditingController backPiecesController = TextEditingController(
+      text: '$selectedPieces',
+    );
 
     showModalBottomSheet<void>(
       context: context,
@@ -939,7 +987,11 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                             InkWell(
                               onTap: () {
                                 if (selectedPieces > 1) {
-                                  setModalState(() => selectedPieces--);
+                                  setModalState(() {
+                                    selectedPieces--;
+                                    backPiecesController.text =
+                                        '$selectedPieces';
+                                  });
                                 }
                               },
                               borderRadius: BorderRadius.circular(8),
@@ -955,21 +1007,58 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                             ),
                             Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
+                                horizontal: 8,
                               ),
-                              child: Text(
-                                '$selectedPieces',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 16,
-                                  color: AppColors.ink,
+                              child: SizedBox(
+                                width: 54,
+                                height: 34,
+                                child: TextField(
+                                  controller: backPiecesController,
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 15,
+                                    color: AppColors.ink,
+                                  ),
+                                  decoration: InputDecoration(
+                                    contentPadding: EdgeInsets.zero,
+                                    isDense: true,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(
+                                        color: AppColors.outline,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(
+                                        color: AppColors.emerald,
+                                        width: 2,
+                                      ),
+                                    ),
+                                  ),
+                                  onChanged: (val) {
+                                    final parsed = int.tryParse(val.trim());
+                                    if (parsed != null &&
+                                        parsed > 0 &&
+                                        parsed <= totalPcs) {
+                                      setModalState(() {
+                                        selectedPieces = parsed;
+                                      });
+                                    }
+                                  },
                                 ),
                               ),
                             ),
                             InkWell(
                               onTap: () {
                                 if (selectedPieces < totalPcs) {
-                                  setModalState(() => selectedPieces++);
+                                  setModalState(() {
+                                    selectedPieces++;
+                                    backPiecesController.text =
+                                        '$selectedPieces';
+                                  });
                                 }
                               },
                               borderRadius: BorderRadius.circular(8),

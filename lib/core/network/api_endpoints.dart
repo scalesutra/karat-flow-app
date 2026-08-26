@@ -38,6 +38,8 @@ abstract final class ApiEndpoints {
   static const String uploadThreeD = '/three-d-designs/upload';
   static String reuploadThreeD(String id) => '/three-d-designs/$id/reupload';
   static String reviewThreeD(String id) => '/three-d-designs/$id/review';
+  static String updateThreeDProduct(String designId) =>
+      '/three-d-designs/$designId/product';
 
   // ── SECTION 7: Orders & Multi-Design Tracking (/orders) ──────────
   static const String orders = '/orders';

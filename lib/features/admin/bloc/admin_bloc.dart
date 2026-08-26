@@ -29,7 +29,8 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     on<ReviewSketchDirectiveEvent>(_onReviewSketchDirective);
     on<CheckSystemHealthEvent>(_onCheckHealth);
     on<SendDirectiveEvent>(_onUnsupportedDirective);
-    on<FetchStockInventoryEvent>(_onUnsupportedStock);
+    on<FetchStockInventoryEvent>(_onFetchStockInventory);
+    on<UpdateProductStockEvent>(_onUpdateProductStock);
   }
 
   final DemoStore _store;
@@ -41,18 +42,33 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
   ) async {
     emit(const AdminLoading());
     try {
+      debugPrint(
+        '🌐 [Admin BLoC] Fetching real live dashboard & stock data directly from backend API...',
+      );
       final employees = await _api.listEmployees();
       final customers = await _api.listCustomers(limit: 100);
       final sketches = await _api.listSketches(limit: 100);
       final stages = await _api.listStages();
+      final threeDDesigns = await _api.listThreeDDesigns(limit: 100);
+
+      debugPrint(
+        '📦 [Admin BLoC API RES] Received ${employees.length} employees, ${customers.length} customers, ${sketches.length} sketches, ${threeDDesigns.length} 3D design stock items from API.',
+      );
+
       final team = employees.map(ApiDomainMapper.employee).toList();
       final clients = customers.map(ApiDomainMapper.customer).toList();
       final designs = sketches.map(ApiDomainMapper.sketch).toList();
+      final cadTasks = threeDDesigns.map(ApiDomainMapper.cadTask).toList();
+      final stockItems = threeDDesigns.map(ApiDomainMapper.stockItem).toList();
+
       _store
         ..setTeam(team)
         ..setClients(clients)
         ..setDesigns(designs)
-        ..setStages(stages);
+        ..setStages(stages)
+        ..setCadTasks(cadTasks)
+        ..setStock(stockItems);
+
       emit(
         AdminLoaded(
           team: team,
@@ -61,15 +77,11 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
           directives: const [],
         ),
       );
-    } catch (_) {
-      emit(
-        AdminLoaded(
-          team: _store.team,
-          clients: _store.clients,
-          designs: _store.designs,
-          directives: const [],
-        ),
+    } catch (error) {
+      debugPrint(
+        '❌ [Admin BLoC API ERR] Failed to fetch live dashboard from API: $error',
       );
+      emit(AdminError('Failed to fetch dashboard data from API: $error'));
     }
   }
 
@@ -268,6 +280,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     emit(const AdminLoading());
     try {
       String? audioUrl;
+      String? imageUrl;
       final audioBytes = event.audioBytes;
       final audioFileName = event.audioFileName;
       if (audioBytes != null &&
@@ -283,14 +296,39 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         audioUrl = upload.fileUrl;
       }
 
+      final imageBytes = event.imageBytes;
+      final imageFileName = event.imageFileName;
+      if (imageBytes != null &&
+          imageBytes.isNotEmpty &&
+          imageFileName != null &&
+          imageFileName.isNotEmpty) {
+        final upload = await _api.uploadFile(
+          fileName: imageFileName,
+          fileType: _imageContentType(imageFileName),
+          folder: 'directive-images',
+          bytes: imageBytes,
+        );
+        imageUrl = upload.fileUrl;
+      }
+
       final cleanInstructions = event.instructions.trim().isNotEmpty
           ? event.instructions.trim()
-          : (audioUrl != null ? 'Voice Directive Note Attached' : 'Directive Note');
+          : audioUrl != null && imageUrl != null
+          ? 'Voice and Image Directive Attached'
+          : audioUrl != null
+          ? 'Voice Directive Note Attached'
+          : imageUrl != null
+          ? 'Image Directive Attached'
+          : 'Directive Note';
 
-      final storeMessage = audioUrl != null && audioUrl.isNotEmpty
-          ? '$cleanInstructions [ 🎙️ Voice Note: $audioUrl ]'
-          : cleanInstructions;
-      _store.addAdminDirective('CAD Designer', storeMessage);
+      var storeMessage = cleanInstructions;
+      if (audioUrl != null && audioUrl.isNotEmpty) {
+        storeMessage += ' [ 🎙️ Voice Note: $audioUrl ]';
+      }
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        storeMessage += ' [ 🖼️ Image: $imageUrl ]';
+      }
+      await _store.addAdminDirective('CAD Designer', storeMessage);
 
       try {
         await _api.reviewSketch(
@@ -298,6 +336,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
           status: 'REJECTED',
           adminInstructions: cleanInstructions,
           feedbackAudioUrl: audioUrl,
+          feedbackImageUrl: imageUrl,
         );
         debugPrint(
           '🎉 [Admin BLoC] Review sketch directive sent successfully via PATCH /sketches!',
@@ -312,6 +351,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
             status: 'REJECTED',
             adminInstructions: cleanInstructions,
             feedbackAudioUrl: audioUrl,
+            feedbackImageUrl: imageUrl,
           );
           debugPrint(
             '🎉 [Admin BLoC] Review 3D design directive sent successfully via PATCH /three-d-designs!',
@@ -347,6 +387,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     Emitter<AdminState> emit,
   ) async {
     String? audioUrl;
+    String? imageUrl;
     final bytes = event.audioBytes;
     final fileName = event.audioFileName;
     if (bytes != null && bytes.isNotEmpty && fileName != null) {
@@ -358,29 +399,92 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
           bytes: bytes,
         );
         audioUrl = upload.fileUrl;
-      } catch (_) {}
+      } catch (error) {
+        emit(AdminError('Failed to upload voice directive: $error'));
+        return;
+      }
     }
 
-    final fullDirective = audioUrl != null
-        ? '${event.directive} [ 🎙️ Voice Note: $audioUrl ]'
-        : event.directive;
+    final imageBytes = event.imageBytes;
+    final imageFileName = event.imageFileName;
+    if (imageBytes != null && imageBytes.isNotEmpty && imageFileName != null) {
+      try {
+        final upload = await _api.uploadFile(
+          fileName: imageFileName,
+          fileType: _imageContentType(imageFileName),
+          folder: 'directive-images',
+          bytes: imageBytes,
+        );
+        imageUrl = upload.fileUrl;
+      } catch (error) {
+        emit(AdminError('Failed to upload directive image: $error'));
+        return;
+      }
+    }
 
-    _store.addAdminDirective(event.recipient, fullDirective);
+    var fullDirective = event.directive;
+    if (audioUrl != null) {
+      fullDirective += ' [ 🎙️ Voice Note: $audioUrl ]';
+    }
+    if (imageUrl != null) {
+      fullDirective += ' [ 🖼️ Image: $imageUrl ]';
+    }
+
+    await _store.addAdminDirective(event.recipient, fullDirective);
     emit(
       AdminActionSuccess('Directive sent to ${event.recipient} successfully.'),
     );
     add(const FetchAdminDashboardEvent());
   }
 
-  void _onUnsupportedStock(
+  Future<void> _onFetchStockInventory(
     FetchStockInventoryEvent event,
     Emitter<AdminState> emit,
-  ) {
-    emit(
-      const AdminError(
-        'The backend API does not provide a stock inventory endpoint.',
-      ),
-    );
+  ) async {
+    try {
+      debugPrint(
+        '🌐 [Admin BLoC] Fetching stock inventory items directly from API /three-d-designs...',
+      );
+      final threeDDesigns = await _api.listThreeDDesigns(limit: 100);
+      final stockItems = threeDDesigns.map(ApiDomainMapper.stockItem).toList();
+      debugPrint(
+        '📦 [Admin BLoC Stock API RES] ${stockItems.length} real stock items fetched directly from API.',
+      );
+      _store.setStock(stockItems);
+    } catch (error) {
+      debugPrint(
+        '❌ [Admin BLoC Stock API ERR] Failed to fetch stock inventory: $error',
+      );
+    }
+  }
+
+  Future<void> _onUpdateProductStock(
+    UpdateProductStockEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    emit(const AdminLoading());
+    try {
+      await _api.updateThreeDProductStock(
+        designId: event.designId,
+        stock: event.stock,
+        stockStatus: event.stockStatus,
+        price: event.price,
+        title: event.title,
+        category: event.category,
+        goldQuantity: event.goldQuantity,
+        totalWeight: event.totalWeight,
+        description: event.description,
+        imageUrl: event.imageUrl,
+      );
+      emit(
+        const AdminActionSuccess(
+          'Product catalog record & stock updated successfully.',
+        ),
+      );
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      emit(AdminError('Failed to update product stock: $error'));
+    }
   }
 
   String _imageContentType(String fileName) {
