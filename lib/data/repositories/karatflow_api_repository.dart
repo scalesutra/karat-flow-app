@@ -178,13 +178,30 @@ class KaratFlowApiRepository {
     return ApiCustomer.fromJson(data);
   }
 
+  static const List<ApiStage> defaultStages = [
+    ApiStage(id: 'stage-1', name: 'In Queue', stageNumber: 1),
+    ApiStage(id: 'stage-2', name: 'CAD & Wax', stageNumber: 2),
+    ApiStage(id: 'stage-3', name: 'Casting', stageNumber: 3),
+    ApiStage(id: 'stage-4', name: 'Filing & Assembly', stageNumber: 4),
+    ApiStage(id: 'stage-5', name: 'Stone Setting', stageNumber: 5),
+    ApiStage(id: 'stage-6', name: 'Polishing', stageNumber: 6),
+    ApiStage(id: 'stage-7', name: 'Quality Check & Packing', stageNumber: 7),
+    ApiStage(id: 'stage-8', name: 'Ready for Dispatch', stageNumber: 8),
+  ];
+
   // ── SECTION 4: Dynamic Production Stages (/stages) ───────────────
   Future<List<ApiStage>> listStages() async {
-    final response = await _api.get(ApiEndpoints.stages);
-    final list = response.data['data'] as List? ?? [];
-    return list
-        .map((s) => ApiStage.fromJson(s as Map<String, dynamic>))
-        .toList();
+    try {
+      final response = await _api.get(ApiEndpoints.stages);
+      final list = response.data['data'] as List? ?? [];
+      final stages = list
+          .map((s) => ApiStage.fromJson(s as Map<String, dynamic>))
+          .toList();
+      if (stages.isNotEmpty) return stages;
+    } catch (_) {
+      // Fallback to default production stages on network failure
+    }
+    return defaultStages;
   }
 
   Future<ApiStage> createStage({

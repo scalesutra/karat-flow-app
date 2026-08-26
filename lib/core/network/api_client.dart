@@ -173,7 +173,10 @@ class ApiClient {
             }
           }
 
-          debugPrint('❌ [API ERR] $statusCode <- $method $path');
+          final errorDetail = statusCode == 'NO_STATUS'
+              ? ' (${error.type}: ${error.message ?? 'Server connection failed'})'
+              : '';
+          debugPrint('❌ [API ERR] $statusCode$errorDetail <- $method $path');
           if (error.response?.data != null) {
             debugPrint('❌ [API ERR DATA] ${error.response?.data}');
           }

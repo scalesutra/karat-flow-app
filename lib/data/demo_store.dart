@@ -10,7 +10,16 @@ import 'models/api_models.dart';
 import '../domain/models.dart';
 
 class DemoStore extends ChangeNotifier {
-  static const _adminDirectivesStorageKey = 'karatflow.admin_directives.v1';
+  static const List<ApiStage> _defaultStages = [
+    ApiStage(id: 'stage-1', name: 'In Queue', stageNumber: 1),
+    ApiStage(id: 'stage-2', name: 'CAD & Wax', stageNumber: 2),
+    ApiStage(id: 'stage-3', name: 'Casting', stageNumber: 3),
+    ApiStage(id: 'stage-4', name: 'Filing & Assembly', stageNumber: 4),
+    ApiStage(id: 'stage-5', name: 'Stone Setting', stageNumber: 5),
+    ApiStage(id: 'stage-6', name: 'Polishing', stageNumber: 6),
+    ApiStage(id: 'stage-7', name: 'Quality Check & Packing', stageNumber: 7),
+    ApiStage(id: 'stage-8', name: 'Ready for Dispatch', stageNumber: 8),
+  ];
 
   static final DemoStore _instance = DemoStore.empty();
   static DemoStore get instance => _instance;
@@ -31,7 +40,7 @@ class DemoStore extends ChangeNotifier {
       _orders = [],
       _clients = [],
       _lots = [],
-      _stages = [],
+      _stages = List.from(_defaultStages),
       _recentScans = [],
       _team = [],
       _stock = [],
@@ -992,11 +1001,14 @@ class DemoStore extends ChangeNotifier {
   }
 
   void setStages(List<ApiStage> stages) {
-    _stages
-      ..clear()
-      ..addAll(stages.where((stage) => stage.isActive));
-    _stages.sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
-    notifyListeners();
+    final active = stages.where((stage) => stage.isActive).toList();
+    if (active.isNotEmpty) {
+      _stages
+        ..clear()
+        ..addAll(active);
+      _stages.sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+      notifyListeners();
+    }
   }
 
   void setCadTasks(List<CadDesignTask> tasks) {
