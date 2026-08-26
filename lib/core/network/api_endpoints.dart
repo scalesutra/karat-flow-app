@@ -2,7 +2,7 @@
 /// Matches the live API server specifications (Host: 134.195.138.153:5080)
 abstract final class ApiEndpoints {
   // ── Base Configurations ───────────────────────────────────────────
-  static const String baseUrl = 'http://134.195.138.153:5080/api/v1';
+  static const String baseUrl = 'https://ka.scalesutra.com/api/v1';
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration receiveTimeout = Duration(seconds: 15);
 
