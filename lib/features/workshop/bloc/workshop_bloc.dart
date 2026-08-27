@@ -45,8 +45,18 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
       final roleStr = await _tokenStorage.getUserRole();
       final appRole = AppRole.fromRoleString(roleStr);
       final stages = await _api.listStages();
+      // Stage IDs in the production response need this lookup during mapping.
+      _store.setStages(stages);
       final isWorker = appRole == AppRole.workshopArtisan;
       final isFrontier = appRole == AppRole.frontOffice;
+      final canManageAssignments =
+          appRole == AppRole.admin || appRole == AppRole.processManager;
+      final team = canManageAssignments
+          ? (await _api.listEmployees()).map(ApiDomainMapper.employee).toList()
+          : <TeamMember>[];
+      // Pending production may contain only an employee ID. Hydrate employees
+      // first so assignments survive a fresh app launch without local fallback.
+      _store.setTeam(team);
       List<WorkshopLot> lots = [];
       if (isWorker) {
         lots = (await _api.listWorkerTasks())
@@ -63,15 +73,8 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
       } else {
         lots = <WorkshopLot>[];
       }
-      final canManageAssignments =
-          appRole == AppRole.admin || appRole == AppRole.processManager;
-      final team = canManageAssignments
-          ? (await _api.listEmployees()).map(ApiDomainMapper.employee).toList()
-          : <TeamMember>[];
-
       _store
         ..setLots(lots)
-        ..setTeam(team)
         ..setStages(stages);
 
       for (final lot in lots) {
@@ -102,13 +105,17 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     try {
       final data = await _api.transitionPartNextStage(
         partId: event.lotId,
+        quantity: event.quantity,
         notes: 'Stage advanced from KaratFlow mobile app',
       );
       final currentStage = data?['currentStage'] as String?;
       final isComplete = data?['isComplete'] as bool? ?? false;
-      if (isComplete || currentStage == 'ALL_STAGES_COMPLETED') {
+      if (event.quantity == null &&
+          (isComplete || currentStage == 'ALL_STAGES_COMPLETED')) {
         _store.updateLotStage(event.lotId, WorkshopStage.readyForDispatch);
-      } else if (currentStage != null && currentStage.isNotEmpty) {
+      } else if (event.quantity == null &&
+          currentStage != null &&
+          currentStage.isNotEmpty) {
         _store.updateLotStage(event.lotId, ApiDomainMapper.stage(currentStage));
       }
       emit(const WorkshopStageUpdated('Part advanced successfully.'));
@@ -159,8 +166,11 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
         partId: event.lotId,
         targetStageId: event.targetStageId,
         reason: event.reason,
+        quantity: event.quantity,
       );
-      _store.updateLotStage(event.lotId, _stageForId(event.targetStageId));
+      if (event.quantity == null) {
+        _store.updateLotStage(event.lotId, _stageForId(event.targetStageId));
+      }
       emit(const WorkshopStageUpdated('Part rolled back successfully.'));
       add(const FetchWorkshopLotsEvent());
     } catch (error) {

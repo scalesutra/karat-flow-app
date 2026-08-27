@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/services/live_data_bloc_coordinator.dart';
 import '../../core/widgets/common_button.dart';
 import '../../core/widgets/common_progress_indicator.dart';
 import '../../core/widgets/common_snackbar.dart';
@@ -56,8 +55,6 @@ class _LoginPageState extends State<LoginPage> {
                 : Get.put(AppRoleController(), permanent: true);
             final targetRole = AppRole.fromRoleString(state.role);
             roleController.setRole(targetRole);
-            LiveDataBlocCoordinator.refreshForRole(context, targetRole);
-
             if (!context.mounted) return;
 
             CommonSnackbar.success(

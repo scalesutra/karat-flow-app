@@ -6,7 +6,6 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_images.dart';
 import '../../core/localization/localization.dart';
 import '../../core/network/token_storage_service.dart';
-import '../../core/services/live_data_bloc_coordinator.dart';
 import '../../data/repositories/karatflow_api_repository.dart';
 import '../../domain/models.dart';
 import '../../routes/app_pages.dart';
@@ -130,7 +129,6 @@ class _SplashScreenState extends State<SplashScreen>
             : Get.put(AppRoleController(), permanent: true);
         roleController.setRole(targetRole);
         if (mounted) {
-          LiveDataBlocCoordinator.refreshForRole(context, targetRole);
           Get.offAllNamed(Routes.shell);
           return;
         }

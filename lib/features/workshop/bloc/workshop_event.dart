@@ -12,9 +12,10 @@ final class FetchWorkshopLotsEvent extends WorkshopEvent {
 
 /// Advance lot pouch to next jewellery stage
 final class AdvanceLotStageEvent extends WorkshopEvent {
-  const AdvanceLotStageEvent(this.lotId);
+  const AdvanceLotStageEvent(this.lotId, {this.quantity});
 
   final String lotId;
+  final int? quantity;
 }
 
 /// Allocate lot to a specific artisan / goldsmith
@@ -37,11 +38,13 @@ final class RollbackLotStageEvent extends WorkshopEvent {
     required this.lotId,
     required this.targetStageId,
     required this.reason,
+    this.quantity,
   });
 
   final String lotId;
   final String targetStageId;
   final String reason;
+  final int? quantity;
 }
 
 final class BlockLotPartEvent extends WorkshopEvent {

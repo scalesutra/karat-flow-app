@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/network/token_storage_service.dart';
+import '../../../core/network/api_error_handler.dart';
 import '../../../data/repositories/karatflow_api_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -105,7 +106,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
     } catch (e) {
       debugPrint('❌ [AuthBloc] Login failed with error: $e');
-      emit(AuthError('Login failed: ${e.toString()}'));
+      emit(
+        AuthError(
+          ApiErrorHandler.parseMessage(
+            e,
+            fallback: 'Login failed. Check your email and password.',
+          ),
+        ),
+      );
     }
   }
 

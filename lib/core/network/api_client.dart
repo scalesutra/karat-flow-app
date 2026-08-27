@@ -68,8 +68,10 @@ class ApiClient {
 
       if (response.statusCode == 200 && response.data != null) {
         final data = response.data!['data'] as Map<String, dynamic>?;
-        final newToken = (data?['token'] ?? data?['accessToken']) as String? ?? '';
-        final newRefreshToken = (data?['refreshToken'] ?? data?['refresh_token']) as String? ?? '';
+        final newToken =
+            (data?['token'] ?? data?['accessToken']) as String? ?? '';
+        final newRefreshToken =
+            (data?['refreshToken'] ?? data?['refresh_token']) as String? ?? '';
 
         if (newToken.isNotEmpty) {
           await _tokenStorage.saveAccessToken(newToken);
@@ -157,6 +159,10 @@ class ApiClient {
 
           // Handle 401 Unauthorized with Automatic Silent Token Refresh in Background
           if (error.response?.statusCode == 401 && !isAuthEndpoint) {
+            final storedRefreshToken = await _tokenStorage.getRefreshToken();
+            if (storedRefreshToken == null || storedRefreshToken.isEmpty) {
+              return handler.next(error);
+            }
             debugPrint(
               '🔄 [TOKEN REFRESH] 401 Unauthorized on $method $path. Refreshing token silently...',
             );

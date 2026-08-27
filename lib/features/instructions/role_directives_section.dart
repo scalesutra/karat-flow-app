@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/common_card.dart';
 import '../../data/demo_store.dart';
 import '../../domain/models.dart';
+import '../directives/bloc/directives_bloc.dart';
 import 'directive_audio.dart';
 
 class RoleDirectivesSection extends StatelessWidget {
@@ -133,8 +135,9 @@ class _RoleDirectiveTile extends StatelessWidget {
           if (!acknowledged) ...[
             const SizedBox(height: 4),
             TextButton.icon(
-              onPressed: () =>
-                  store.acknowledgeDirective(directive['id'] ?? ''),
+              onPressed: () => context.read<DirectivesBloc>().add(
+                AcknowledgeDirectiveEvent(directive['id'] ?? ''),
+              ),
               icon: const Icon(Icons.done, size: 16),
               label: const Text('Acknowledge'),
             ),

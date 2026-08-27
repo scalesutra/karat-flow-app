@@ -7,6 +7,7 @@ import '../../data/demo_store.dart';
 import '../../domain/models.dart';
 import '../auth/bloc/auth_bloc.dart';
 import '../auth/widgets/authenticated_profile_card.dart';
+import '../directives/bloc/directives_bloc.dart';
 import '../instructions/role_directives_section.dart';
 
 class WorkshopMorePage extends StatefulWidget {
@@ -322,15 +323,10 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                                   if (!isAck)
                                     InkWell(
                                       onTap: () {
-                                        widget.store.acknowledgeDirective(
-                                          directive['id']!,
-                                        );
-                                        CommonSnackbar.success(
-                                          context,
-                                          title: 'Directive Acknowledged',
-                                          message:
-                                              'Marked ${directive['id']} as acknowledged.',
-                                          duration: const Duration(seconds: 2),
+                                        context.read<DirectivesBloc>().add(
+                                          AcknowledgeDirectiveEvent(
+                                            directive['id']!,
+                                          ),
                                         );
                                       },
                                       borderRadius: BorderRadius.circular(6),

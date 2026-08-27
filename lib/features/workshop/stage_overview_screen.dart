@@ -27,6 +27,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   final Map<String, bool> _expandedItems = {};
 
   late final String _orderId;
+  late final String _apiOrderId;
   late final String _title;
   late final String _client;
   late final String _artisan;
@@ -39,6 +40,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   void initState() {
     super.initState();
     _orderId = widget.orderData['id'] as String? ?? '';
+    _apiOrderId = widget.orderData['apiId'] as String? ?? '';
     _title = widget.orderData['title'] as String? ?? '';
     _client = widget.orderData['client'] as String? ?? '';
     _artisan = widget.orderData['artisan'] as String? ?? '';
@@ -89,18 +91,16 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     final pCodeLower = part.code.toLowerCase();
     final pNameLower = part.name.toLowerCase();
 
-    // 2. Search DemoStore lots for matching lot UUID by designCode, productTitle, or id
+    // Match only API lots that belong to this order/part.
     for (final lot in DemoStore.instance.lots) {
+      final matchesOrder =
+          lot.orderId == _orderId ||
+          (_apiOrderId.isNotEmpty && lot.orderId == _apiOrderId);
       final matchesPart =
-          lot.designCode.toLowerCase() == pCodeLower ||
-          lot.productTitle.toLowerCase() == pNameLower ||
           lot.id.toLowerCase() == pCodeLower ||
-          (pCodeLower.isNotEmpty &&
-              (lot.designCode.toLowerCase().contains(pCodeLower) ||
-                  pCodeLower.contains(lot.designCode.toLowerCase()))) ||
-          (pNameLower.isNotEmpty &&
-              (lot.productTitle.toLowerCase().contains(pNameLower) ||
-                  pNameLower.contains(lot.productTitle.toLowerCase())));
+          (matchesOrder &&
+              (lot.designCode.toLowerCase() == pCodeLower ||
+                  lot.productTitle.toLowerCase() == pNameLower));
       if (matchesPart) {
         if (lot.id.length > 20 &&
             lot.id.contains('-') &&
@@ -121,12 +121,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           final pid = p['id'] as String? ?? '';
           if ((dNum == pCodeLower ||
                   pName == pNameLower ||
-                  (pCodeLower.isNotEmpty &&
-                      (dNum.contains(pCodeLower) ||
-                          pCodeLower.contains(dNum))) ||
-                  (pNameLower.isNotEmpty &&
-                      (pName.contains(pNameLower) ||
-                          pNameLower.contains(pName)))) &&
+                  (pCodeLower.isNotEmpty && dNum == pCodeLower) ||
+                  (pNameLower.isNotEmpty && pName == pNameLower)) &&
               pid.length > 20 &&
               pid.contains('-') &&
               !pid.toUpperCase().startsWith('ORD-')) {
@@ -147,6 +143,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           lot.id.contains('-') &&
           !lot.id.toUpperCase().startsWith('ORD-')) {
         if ((rawId.isNotEmpty && (lot.orderId == rawId || lot.id == rawId)) ||
+            (_apiOrderId.isNotEmpty && lot.orderId == _apiOrderId) ||
             (orderNum.isNotEmpty && lot.orderId == orderNum)) {
           return lot.id;
         }
@@ -246,9 +243,14 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     return WorkshopStage.values[index.toInt()];
   }
 
-  void _advanceLivePart(BuildContext context, JewelleryPart part) {
+  void _advanceLivePart(
+    BuildContext context,
+    JewelleryPart part, {
+    int? quantity,
+  }) {
     final nextIdx = part.stage.index + 1;
-    if (nextIdx < WorkshopStage.values.length) {
+    final movingWholePart = quantity == null || quantity >= part.pieces;
+    if (movingWholePart && nextIdx < WorkshopStage.values.length) {
       final nextStage = WorkshopStage.values[nextIdx];
       widget.orderData['currentStageName'] = nextStage.label;
       widget.orderData['stage'] = nextStage.label;
@@ -267,15 +269,17 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       );
       return;
     }
-    DemoStore.instance.advanceLotStage(partId);
-    context.read<WorkshopBloc>().add(AdvanceLotStageEvent(partId));
+    context.read<WorkshopBloc>().add(
+      AdvanceLotStageEvent(partId, quantity: quantity),
+    );
   }
 
   void _rollbackLivePart(
     BuildContext context,
     JewelleryPart part,
-    WorkshopStage target,
-  ) {
+    WorkshopStage target, {
+    int? quantity,
+  }) {
     final partId = _livePartId(part);
     final stages = DemoStore.instance.stages.where(
       (stage) => _domainStage(stage) == target,
@@ -288,14 +292,16 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       );
       return;
     }
-    widget.orderData['currentStageName'] = target.label;
-    widget.orderData['stage'] = target.label;
-    DemoStore.instance.updateLotStage(partId, target);
+    if (quantity == null || quantity >= part.pieces) {
+      widget.orderData['currentStageName'] = target.label;
+      widget.orderData['stage'] = target.label;
+    }
     context.read<WorkshopBloc>().add(
       RollbackLotStageEvent(
         lotId: partId,
         targetStageId: stages.first.id,
         reason: 'Manual rollback from the KaratFlow mobile app',
+        quantity: quantity,
       ),
     );
   }
@@ -327,29 +333,22 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         widget.orderData['partId'] as String? ??
         widget.orderData['livePartId'] as String? ??
         '';
+    final rawDesignRows = widget.orderData['designs'];
+    final designRows = rawDesignRows is List
+        ? rawDesignRows.cast<Map<String, Object?>>()
+        : const <Map<String, Object?>>[];
+    final partIds = designRows
+        .map((row) => row['partId'] as String? ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
 
     final storeLots = DemoStore.instance.lots.where((l) {
       if (partIdParam.isNotEmpty && l.id == partIdParam) return true;
-      if (l.orderId.isNotEmpty) {
-        if (l.orderId == _orderId ||
-            l.orderId == rawId ||
-            l.orderId == orderNum) {
-          return true;
-        }
-        if (_orderId.isNotEmpty &&
-            (l.orderId.contains(_orderId) || _orderId.contains(l.orderId))) {
-          return true;
-        }
-      }
-      if (l.designCode.isNotEmpty) {
-        if (l.designCode == designNum ||
-            _title.contains(l.designCode) ||
-            rawId.contains(l.designCode) ||
-            _orderId.contains(l.designCode)) {
-          return true;
-        }
-      }
-      return false;
+      if (partIds.contains(l.id)) return true;
+      return l.orderId == _orderId ||
+          (_apiOrderId.isNotEmpty && l.orderId == _apiOrderId) ||
+          (rawId.isNotEmpty && l.orderId == rawId) ||
+          (orderNum.isNotEmpty && l.orderId == orderNum);
     }).toList();
 
     if (storeLots.isNotEmpty) {
@@ -1102,17 +1101,16 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                 final partId = _livePartId(part);
 
                                 if (partId != null) {
-                                  if (passedPcs >= totalPcs) {
-                                    _advanceLivePart(context, part);
-                                  } else if (passedPcs > 0) {
-                                    DemoStore.instance.splitWorkshopLot(
-                                      lotId: partId,
-                                      movedPieces: passedPcs,
-                                      targetStage: nextStage,
+                                  if (passedPcs > 0) {
+                                    _advanceLivePart(
+                                      context,
+                                      part,
+                                      quantity: passedPcs,
                                     );
                                   }
-                                  if (nextStage ==
-                                      WorkshopStage.readyForDispatch) {
+                                  if (passedPcs >= totalPcs &&
+                                      nextStage ==
+                                          WorkshopStage.readyForDispatch) {
                                     widget.orderData['status'] = 'complete';
                                     DemoStore.instance.updateOrderStatus(
                                       _orderId,
@@ -1413,7 +1411,12 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
                         return InkWell(
                           onTap: () {
-                            _rollbackLivePart(context, part, stage);
+                            _rollbackLivePart(
+                              context,
+                              part,
+                              stage,
+                              quantity: selectedPieces,
+                            );
 
                             Navigator.pop(ctx);
                             setState(() {

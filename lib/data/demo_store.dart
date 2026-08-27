@@ -1,17 +1,12 @@
-import 'dart:async';
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../domain/directive_recipients.dart';
 import '../routes/app_pages.dart';
+import 'mappers/api_domain_mapper.dart';
 import 'models/api_models.dart';
 import '../domain/models.dart';
 
 class DemoStore extends ChangeNotifier {
-  static const _adminDirectivesStorageKey = 'karatflow.admin_directives.v1';
-
   static final DemoStore _instance = DemoStore.empty();
   static DemoStore get instance => _instance;
 
@@ -61,44 +56,20 @@ class DemoStore extends ChangeNotifier {
   final List<Map<String, String>> _adminDirectives = [];
 
   List<Map<String, String>> get adminDirectives => _adminDirectives;
+  List<Map<String, String>> get activeAdminDirectives => _adminDirectives
+      .where((directive) => directive['status'] == 'Active')
+      .toList(growable: false);
 
   List<Map<String, String>> directivesForRole(AppRole role) => _adminDirectives
       .where(
         (directive) =>
+            directive['status'] == 'Active' &&
             DirectiveRecipients.matchesRole(directive['recipient'] ?? '', role),
       )
       .toList();
 
-  Future<void> initialize() async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      final stored = preferences.getString(_adminDirectivesStorageKey);
-      if (stored == null || stored.isEmpty) return;
-
-      final decoded = jsonDecode(stored);
-      if (decoded is! List) return;
-
-      final restored = decoded
-          .whereType<Map>()
-          .map(
-            (item) => item.map(
-              (key, value) => MapEntry(key.toString(), value.toString()),
-            ),
-          )
-          .where((item) => item['id']?.isNotEmpty == true)
-          .toList();
-
-      _adminDirectives
-        ..clear()
-        ..addAll(restored);
-
-      for (final directive in restored.reversed) {
-        _instructions.insert(0, _instructionForDirective(directive));
-      }
-    } catch (error) {
-      debugPrint('Could not restore saved admin directives: $error');
-    }
-  }
+  /// Kept for app bootstrap compatibility. Live data is loaded by API BLoCs.
+  Future<void> initialize() async {}
 
   List<Map<String, String>> cadDirectives() => _adminDirectives
       .where(
@@ -122,87 +93,67 @@ class DemoStore extends ChangeNotifier {
       )
       .toList();
 
-  Future<void> addAdminDirective(String recipient, String content) async {
-    final id = 'DIR-00${_adminDirectives.length + 1}';
-    final now = DateTime.now();
-    _adminDirectives.insert(0, {
-      'id': id,
-      'date': _displayDate(now),
-      'createdAt': now.toIso8601String(),
-      'recipient': recipient,
-      'content': content,
-      'status': 'Active',
-    });
-
-    _instructions.insert(0, _instructionForDirective(_adminDirectives.first));
-
-    await _writeAdminDirectives(jsonEncode(_adminDirectives));
-    notifyListeners();
-  }
-
-  void acknowledgeDirective(String id) {
-    final index = _adminDirectives.indexWhere((d) => d['id'] == id);
-    if (index >= 0) {
-      _adminDirectives[index] = {
-        ..._adminDirectives[index],
-        'status': 'Acknowledged',
-      };
-      _persistAdminDirectives();
-      notifyListeners();
-    }
-  }
-
-  void deleteDirective(String id) {
-    _adminDirectives.removeWhere((d) => d['id'] == id);
-    _instructions.removeWhere((instruction) => instruction.id == id);
-    _persistAdminDirectives();
-    notifyListeners();
-  }
-
-  Instruction _instructionForDirective(Map<String, String> directive) {
-    final id = directive['id'] ?? 'DIR';
-    final recipient = directive['recipient'] ?? 'All';
-    final content = directive['content'] ?? '';
-    final savedStatus = (directive['status'] ?? 'Active').toLowerCase();
-    return Instruction(
-      id: id,
-      targetId: id,
-      targetLabel: 'Directive to $recipient',
-      message: content,
-      createdBy: 'Admin',
-      assignedTo: recipient,
-      urgency: InstructionUrgency.urgent,
-      status: switch (savedStatus) {
-        'approved' || 'resolved' => InstructionStatus.resolved,
-        'in progress' => InstructionStatus.inProgress,
-        'acknowledged' => InstructionStatus.acknowledged,
-        _ => InstructionStatus.sent,
-      },
-      createdAt:
-          DateTime.tryParse(directive['createdAt'] ?? '') ?? DateTime.now(),
-      hasPhoto: content.contains('[ 🖼️ Image: '),
-      hasVoice: content.contains('[ 🎙️ Voice Note: '),
+  void setApiDirectives(List<ApiDirective> directives) {
+    final previousIds = _adminDirectives
+        .map((directive) => directive['id'])
+        .whereType<String>()
+        .toSet();
+    _instructions.removeWhere(
+      (instruction) => previousIds.contains(instruction.id),
     );
+    _adminDirectives
+      ..clear()
+      ..addAll(directives.map(_apiDirectiveMap));
+    _instructions.addAll(directives.map(ApiDomainMapper.directive));
+    notifyListeners();
   }
+
+  void upsertApiDirective(ApiDirective directive) {
+    final index = _adminDirectives.indexWhere(
+      (item) => item['id'] == directive.id,
+    );
+    final mapped = _apiDirectiveMap(directive);
+    if (index < 0) {
+      _adminDirectives.insert(0, mapped);
+    } else {
+      _adminDirectives[index] = mapped;
+    }
+    _instructions.removeWhere((item) => item.id == directive.id);
+    _instructions.add(ApiDomainMapper.directive(directive));
+    notifyListeners();
+  }
+
+  Map<String, String> _apiDirectiveMap(ApiDirective directive) {
+    final createdAt = DateTime.tryParse(directive.createdAt ?? '');
+    return {
+      'id': directive.id,
+      'date': createdAt == null ? '' : _displayDate(createdAt.toLocal()),
+      'createdAt': directive.createdAt ?? '',
+      'recipient': _directiveRecipient(directive.targetType),
+      'content': directive.instruction,
+      'status': directive.status.toUpperCase() == 'ACKNOWLEDGED'
+          ? 'Acknowledged'
+          : 'Active',
+      'audioUrl': directive.audioUrl ?? '',
+      'imageUrl': directive.imageUrl ?? '',
+    };
+  }
+
+  String _directiveRecipient(String targetType) =>
+      switch (targetType.trim().toUpperCase()) {
+        'THREE_D_DESIGNER' || 'CAD_DESIGNER' => 'CAD Designer',
+        'SKETCHER' || 'RAW_DESIGNER' => 'Raw Designer',
+        'ALL_ARTISANS' || 'BENCH_ARTISAN' => 'Workshop Artisan',
+        'PROCESS_MANAGER' || 'PRODUCTION_MANAGER' => 'Product Manager',
+        'FRONT_OFFICE' => 'Front Office',
+        'ALL' || 'ALL_TEAMS' => DirectiveRecipients.allTeams,
+        _ => targetType.replaceAll('_', ' '),
+      };
 
   String _displayDate(DateTime value) {
     final day = value.day.toString().padLeft(2, '0');
     final month = value.month.toString().padLeft(2, '0');
     return '$day-$month-${value.year}';
-  }
-
-  void _persistAdminDirectives() {
-    final payload = jsonEncode(_adminDirectives);
-    unawaited(_writeAdminDirectives(payload));
-  }
-
-  Future<void> _writeAdminDirectives(String payload) async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.setString(_adminDirectivesStorageKey, payload);
-    } catch (error) {
-      debugPrint('Could not persist admin directives: $error');
-    }
   }
 
   void approveSketch(String designCode) {
@@ -233,27 +184,55 @@ class DemoStore extends ChangeNotifier {
   List<WorkItem> workItemsFor(StatusPivot pivot) {
     if (pivot == StatusPivot.orders) {
       return _orders
-          .map(
-            (order) => WorkItem(
+          .map((order) {
+            final partIds = order.designs
+                .map((design) => design.partId)
+                .where((id) => id.isNotEmpty)
+                .toSet();
+            final orderLots = _lots.where(
+              (lot) =>
+                  lot.orderId == order.id ||
+                  (order.apiId.isNotEmpty && lot.orderId == order.apiId) ||
+                  partIds.contains(lot.id),
+            );
+            final blockedLots = orderLots
+                .where((lot) => lot.blockerReason?.isNotEmpty == true)
+                .toList(growable: false);
+            final activeStages = orderLots
+                .map((lot) => lot.stage.label)
+                .where((stage) => stage.isNotEmpty)
+                .toSet();
+            final stageLabel = activeStages.length > 1
+                ? '${activeStages.length} active stages'
+                : activeStages.firstOrNull ?? order.currentWorkshopStage;
+            final isOnHold = order.isBlocked || blockedLots.isNotEmpty;
+            final holdReason =
+                order.blockedReason ?? blockedLots.firstOrNull?.blockerReason;
+
+            return WorkItem(
               id: order.id,
               pivot: pivot,
               title: order.clientFirmName,
               subtitle: [
-                order.itemsSummary,
-                order.currentWorkshopStage,
+                order.designs.isEmpty
+                    ? order.itemsSummary
+                    : '${order.designs.length} designs',
+                stageLabel,
               ].where((value) => value.isNotEmpty).join(' · '),
-              status: order.status.label,
+              status: isOnHold
+                  ? 'ON HOLD${holdReason?.isNotEmpty == true ? ' · $holdReason' : ''}'
+                  : order.status.label,
               quantity: '${order.itemsCount} pcs',
               owner: order.responsibleManager,
-              tone: order.isBlocked ? HealthTone.critical : HealthTone.healthy,
+              tone: isOnHold ? HealthTone.critical : HealthTone.healthy,
               metrics: {
-                'Weight': '${order.totalGrossGrams}g',
-                'Due': order.promiseDate,
-                'Stage': order.currentWorkshopStage,
+                'Designs': '${order.designs.length}',
+                'Pieces': '${order.itemsCount}',
+                'Stage': stageLabel,
               },
               timeline: const [],
-            ),
-          )
+            );
+          })
           .toList(growable: false);
     }
     if (pivot == StatusPivot.people) {
@@ -268,34 +247,40 @@ class DemoStore extends ChangeNotifier {
               quantity: '${member.activeLotsCount} lots',
               owner: member.shift,
               tone: member.status.tone,
-              metrics: {
-                'Active lots': '${member.activeLotsCount}',
-                'Efficiency': '${member.todayEfficiencyPercent}%',
-              },
+              metrics: {'Active lots': '${member.activeLotsCount}'},
               timeline: const [],
             ),
           )
           .toList(growable: false);
     }
-    return _stages
+    return (_stages.toList()
+          ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber)))
         .map((stage) {
-          final stageIndex = (stage.stageNumber - 1)
-              .clamp(0, WorkshopStage.values.length - 1)
-              .toInt();
-          final lotCount = _lots
-              .where((lot) => lot.stage == WorkshopStage.values[stageIndex])
-              .length;
+          final domainStage = ApiDomainMapper.stage(stage.name);
+          final stageLots = lotsForStage(stage);
+          final lotCount = stageLots.length;
+          final pieceCount = stageLots.fold<int>(
+            0,
+            (sum, lot) => sum + lot.pieces,
+          );
+          final heldCount = stageLots.where((lot) => lot.isOnHold).length;
           return WorkItem(
             id: stage.name,
             pivot: pivot,
             title: stage.name,
-            subtitle: 'Stage ${stage.stageNumber} · Production Routing',
-            status: lotCount > 0 ? '$lotCount Lots Active' : 'Idle',
-            quantity: '$lotCount lots in floor',
-            owner: 'Workshop Manager',
-            tone: HealthTone.healthy,
+            subtitle: 'Stage ${stage.stageNumber}',
+            status: heldCount > 0
+                ? '$heldCount on hold'
+                : pieceCount > 0
+                ? '$pieceCount pieces active'
+                : 'No active work',
+            quantity: '$pieceCount pcs · $lotCount lots',
+            owner: '',
+            tone: heldCount > 0 ? HealthTone.critical : HealthTone.healthy,
             metrics: {
               'Active lots': '$lotCount',
+              'Pieces': '$pieceCount',
+              'On hold': '$heldCount',
               'Stage No.': '${stage.stageNumber}',
             },
             timeline: const [],
@@ -336,30 +321,6 @@ class DemoStore extends ChangeNotifier {
     _instructions.add(instruction);
     notifyListeners();
     return instruction;
-  }
-
-  void setInstructionStatus(String id, InstructionStatus status) {
-    final index = _instructions.indexWhere((item) => item.id == id);
-    if (index == -1) return;
-    _instructions[index] = _instructions[index].copyWith(status: status);
-
-    final directiveIndex = _adminDirectives.indexWhere(
-      (directive) => directive['id'] == id,
-    );
-    if (directiveIndex >= 0) {
-      _adminDirectives[directiveIndex] = {
-        ..._adminDirectives[directiveIndex],
-        'status': switch (status) {
-          InstructionStatus.sent => 'Active',
-          InstructionStatus.acknowledged => 'Acknowledged',
-          InstructionStatus.inProgress => 'In Progress',
-          InstructionStatus.resolved => 'Approved',
-        },
-      };
-      _persistAdminDirectives();
-    }
-
-    notifyListeners();
   }
 
   // -----------------------------------------------------------------
@@ -790,6 +751,55 @@ class DemoStore extends ChangeNotifier {
   // WORKSHOP: LOTS & SCANNER
   // -----------------------------------------------------------------
   List<WorkshopLot> get lots => List.unmodifiable(_lots);
+  int get heldLotsCount => _lots.where((lot) => lot.isOnHold).length;
+
+  List<WorkshopLot> lotsForStage(ApiStage apiStage) {
+    final normalizedName = _normalizedStageName(apiStage.name);
+    final domainStage = ApiDomainMapper.stage(apiStage.name);
+
+    return _lots
+        .where((lot) {
+          if (lot.apiStageId.isNotEmpty && apiStage.id.isNotEmpty) {
+            return lot.apiStageId == apiStage.id;
+          }
+          if (lot.apiStageName.isNotEmpty) {
+            return _normalizedStageName(lot.apiStageName) == normalizedName;
+          }
+          return lot.stage == domainStage;
+        })
+        .toList(growable: false);
+  }
+
+  List<WorkshopLot> lotsForStageName(String stageName) {
+    final apiStage = _stages
+        .where(
+          (stage) =>
+              stage.id == stageName ||
+              _normalizedStageName(stage.name) ==
+                  _normalizedStageName(stageName),
+        )
+        .firstOrNull;
+    if (apiStage != null) return lotsForStage(apiStage);
+
+    final domainStage = ApiDomainMapper.stage(stageName);
+    return _lots
+        .where(
+          (lot) =>
+              lot.apiStageId.isEmpty &&
+              (lot.apiStageName.isEmpty
+                  ? lot.stage == domainStage
+                  : _normalizedStageName(lot.apiStageName) ==
+                        _normalizedStageName(stageName)),
+        )
+        .toList(growable: false);
+  }
+
+  String _normalizedStageName(String value) => value
+      .trim()
+      .toLowerCase()
+      .replaceAll('&', 'and')
+      .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+      .trim();
   List<ApiStage> get stages => List.unmodifiable(_stages);
   List<WorkshopLot> get recentScans => List.unmodifiable(_recentScans);
 
@@ -1128,7 +1138,7 @@ class DemoStore extends ChangeNotifier {
     final uniqueOrders = <CustomerOrder>[];
     final seenIds = <String>{};
     for (final o in orders) {
-      final key = o.id.isNotEmpty ? o.id : o.clientFirmName;
+      final key = o.apiId.isNotEmpty ? o.apiId : o.id;
       if (seenIds.add(key)) {
         uniqueOrders.add(o);
       }
@@ -1147,66 +1157,16 @@ class DemoStore extends ChangeNotifier {
   }
 
   void setLots(List<WorkshopLot> lots) {
-    if (_lots.isEmpty) {
-      _lots
-        ..clear()
-        ..addAll(lots);
-      notifyListeners();
-      return;
-    }
-
-    final mergedLots = <WorkshopLot>[];
-    final processedIds = <String>{};
-
-    for (final newLot in lots) {
-      final existingMatches = _lots
-          .where(
-            (l) =>
-                l.id == newLot.id ||
-                (l.orderId.isNotEmpty &&
-                    l.orderId == newLot.orderId &&
-                    l.designCode == newLot.designCode &&
-                    l.stage == newLot.stage),
-          )
-          .toList();
-
-      if (existingMatches.isNotEmpty) {
-        for (final existing in existingMatches) {
-          if (!processedIds.contains(existing.id)) {
-            processedIds.add(existing.id);
-            final assigned =
-                (newLot.assignedEmployee.isNotEmpty &&
-                    newLot.assignedEmployee != 'Unassigned')
-                ? newLot.assignedEmployee
-                : existing.assignedEmployee;
-            mergedLots.add(
-              existing.copyWith(
-                assignedEmployee: assigned,
-                tone: newLot.tone,
-                blockerReason: newLot.blockerReason,
-              ),
-            );
-          }
-        }
-      } else {
-        if (!processedIds.contains(newLot.id)) {
-          processedIds.add(newLot.id);
-          mergedLots.add(newLot);
-        }
+    final uniqueLots = <WorkshopLot>[];
+    final seenIds = <String>{};
+    for (final lot in lots) {
+      if (lot.id.isEmpty || seenIds.add(lot.id)) {
+        uniqueLots.add(lot);
       }
     }
-
-    // Preserve any local split lots that were not in incoming API list
-    for (final local in _lots) {
-      if (!processedIds.contains(local.id)) {
-        processedIds.add(local.id);
-        mergedLots.add(local);
-      }
-    }
-
     _lots
       ..clear()
-      ..addAll(mergedLots);
+      ..addAll(uniqueLots);
     notifyListeners();
   }
 

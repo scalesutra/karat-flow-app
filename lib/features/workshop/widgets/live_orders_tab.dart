@@ -52,18 +52,13 @@ class LiveOrdersTab extends StatelessWidget {
 
             final liveOrders = filteredOrders.map((o) {
               final matchingLots = store.lots.where((l) {
-                if (l.orderId.isNotEmpty &&
-                    (l.orderId == o.id ||
-                        l.orderId.contains(o.id) ||
-                        o.id.contains(l.orderId))) {
-                  return true;
-                }
-                if (l.designCode.isNotEmpty &&
-                    (o.itemsSummary.contains(l.designCode) ||
-                        o.id.contains(l.designCode))) {
-                  return true;
-                }
-                return false;
+                final matchesOrder =
+                    l.orderId == o.id ||
+                    (o.apiId.isNotEmpty && l.orderId == o.apiId);
+                final matchesPart = o.designs.any(
+                  (design) => design.partId.isNotEmpty && design.partId == l.id,
+                );
+                return matchesOrder || matchesPart;
               }).toList();
               final blockedLot = matchingLots
                   .where((l) => l.blockerReason != null)
@@ -81,11 +76,67 @@ class LiveOrdersTab extends StatelessWidget {
               final isInProgress =
                   !isComplete && o.status == OrderStatus.inWorkshop;
 
+              final designRows = o.designs
+                  .map((design) {
+                    final matchedLot =
+                        matchingLots
+                            .where(
+                              (lot) =>
+                                  design.partId.isNotEmpty &&
+                                  lot.id == design.partId,
+                            )
+                            .firstOrNull ??
+                        matchingLots
+                            .where(
+                              (lot) =>
+                                  design.designNumber.isNotEmpty &&
+                                  lot.designCode == design.designNumber,
+                            )
+                            .firstOrNull;
+                    final stage =
+                        matchedLot?.stage.label ??
+                        (design.currentStage.isNotEmpty
+                            ? design.currentStage
+                            : design.status);
+                    return {
+                      'partId': design.partId,
+                      'designNumber': design.designNumber,
+                      'quantity': design.quantity,
+                      'stage': stage,
+                      'artisan': matchedLot?.assignedEmployee ?? '',
+                      'isBlocked':
+                          design.isBlocked || matchedLot?.blockerReason != null,
+                      'blockReason':
+                          design.blockReason ?? matchedLot?.blockerReason,
+                    };
+                  })
+                  .toList(growable: false);
+              final activeStages = designRows
+                  .map((row) => row['stage'] as String)
+                  .where((stage) => stage.isNotEmpty)
+                  .toSet();
+              final showDesignStages =
+                  activeStages.length > 1 ||
+                  designRows.any((row) => row['isBlocked'] == true);
+
+              final orderDetails = <String>['${o.itemsCount} Pcs'];
+              if (o.totalGrossGrams > 0) {
+                orderDetails.add('${o.totalGrossGrams}g');
+              }
+              if (o.promiseDate.trim().isNotEmpty) {
+                orderDetails.add('Due ${o.promiseDate}');
+              }
+
               final orderCadTasks = store.cadTasks
                   .where(
-                    (t) => t.productTitle.toLowerCase().contains(
-                      o.id.toLowerCase(),
-                    ),
+                    (task) =>
+                        task.orderId == o.id ||
+                        (o.apiId.isNotEmpty && task.orderId == o.apiId) ||
+                        o.designs.any(
+                          (design) =>
+                              design.designNumber.isNotEmpty &&
+                              task.designCode == design.designNumber,
+                        ),
                   )
                   .toList();
               final totalCad = orderCadTasks.length;
@@ -96,16 +147,22 @@ class LiveOrdersTab extends StatelessWidget {
 
               return {
                 'id': o.id,
-                'title': o.itemsSummary,
+                'apiId': o.apiId,
+                'title': o.designs.isEmpty
+                    ? 'No design parts'
+                    : '${o.designs.length} design${o.designs.length == 1 ? '' : 's'}',
                 'client': '${o.clientFirmName} · ${o.clientCity}',
                 'stage': isBlocked
                     ? 'ON CRITICAL HOLD'
                     : (isComplete
                           ? 'Complete'
-                          : (isInProgress
-                                ? o.currentWorkshopStage
-                                : 'Pending Start')),
-                'purity': '${o.totalGrossGrams}g · Due ${o.promiseDate}',
+                          : activeStages.length > 1
+                          ? '${activeStages.length} Active Stages'
+                          : activeStages.firstOrNull ??
+                                (isInProgress
+                                    ? o.currentWorkshopStage
+                                    : 'Pending Start')),
+                'details': orderDetails.join(' · '),
                 'status': isBlocked
                     ? 'on hold'
                     : isComplete
@@ -121,6 +178,8 @@ class LiveOrdersTab extends StatelessWidget {
                     ? AppColors.goldDark
                     : const Color(0xFFFFD18A),
                 'pieces': o.itemsCount,
+                'designs': designRows,
+                'showDesignStages': showDesignStages,
                 'artisan': o.responsibleManager,
                 'totalCad': totalCad,
                 'completedCad': completedCad,
@@ -158,6 +217,8 @@ class LiveOrdersTab extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final order = liveOrders[index];
                   final isBlocked = order['isBlocked'] as bool? ?? false;
+                  final designRows =
+                      order['designs'] as List<Map<String, Object?>>;
                   final statusColor = isBlocked
                       ? AppColors.danger
                       : (order['statusColor'] as Color);
@@ -278,39 +339,28 @@ class LiveOrdersTab extends StatelessWidget {
                                     onTap: () {
                                       final orderId =
                                           order['id'] as String? ?? '';
-                                      store.toggleLotHold(
-                                        orderId,
-                                        isBlocked: false,
-                                      );
+                                      final apiId =
+                                          order['apiId'] as String? ?? '';
+                                      final designRows =
+                                          order['designs']
+                                              as List<Map<String, Object?>>;
+                                      final partIds = designRows
+                                          .map(
+                                            (row) =>
+                                                row['partId'] as String? ?? '',
+                                          )
+                                          .where((id) => id.isNotEmpty)
+                                          .toSet();
 
                                       final matchingBlockedLots = store.lots
                                           .where((l) {
                                             if (l.blockerReason == null) {
                                               return false;
                                             }
-                                            if (l.orderId.isNotEmpty &&
-                                                (l.orderId == orderId ||
-                                                    l.orderId.contains(
-                                                      orderId,
-                                                    ) ||
-                                                    orderId.contains(
-                                                      l.orderId,
-                                                    ))) {
-                                              return true;
-                                            }
-                                            final title =
-                                                order['title'] as String? ??
-                                                '';
-                                            if (l.designCode.isNotEmpty &&
-                                                (title.contains(
-                                                      l.designCode,
-                                                    ) ||
-                                                    orderId.contains(
-                                                      l.designCode,
-                                                    ))) {
-                                              return true;
-                                            }
-                                            return false;
+                                            return l.orderId == orderId ||
+                                                (apiId.isNotEmpty &&
+                                                    l.orderId == apiId) ||
+                                                partIds.contains(l.id);
                                           })
                                           .toList();
 
@@ -319,16 +369,12 @@ class LiveOrdersTab extends StatelessWidget {
                                           order['orderPartId'] as String?;
 
                                       if (matchingBlockedLots.isNotEmpty) {
-                                        for (final bLot in matchingBlockedLots) {
-                                          store.toggleLotHold(
-                                            bLot.id,
-                                            isBlocked: false,
-                                          );
+                                        for (final bLot
+                                            in matchingBlockedLots) {
                                           context.read<WorkshopBloc>().add(
                                             UnblockLotPartEvent(
                                               partId: bLot.id,
-                                              notes:
-                                                  'Unhold from Order card',
+                                              notes: 'Unhold from Order card',
                                             ),
                                           );
                                         }
@@ -340,15 +386,10 @@ class LiveOrdersTab extends StatelessWidget {
                                         );
                                       } else if (partId != null &&
                                           partId.isNotEmpty) {
-                                        store.toggleLotHold(
-                                          partId,
-                                          isBlocked: false,
-                                        );
                                         context.read<WorkshopBloc>().add(
                                           UnblockLotPartEvent(
                                             partId: partId,
-                                            notes:
-                                                'Unhold from Order card',
+                                            notes: 'Unhold from Order card',
                                           ),
                                         );
                                         CommonSnackbar.success(
@@ -412,6 +453,42 @@ class LiveOrdersTab extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                           Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.canvas,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.outline),
+                            ),
+                            child: designRows.isEmpty
+                                ? const Text(
+                                    'No design parts returned by the API.',
+                                    style: TextStyle(
+                                      color: AppColors.muted,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  )
+                                : Column(
+                                    children: [
+                                      for (
+                                        var designIndex = 0;
+                                        designIndex < designRows.length;
+                                        designIndex++
+                                      ) ...[
+                                        _OrderDesignStageRow(
+                                          design: designRows[designIndex],
+                                          showStage:
+                                              order['showDesignStages'] as bool,
+                                        ),
+                                        if (designIndex < designRows.length - 1)
+                                          const Divider(height: 14),
+                                      ],
+                                    ],
+                                  ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
                               vertical: 8,
@@ -451,7 +528,7 @@ class LiveOrdersTab extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '${order['pieces']} Pcs · ${order['purity']}',
+                                  order['details'] as String,
                                   style: const TextStyle(
                                     color: AppColors.muted,
                                     fontSize: 11,
@@ -491,6 +568,125 @@ class LiveOrdersTab extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _OrderDesignStageRow extends StatelessWidget {
+  const _OrderDesignStageRow({required this.design, required this.showStage});
+
+  final Map<String, Object?> design;
+  final bool showStage;
+
+  @override
+  Widget build(BuildContext context) {
+    final designNumber = design['designNumber'] as String? ?? '';
+    final quantity = design['quantity'] as int? ?? 0;
+    final stage = design['stage'] as String? ?? '';
+    final artisan = design['artisan'] as String? ?? '';
+    final isBlocked = design['isBlocked'] as bool? ?? false;
+    final normalizedStage = stage.toLowerCase();
+    final stageColor = isBlocked
+        ? AppColors.danger
+        : normalizedStage.contains('complete') ||
+              normalizedStage.contains('dispatch')
+        ? AppColors.emerald
+        : normalizedStage.contains('pending') || stage.isEmpty
+        ? AppColors.muted
+        : AppColors.goldDark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.diamond_outlined,
+              size: 15,
+              color: AppColors.emerald,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                designNumber.isEmpty
+                    ? 'Design number not returned'
+                    : designNumber,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.paper,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                border: Border.all(color: AppColors.outline),
+              ),
+              child: Text(
+                '$quantity pcs',
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (showStage || (artisan.isNotEmpty && artisan != 'Unassigned')) ...[
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (showStage)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: stageColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(
+                      AppDimensions.radiusFull,
+                    ),
+                    border: Border.all(
+                      color: stageColor.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Text(
+                    isBlocked
+                        ? 'On Hold'
+                        : stage.isEmpty
+                        ? 'Stage not returned'
+                        : stage,
+                    style: TextStyle(
+                      color: stageColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              if (artisan.isNotEmpty && artisan != 'Unassigned')
+                Text(
+                  'Assigned: $artisan',
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

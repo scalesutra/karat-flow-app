@@ -14,12 +14,39 @@ enum AppRole {
     if (role == null || role.trim().isEmpty) return AppRole.admin;
     final normalized = role.trim().toUpperCase().replaceAll(' ', '_');
     return switch (normalized) {
-      'ADMIN' || 'ADMINISTRATOR' || 'SUPER_ADMIN' || 'SUPERADMIN' => AppRole.admin,
-      'FRONTLINER' || 'FRONTIER' || 'FRONT_OFFICE' || 'FRONT_OFFICE_STAFF' || 'SALES' || 'RECEPTION' => AppRole.frontOffice,
-      'MANAGER' || 'PRODUCTION_MANAGER' || 'PROCESS_MANAGER' || 'PRODUCT_MANAGER' || 'WORKSHOP_MANAGER' => AppRole.processManager,
-      'DESIGNER' || 'CAD_DESIGNER' || 'THREE_D_DESIGNER' || '3D_DESIGNER' || 'CAD' => AppRole.cadDesigner,
-      'SKETCHER' || 'RAW_DESIGNER' || 'SKETCH_DESIGNER' || 'SKETCH' => AppRole.rawDesigner,
-      'CRAFTSMAN' || 'WORKSHOP_ARTISAN' || 'ARTISAN' || 'OTHER_EMPLOYEE' || 'GOLDSMITH' || 'QC' || 'WORKSHOP' || 'WORKER' || 'BENCH_WORKER' => AppRole.workshopArtisan,
+      'ADMIN' ||
+      'ADMINISTRATOR' ||
+      'SUPER_ADMIN' ||
+      'SUPERADMIN' => AppRole.admin,
+      'FRONTLINER' ||
+      'FRONTIER' ||
+      'FRONT_OFFICE' ||
+      'FRONT_OFFICE_STAFF' ||
+      'SALES' ||
+      'RECEPTION' => AppRole.frontOffice,
+      'MANAGER' ||
+      'PRODUCTION_MANAGER' ||
+      'PROCESS_MANAGER' ||
+      'PRODUCT_MANAGER' ||
+      'WORKSHOP_MANAGER' => AppRole.processManager,
+      'DESIGNER' ||
+      'CAD_DESIGNER' ||
+      'THREE_D_DESIGNER' ||
+      '3D_DESIGNER' ||
+      'CAD' => AppRole.cadDesigner,
+      'SKETCHER' ||
+      'RAW_DESIGNER' ||
+      'SKETCH_DESIGNER' ||
+      'SKETCH' => AppRole.rawDesigner,
+      'CRAFTSMAN' ||
+      'WORKSHOP_ARTISAN' ||
+      'ARTISAN' ||
+      'OTHER_EMPLOYEE' ||
+      'GOLDSMITH' ||
+      'QC' ||
+      'WORKSHOP' ||
+      'WORKER' ||
+      'BENCH_WORKER' => AppRole.workshopArtisan,
       _ => AppRole.admin,
     };
   }
@@ -313,14 +340,9 @@ class JewelleryDesign {
   final String description;
   final bool isPopular;
 
-  double get estimatedPrice {
-    if (_estimatedPrice != null && _estimatedPrice > 0) {
-      return _estimatedPrice;
-    }
-    final ratePerGram = purity.contains('18') ? 5960.0 : 7280.0;
-    return (grossWeightGrams * ratePerGram) +
-        (makingChargesPerGram * grossWeightGrams);
-  }
+  bool get hasBackendPrice => _estimatedPrice != null && _estimatedPrice > 0;
+
+  double get estimatedPrice => hasBackendPrice ? _estimatedPrice! : 0;
 
   JewelleryDesign copyWith({
     String? id,
@@ -383,6 +405,28 @@ class CartItem {
   }
 }
 
+class OrderDesignProgress {
+  const OrderDesignProgress({
+    required this.partId,
+    required this.designNumber,
+    required this.quantity,
+    required this.grossWeight,
+    required this.currentStage,
+    required this.status,
+    required this.isBlocked,
+    this.blockReason,
+  });
+
+  final String partId;
+  final String designNumber;
+  final int quantity;
+  final double grossWeight;
+  final String currentStage;
+  final String status;
+  final bool isBlocked;
+  final String? blockReason;
+}
+
 class CustomerOrder {
   const CustomerOrder({
     required this.id,
@@ -395,6 +439,8 @@ class CustomerOrder {
     required this.promiseDate,
     required this.createdAt,
     required this.itemsSummary,
+    this.apiId = '',
+    this.designs = const [],
     this.currentWorkshopStage = 'N/A',
     this.responsibleManager = 'Arjun · PM',
     this.isBlocked = false,
@@ -402,6 +448,7 @@ class CustomerOrder {
   });
 
   final String id;
+  final String apiId;
   final String clientFirmName;
   final String clientCity;
   final int itemsCount;
@@ -411,6 +458,7 @@ class CustomerOrder {
   final String promiseDate;
   final DateTime createdAt;
   final String itemsSummary;
+  final List<OrderDesignProgress> designs;
   final String currentWorkshopStage;
   final String responsibleManager;
   final bool isBlocked;
@@ -418,6 +466,7 @@ class CustomerOrder {
 
   CustomerOrder copyWith({
     String? id,
+    String? apiId,
     String? clientFirmName,
     String? clientCity,
     int? itemsCount,
@@ -427,6 +476,7 @@ class CustomerOrder {
     String? promiseDate,
     DateTime? createdAt,
     String? itemsSummary,
+    List<OrderDesignProgress>? designs,
     String? currentWorkshopStage,
     String? responsibleManager,
     bool? isBlocked,
@@ -434,6 +484,7 @@ class CustomerOrder {
   }) {
     return CustomerOrder(
       id: id ?? this.id,
+      apiId: apiId ?? this.apiId,
       clientFirmName: clientFirmName ?? this.clientFirmName,
       clientCity: clientCity ?? this.clientCity,
       itemsCount: itemsCount ?? this.itemsCount,
@@ -443,6 +494,7 @@ class CustomerOrder {
       promiseDate: promiseDate ?? this.promiseDate,
       createdAt: createdAt ?? this.createdAt,
       itemsSummary: itemsSummary ?? this.itemsSummary,
+      designs: designs ?? this.designs,
       currentWorkshopStage: currentWorkshopStage ?? this.currentWorkshopStage,
       responsibleManager: responsibleManager ?? this.responsibleManager,
       isBlocked: isBlocked ?? this.isBlocked,
@@ -490,6 +542,8 @@ class WorkshopLot {
     required this.tone,
     required this.blockerReason,
     required this.lastUpdatedTime,
+    this.apiStageId = '',
+    this.apiStageName = '',
   });
 
   final String id;
@@ -505,6 +559,10 @@ class WorkshopLot {
   final HealthTone tone;
   final String? blockerReason;
   final String lastUpdatedTime;
+  final String apiStageId;
+  final String apiStageName;
+
+  bool get isOnHold => blockerReason?.trim().isNotEmpty == true;
 
   WorkshopLot copyWith({
     WorkshopStage? stage,
@@ -534,6 +592,8 @@ class WorkshopLot {
                 ? null
                 : (blockerReason ?? this.blockerReason)),
       lastUpdatedTime: lastUpdatedTime ?? this.lastUpdatedTime,
+      apiStageId: apiStageId,
+      apiStageName: apiStageName,
     );
   }
 }

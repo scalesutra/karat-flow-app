@@ -323,13 +323,6 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
           ? 'Image Directive Attached'
           : 'Directive Note';
 
-      var storeMessage = cleanInstructions;
-      if (audioUrl != null && audioUrl.isNotEmpty) {
-        storeMessage += ' [ 🎙️ Voice Note: $audioUrl ]';
-      }
-      if (imageUrl != null && imageUrl.isNotEmpty) {
-        storeMessage += ' [ 🖼️ Image: $imageUrl ]';
-      }
       try {
         await _api.reviewSketch(
           id: event.sketchId,
@@ -357,7 +350,6 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         );
       }
 
-      await _store.addAdminDirective('CAD Designer', storeMessage);
       emit(const AdminActionSuccess('Directive sent successfully.'));
       add(const FetchAdminDashboardEvent());
     } catch (error) {
@@ -417,23 +409,15 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       }
     }
 
-    var fullDirective = event.directive;
-    if (audioUrl != null) {
-      fullDirective += ' [ 🎙️ Voice Note: $audioUrl ]';
-    }
-    if (imageUrl != null) {
-      fullDirective += ' [ 🖼️ Image: $imageUrl ]';
-    }
-
     try {
-      await _api.dispatchDirective(
+      final directive = await _api.dispatchDirective(
         title: 'Directive to ${event.recipient}',
         targetType: _directiveTargetType(event.recipient),
         instruction: event.directive,
         audioUrl: audioUrl,
         imageUrl: imageUrl,
       );
-      await _store.addAdminDirective(event.recipient, fullDirective);
+      _store.upsertApiDirective(directive);
       emit(
         AdminActionSuccess(
           'Directive sent to ${event.recipient} successfully.',

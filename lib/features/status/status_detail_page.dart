@@ -192,26 +192,8 @@ class StatusDetailPage extends StatelessWidget {
 
   // ── 1. STAGE DETAILS SCREEN ──────────────────────────────────────────
   Widget _buildStageDetailPage(BuildContext context) {
-    final sName = item.title.toLowerCase();
-    final matchingLots = store.lots.where((l) {
-      final lStage = l.stage.label.toLowerCase();
-      return lStage.contains(sName) ||
-          sName.contains(lStage) ||
-          (sName.contains('casting') && lStage.contains('casting')) ||
-          (sName.contains('filing') && lStage.contains('filing')) ||
-          (sName.contains('setting') && lStage.contains('setting')) ||
-          (sName.contains('polish') && lStage.contains('polish')) ||
-          (sName.contains('qc') && lStage.contains('quality')) ||
-          (sName.contains('cad') && lStage.contains('cad'));
-    }).toList();
-
-    final activeLots = matchingLots.isEmpty
-        ? store.lots.take(3).toList()
-        : matchingLots;
-    final totalWeight = activeLots.fold(
-      0.0,
-      (sum, l) => sum + l.targetWeightGrams,
-    );
+    final activeLots = store.lotsForStageName(item.id);
+    final heldLots = activeLots.where((lot) => lot.isOnHold).toList();
     final totalPcs = activeLots.fold(0, (sum, l) => sum + l.pieces);
 
     return Scaffold(
@@ -278,12 +260,16 @@ class StatusDetailPage extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.emerald,
+                          color: heldLots.isNotEmpty
+                              ? AppColors.danger
+                              : AppColors.emerald,
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: const Text(
-                          'OPERATIONAL',
-                          style: TextStyle(
+                        child: Text(
+                          heldLots.isNotEmpty
+                              ? '${heldLots.length} ON HOLD'
+                              : 'OPERATIONAL',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
@@ -307,17 +293,19 @@ class StatusDetailPage extends StatelessWidget {
                       Container(width: 1, height: 32, color: Colors.white12),
                       Expanded(
                         child: _stageMetricTile(
-                          'FLOOR WEIGHT',
-                          '${totalWeight.toStringAsFixed(1)} g',
-                          AppColors.emerald,
+                          'TOTAL PIECES',
+                          '$totalPcs',
+                          const Color(0xFF00E5FF),
                         ),
                       ),
                       Container(width: 1, height: 32, color: Colors.white12),
                       Expanded(
                         child: _stageMetricTile(
-                          'TOTAL PIECES',
-                          '$totalPcs pcs',
-                          const Color(0xFF00E5FF),
+                          'ON HOLD',
+                          '${heldLots.length}',
+                          heldLots.isNotEmpty
+                              ? const Color(0xFFFFA88D)
+                              : AppColors.emerald,
                         ),
                       ),
                     ],
@@ -342,7 +330,7 @@ class StatusDetailPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
-                    'LIVE RFID SYNC',
+                    'LIVE API',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
@@ -353,8 +341,23 @@ class StatusDetailPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
+            if (activeLots.isEmpty)
+              const CommonCard(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 18),
+                  child: Center(
+                    child: Text(
+                      'No active lots in this stage.',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    ),
+                  ),
+                ),
+              ),
             for (final lot in activeLots) ...[
               CommonCard(
+                borderColor: lot.isOnHold
+                    ? AppColors.danger.withValues(alpha: 0.55)
+                    : AppColors.outline,
                 padding: const EdgeInsets.all(14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,38 +473,33 @@ class StatusDetailPage extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (lot.isOnHold) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'ON HOLD · ${lot.blockerReason}',
+                          style: const TextStyle(
+                            color: AppColors.danger,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(height: 10),
             ],
-            const SizedBox(height: 12),
-            const CommonText.titleMedium('Stage Governance & QC Rules'),
-            const SizedBox(height: 10),
-            CommonCard(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                children: [
-                  _sopRow(
-                    Icons.shield_outlined,
-                    'Maximum Scrap Loss Tolerance',
-                    '< 0.15% per batch melt',
-                  ),
-                  const Divider(height: 16),
-                  _sopRow(
-                    Icons.verified_outlined,
-                    'BIS Hallmarking & XRF Purity Audit',
-                    '916 / 750 Certified Compliance',
-                  ),
-                  const Divider(height: 16),
-                  _sopRow(
-                    Icons.speed_outlined,
-                    'Stage SLA & Cycle Time Target',
-                    '24 Hours Max Bench Residence',
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -523,19 +521,30 @@ class StatusDetailPage extends StatelessWidget {
 
   // ── 2. ORDER DETAILS SCREEN ───────────────────────────────────────────
   Widget _buildOrderDetailPage(BuildContext context) {
-    final matchingOrders = store.orders.where(
-      (o) => o.id == item.id || o.clientFirmName == item.title,
-    );
-    final order = matchingOrders.isNotEmpty
-        ? matchingOrders.first
-        : store.orders.first;
+    final matchingOrders = store.orders.where((o) => o.id == item.id);
+    if (matchingOrders.isEmpty) {
+      return _missingLiveRecord('Order data is no longer available.');
+    }
+    final order = matchingOrders.first;
+    final partIds = order.designs.map((design) => design.partId).toSet();
 
     final orderLots = store.lots
-        .where((l) => l.orderId == order.id || l.orderId == item.id)
+        .where(
+          (lot) =>
+              lot.orderId == order.id ||
+              (order.apiId.isNotEmpty && lot.orderId == order.apiId) ||
+              partIds.contains(lot.id),
+        )
         .toList();
-    final activeLots = orderLots.isEmpty
-        ? store.lots.take(2).toList()
-        : orderLots;
+    final activeLots = orderLots;
+    final isOnHold = order.isBlocked || activeLots.any((lot) => lot.isOnHold);
+    final liveStages = activeLots
+        .map(
+          (lot) =>
+              lot.apiStageName.isNotEmpty ? lot.apiStageName : lot.stage.label,
+        )
+        .toSet()
+        .toList();
 
     return Scaffold(
       appBar: CommonAppBar(
@@ -586,13 +595,13 @@ class StatusDetailPage extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: order.isBlocked
+                          color: isOnHold
                               ? AppColors.danger
                               : AppColors.emerald,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          order.isBlocked
+                          isOnHold
                               ? 'ON HOLD'
                               : order.status.label.toUpperCase(),
                           style: const TextStyle(
@@ -614,23 +623,25 @@ class StatusDetailPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.account_circle_outlined,
-                        size: 14,
-                        color: Colors.white70,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Manager: ${order.responsibleManager.isNotEmpty ? order.responsibleManager : (item.owner.isNotEmpty ? item.owner : "Production Lead")}',
-                        style: const TextStyle(
+                  if (order.responsibleManager.isNotEmpty ||
+                      item.owner.isNotEmpty)
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.account_circle_outlined,
+                          size: 14,
                           color: Colors.white70,
-                          fontSize: 12,
                         ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Manager: ${order.responsibleManager.isNotEmpty ? order.responsibleManager : item.owner}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                   const SizedBox(height: 16),
                   const Divider(color: Colors.white12, height: 1),
                   const SizedBox(height: 14),
@@ -669,43 +680,29 @@ class StatusDetailPage extends StatelessWidget {
             const SizedBox(height: 10),
             CommonCard(
               padding: const EdgeInsets.all(14),
-              child: Column(
-                children: [
-                  _pipelineStep(
-                    step: 1,
-                    name: 'CAD Design & 3D Wax Printing',
-                    status: 'Completed',
-                    isDone: true,
-                    isCurrent: false,
-                  ),
-                  const Divider(height: 16),
-                  _pipelineStep(
-                    step: 2,
-                    name: 'Casting & Gold Melting',
-                    status: order.currentWorkshopStage.isNotEmpty
-                        ? order.currentWorkshopStage
-                        : 'In Progress',
-                    isDone: false,
-                    isCurrent: true,
-                  ),
-                  const Divider(height: 16),
-                  _pipelineStep(
-                    step: 3,
-                    name: 'Hand Filing, Setting & Polishing',
-                    status: 'Scheduled Next',
-                    isDone: false,
-                    isCurrent: false,
-                  ),
-                  const Divider(height: 16),
-                  _pipelineStep(
-                    step: 4,
-                    name: 'Hallmark & Final Dispatch',
-                    status: 'Pending Completion',
-                    isDone: false,
-                    isCurrent: false,
-                  ),
-                ],
-              ),
+              child: liveStages.isEmpty
+                  ? const Text(
+                      'No active production stage returned by the API.',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    )
+                  : Column(
+                      children: [
+                        for (
+                          var index = 0;
+                          index < liveStages.length;
+                          index++
+                        ) ...[
+                          if (index > 0) const Divider(height: 16),
+                          _pipelineStep(
+                            step: index + 1,
+                            name: liveStages[index],
+                            status: 'Live API stage',
+                            isDone: false,
+                            isCurrent: true,
+                          ),
+                        ],
+                      ],
+                    ),
             ),
             const SizedBox(height: 20),
             Row(
@@ -724,7 +721,7 @@ class StatusDetailPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
-                    'RFID VERIFIED',
+                    'LIVE API',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
@@ -735,6 +732,18 @@ class StatusDetailPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
+            if (activeLots.isEmpty)
+              const CommonCard(
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 18),
+                    child: Text(
+                      'No active lots returned for this order.',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    ),
+                  ),
+                ),
+              ),
             for (final lot in activeLots) ...[
               CommonCard(
                 padding: const EdgeInsets.all(14),
@@ -877,23 +886,20 @@ class StatusDetailPage extends StatelessWidget {
 
   // ── 3. PEOPLE (ARTISAN) DETAILS SCREEN ───────────────────────────────
   Widget _buildPeopleDetailPage(BuildContext context) {
-    final matchingTeam = store.team.where(
-      (t) => t.name == item.title || t.id == item.id,
-    );
-    final member = matchingTeam.isNotEmpty
-        ? matchingTeam.first
-        : store.team.first;
+    final matchingTeam = store.team.where((t) => t.id == item.id);
+    if (matchingTeam.isEmpty) {
+      return _missingLiveRecord('Employee data is no longer available.');
+    }
+    final member = matchingTeam.first;
 
     final artisanLots = store.lots
         .where(
           (l) =>
-              l.assignedEmployee.contains(member.name) ||
-              member.name.contains(l.assignedEmployee),
+              l.assignedEmployee.trim().toLowerCase() ==
+              member.name.trim().toLowerCase(),
         )
         .toList();
-    final activeLots = artisanLots.isEmpty
-        ? store.lots.take(2).toList()
-        : artisanLots;
+    final activeLots = artisanLots;
 
     return Scaffold(
       appBar: CommonAppBar(
@@ -945,7 +951,11 @@ class StatusDetailPage extends StatelessWidget {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '${member.craft} · Shift: ${member.shift}',
+                              [
+                                member.craft,
+                                if (member.shift.isNotEmpty)
+                                  'Shift: ${member.shift}',
+                              ].join(' · '),
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,
@@ -985,14 +995,6 @@ class StatusDetailPage extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _stageMetricTile(
-                          'EFFICIENCY',
-                          '${member.todayEfficiencyPercent}%',
-                          AppColors.gold,
-                        ),
-                      ),
-                      Container(width: 1, height: 32, color: Colors.white12),
-                      Expanded(
-                        child: _stageMetricTile(
                           'ACTIVE LOTS',
                           '${activeLots.length} lots',
                           AppColors.emerald,
@@ -1028,7 +1030,7 @@ class StatusDetailPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
-                    'BENCH SYNC',
+                    'LIVE API',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
@@ -1039,6 +1041,18 @@ class StatusDetailPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
+            if (activeLots.isEmpty)
+              const CommonCard(
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 18),
+                    child: Text(
+                      'No active lots assigned to this employee.',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    ),
+                  ),
+                ),
+              ),
             for (final lot in activeLots) ...[
               CommonCard(
                 padding: const EdgeInsets.all(14),
@@ -1143,33 +1157,6 @@ class StatusDetailPage extends StatelessWidget {
               ),
               const SizedBox(height: 10),
             ],
-            const SizedBox(height: 12),
-            const CommonText.titleMedium('Artisan Governance & Skill Profile'),
-            const SizedBox(height: 10),
-            CommonCard(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                children: [
-                  _sopRow(
-                    Icons.military_tech_outlined,
-                    'Master Goldsmith Skill Rating',
-                    'Class A Certified',
-                  ),
-                  const Divider(height: 16),
-                  _sopRow(
-                    Icons.fact_check_outlined,
-                    'Today Metal Loss Reconciliation',
-                    '0.04g (Within Limit)',
-                  ),
-                  const Divider(height: 16),
-                  _sopRow(
-                    Icons.access_time_outlined,
-                    'Shift Assignment & Bench Hours',
-                    '${member.shift} · 8h Active',
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -1213,32 +1200,23 @@ class StatusDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _sopRow(IconData icon, String title, String val) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: AppColors.emerald),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-              color: AppColors.ink,
-            ),
-          ),
+  Widget _missingLiveRecord(String message) => Scaffold(
+    appBar: CommonAppBar(
+      title: item.title,
+      showBrand: false,
+      showBackButton: true,
+    ),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppColors.muted),
         ),
-        Text(
-          val,
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 11,
-            color: AppColors.emerald,
-          ),
-        ),
-      ],
-    );
-  }
+      ),
+    ),
+  );
 
   Widget _pipelineStep({
     required int step,

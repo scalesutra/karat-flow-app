@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:jewellery_ops_mobile/core/constants/app_colors.dart';
 import 'package:jewellery_ops_mobile/core/constants/app_dimensions.dart';
 import 'package:jewellery_ops_mobile/core/widgets/common_badge.dart';
@@ -9,6 +10,7 @@ import 'package:jewellery_ops_mobile/core/widgets/common_text.dart';
 import 'package:jewellery_ops_mobile/data/demo_store.dart';
 import 'package:jewellery_ops_mobile/domain/models.dart';
 import '../../instructions/directive_audio.dart';
+import '../../directives/bloc/directives_bloc.dart';
 
 enum TaskDisplayMode { admin, manager }
 
@@ -222,92 +224,11 @@ class InstructionTaskCard extends StatelessWidget {
             if (instruction.status == InstructionStatus.sent)
               CommonButton.primary(
                 height: 42,
-                onPressed: () {
-                  store.setInstructionStatus(
-                    instruction.id,
-                    InstructionStatus.acknowledged,
-                  );
-                  CommonSnackbar.success(
-                    context,
-                    title: 'Instruction Acknowledged',
-                    message: 'Instruction status updated to Acknowledged.',
-                  );
-                },
-                label: 'Acknowledge Instruction',
-              )
-            else
-              Row(
-                children: [
-                  Expanded(
-                    child: CommonButton.outlined(
-                      height: 42,
-                      onPressed:
-                          instruction.status == InstructionStatus.inProgress
-                          ? null
-                          : () {
-                              store.setInstructionStatus(
-                                instruction.id,
-                                InstructionStatus.inProgress,
-                              );
-                              CommonSnackbar.info(
-                                context,
-                                title: 'Work Started',
-                                message:
-                                    'Instruction status updated to In Progress.',
-                              );
-                            },
-                      label: 'Start Work',
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: CommonButton.primary(
-                      height: 42,
-                      onPressed: () {
-                        store.setInstructionStatus(
-                          instruction.id,
-                          InstructionStatus.resolved,
-                        );
-                        CommonSnackbar.success(
-                          context,
-                          title: 'Task Resolved',
-                          message: 'Instruction marked as resolved.',
-                        );
-                      },
-                      label: 'Resolve Task',
-                    ),
-                  ),
-                ],
-              ),
-          ],
-
-          // Action Buttons for Admin Mode
-          if (mode == TaskDisplayMode.admin && !isResolved) ...[
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: CommonButton.primary(
-                    height: 40,
-                    label: 'Approve',
-                    icon: Icons.check_circle_outline,
-                    backgroundColor: AppColors.emerald,
-                    onPressed: () {
-                      store.setInstructionStatus(
-                        instruction.id,
-                        InstructionStatus.resolved,
-                      );
-                      CommonSnackbar.success(
-                        context,
-                        title: 'Task Approved',
-                        message:
-                            'Task directive has been approved and marked as resolved.',
-                      );
-                    },
-                  ),
+                onPressed: () => context.read<DirectivesBloc>().add(
+                  AcknowledgeDirectiveEvent(instruction.id),
                 ),
-              ],
-            ),
+                label: 'Acknowledge Instruction',
+              ),
           ],
         ],
       ),

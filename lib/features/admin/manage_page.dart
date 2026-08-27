@@ -6,6 +6,8 @@ import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../domain/models.dart';
 import '../auth/widgets/authenticated_profile_card.dart';
+import '../directives/bloc/directives_bloc.dart';
+import '../instructions/directive_audio.dart';
 import 'widgets/add_artisan_sheet.dart';
 import 'widgets/admin_manage_item.dart';
 import 'widgets/admin_review_cad_sheet.dart';
@@ -31,6 +33,7 @@ class _AdminManagePageState extends State<AdminManagePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+        context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
       }
     });
   }
@@ -41,6 +44,7 @@ class _AdminManagePageState extends State<AdminManagePage> {
     return CommonRefreshIndicator(
       onRefresh: () async {
         context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+        context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
         await Future<void>.delayed(const Duration(milliseconds: 600));
       },
       child: SafeArea(
@@ -49,136 +53,127 @@ class _AdminManagePageState extends State<AdminManagePage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
           children: [
-          CommonText.headlineLarge(AppStrings.manageWorkshop.trClean),
-          const SizedBox(height: 1),
-          CommonText.bodySmall(
-            'Employees, client limits, jewellery taxonomy and stage rules',
-            color: AppColors.muted,
-          ),
-          const SizedBox(height: 12),
+            CommonText.headlineLarge(AppStrings.manageWorkshop.trClean),
+            const SizedBox(height: 1),
+            CommonText.bodySmall(
+              'Employees, client limits, jewellery taxonomy and stage rules',
+              color: AppColors.muted,
+            ),
+            const SizedBox(height: 12),
 
-          const AuthenticatedProfileCard(),
-          const SizedBox(height: 14),
+            const AuthenticatedProfileCard(),
+            const SizedBox(height: 14),
 
-          AdminManageSection(
-            title: '1. Human Resources & Crafts',
-            items: [
-              ManageItemData(
-                icon: Icons.badge_outlined,
-                title: 'Employees & Goldsmiths',
-                subtitle:
-                    '${store.team.length} active workshop artisans registered',
-                badge: '${store.team.length} Active',
-                onTap: () => _showEmployeesModal(context),
-              ),
-              ManageItemData(
-                icon: Icons.engineering_outlined,
-                title: 'Craft & Skill Capabilities',
-                subtitle:
-                    'Stone Setting, Filing, Casting, Polish & QC matrices',
-                badge: '6 Crafts',
-                onTap: () => _showSkillsModal(context),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 14),
-
-          AdminManageSection(
-            title: '2. Client Accounts & Credit Governance',
-            items: [
-              ManageItemData(
-                icon: Icons.storefront_outlined,
-                title: 'Client Accounts & Credit Limits',
-                subtitle:
-                    '${store.clients.length} wholesale jewellery clients (API sync)',
-                badge: '${store.clients.length} Firms',
-                onTap: () => _showClientsModal(context),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 14),
-
-          AdminManageSection(
-            title: '3. Manufacturing Routing & Stages',
-            items: [
-              ManageItemData(
-                icon: Icons.alt_route,
-                title: 'Production Routes & Standard Sequences',
-                subtitle: '${store.stages.length} live production stages',
-                badge: '${store.stages.length} Stages',
-                onTap: () => _showRoutesModal(context),
-              ),
-              ManageItemData(
-                icon: Icons.category_outlined,
-                title: 'Jewellery Categories & Hallmarking Rules',
-                subtitle: 'Necklaces, Earrings, Rings, Bangles (916/750/999)',
-                badge: 'BIS 2026',
-                onTap: () => _showCategoriesModal(context),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 14),
-
-          AdminManageSection(
-            title: '4. Design Review & Creative Governance',
-            items: [
-              ManageItemData(
-                icon: Icons.brush_outlined,
-                title: 'Review Client Sketch Designs',
-                subtitle: 'Approve or log design corrections for 2D sketches',
-                badge: 'Pending',
-                onTap: () => AdminReviewSketchesSheet.show(
-                  context,
-                  store: store,
-                  onSendDirective: (ctxRef) =>
-                      _showSendDirectiveDialog(context, ctxRef),
+            AdminManageSection(
+              title: '1. Human Resources & Crafts',
+              items: [
+                ManageItemData(
+                  icon: Icons.badge_outlined,
+                  title: 'Employees & Goldsmiths',
+                  subtitle:
+                      '${store.team.length} active workshop artisans registered',
+                  badge: '${store.team.length} Active',
+                  onTap: () => _showEmployeesModal(context),
                 ),
-              ),
-              ManageItemData(
-                icon: Icons.view_in_ar_outlined,
-                title: 'Review CAD 3D Models',
-                subtitle:
-                    'Inspect solitaire meshes and approve casting weights',
-                badge: '3D Preview',
-                onTap: () => AdminReviewCadSheet.show(
-                  context,
-                  store: store,
-                  onSendDirective: (ctxRef) =>
-                      _showSendDirectiveDialog(context, ctxRef),
+                ManageItemData(
+                  icon: Icons.engineering_outlined,
+                  title: 'Craft & Skill Capabilities',
+                  subtitle: 'Live workload by backend production stage',
+                  badge: '${store.stages.length} Stages',
+                  onTap: () => _showSkillsModal(context),
                 ),
-              ),
-              ManageItemData(
-                icon: Icons.send_and_archive_outlined,
-                title: 'Send Creative Directives',
-                subtitle: 'Issue structural rules to designers & gold artisans',
-                badge: '${store.adminDirectives.length} Active',
-                onTap: () => _showDirectivesModal(context),
-              ),
-            ],
-          ),
+              ],
+            ),
 
-          const SizedBox(height: 14),
+            const SizedBox(height: 14),
 
-          AdminManageSection(
-            title: '5. Account & Session',
-            items: [
-              ManageItemData(
-                icon: Icons.logout_rounded,
-                title: 'Sign Out / Switch User',
-                subtitle: 'End active session and return to login screen',
-                badge: 'Auth',
-                onTap: () => CommonLogoutDialog.show(context),
-              ),
-            ],
-          ),
-        ],
+            AdminManageSection(
+              title: '2. Client Accounts & Credit Governance',
+              items: [
+                ManageItemData(
+                  icon: Icons.storefront_outlined,
+                  title: 'Client Accounts & Credit Limits',
+                  subtitle:
+                      '${store.clients.length} wholesale jewellery clients (API sync)',
+                  badge: '${store.clients.length} Firms',
+                  onTap: () => _showClientsModal(context),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            AdminManageSection(
+              title: '3. Manufacturing Routing & Stages',
+              items: [
+                ManageItemData(
+                  icon: Icons.alt_route,
+                  title: 'Production Routes & Standard Sequences',
+                  subtitle: '${store.stages.length} live production stages',
+                  badge: '${store.stages.length} Stages',
+                  onTap: () => _showRoutesModal(context),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            AdminManageSection(
+              title: '4. Design Review & Creative Governance',
+              items: [
+                ManageItemData(
+                  icon: Icons.brush_outlined,
+                  title: 'Review Client Sketch Designs',
+                  subtitle: 'Approve or log design corrections for 2D sketches',
+                  onTap: () => AdminReviewSketchesSheet.show(
+                    context,
+                    store: store,
+                    onSendDirective: (ctxRef) =>
+                        _showSendDirectiveDialog(context, ctxRef),
+                  ),
+                ),
+                ManageItemData(
+                  icon: Icons.view_in_ar_outlined,
+                  title: 'Review CAD 3D Models',
+                  subtitle:
+                      'Inspect solitaire meshes and approve casting weights',
+                  onTap: () => AdminReviewCadSheet.show(
+                    context,
+                    store: store,
+                    onSendDirective: (ctxRef) =>
+                        _showSendDirectiveDialog(context, ctxRef),
+                  ),
+                ),
+                ManageItemData(
+                  icon: Icons.send_and_archive_outlined,
+                  title: 'Send Creative Directives',
+                  subtitle:
+                      'Issue structural rules to designers & gold artisans',
+                  badge: '${store.activeAdminDirectives.length} Active',
+                  onTap: () => _showDirectivesModal(context),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            AdminManageSection(
+              title: '5. Account & Session',
+              items: [
+                ManageItemData(
+                  icon: Icons.logout_rounded,
+                  title: 'Sign Out / Switch User',
+                  subtitle: 'End active session and return to login screen',
+                  badge: 'Auth',
+                  onTap: () => CommonLogoutDialog.show(context),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   // ==========================================
   // 1. EMPLOYEES & GOLDSMITHS MODAL
@@ -263,7 +258,11 @@ class _AdminManagePageState extends State<AdminManagePage> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${member.craft} · Shift: ${member.shift} · ${member.currentAssignment}',
+                        [
+                          member.craft,
+                          if (member.shift.isNotEmpty) 'Shift: ${member.shift}',
+                          member.currentAssignment,
+                        ].where((value) => value.isNotEmpty).join(' · '),
                         style: const TextStyle(
                           color: AppColors.muted,
                           fontSize: 11,
@@ -275,15 +274,6 @@ class _AdminManagePageState extends State<AdminManagePage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      '${member.todayEfficiencyPercent}% Eff.',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                        color: AppColors.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
                     Text(
                       '${member.activeLotsCount} Active Lots',
                       style: const TextStyle(
@@ -305,62 +295,21 @@ class _AdminManagePageState extends State<AdminManagePage> {
   // 2. CRAFT & SKILL CAPABILITIES MODAL
   // ==========================================
   void _showSkillsModal(BuildContext context) {
-    final crafts = [
-      {
-        'name': 'CAD & 3D Wax Camming',
-        'artisans': '2 Specialists',
-        'loss': '0.00%',
-        'accuracy': '99.8%',
-      },
-      {
-        'name': 'Flask Burnout & Tree Casting',
-        'artisans': '3 Master Casters',
-        'loss': '< 0.20%',
-        'accuracy': '99.1%',
-      },
-      {
-        'name': 'Filing, Jointing & Laser Assembly',
-        'artisans': '4 Goldsmiths',
-        'loss': '< 0.15%',
-        'accuracy': '98.5%',
-      },
-      {
-        'name': 'Micro-Prong & Pave Stone Setting',
-        'artisans': '3 Master Setters',
-        'loss': '< 0.05%',
-        'accuracy': '99.5%',
-      },
-      {
-        'name': 'High-Lustre Polishing & Rhodium',
-        'artisans': '3 Polishers',
-        'loss': '< 0.10%',
-        'accuracy': '99.0%',
-      },
-      {
-        'name': 'Assay QC & XRF Hallmarking',
-        'artisans': '2 QC Officers',
-        'loss': '0.00%',
-        'accuracy': '100.0%',
-      },
-    ];
+    final stages = store.stages;
 
     _openSheet(
       context: context,
-      title: 'Craft & Skill Matrices',
-      subtitle:
-          'Workshop technical capabilities and allowed scrap loss thresholds',
-      actionLabel: 'Add Craft Category',
-      onAction: () => CommonSnackbar.info(
-        context,
-        title: 'Crafts',
-        message: 'Configure craft matrix thresholds.',
-      ),
+      title: 'Production Stage Workload',
+      subtitle: 'Live lots and pieces from the production API',
       child: ListView.separated(
         shrinkWrap: true,
-        itemCount: crafts.length,
+        itemCount: stages.length,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (ctx, i) {
-          final c = crafts[i];
+          final stage = stages[i];
+          final lots = store.lotsForStage(stage);
+          final pieces = lots.fold<int>(0, (sum, lot) => sum + lot.pieces);
+          final held = lots.where((lot) => lot.isOnHold).length;
           return CommonCard(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -370,7 +319,7 @@ class _AdminManagePageState extends State<AdminManagePage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      c['name']!,
+                      stage.name,
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 13,
@@ -386,7 +335,7 @@ class _AdminManagePageState extends State<AdminManagePage> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        c['accuracy']!,
+                        '${lots.length} lots',
                         style: const TextStyle(
                           color: AppColors.emerald,
                           fontSize: 10,
@@ -399,12 +348,9 @@ class _AdminManagePageState extends State<AdminManagePage> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    _metricMini(Icons.people_outline, c['artisans']!),
+                    _metricMini(Icons.category_outlined, '$pieces pieces'),
                     const SizedBox(width: 16),
-                    _metricMini(
-                      Icons.shield_outlined,
-                      'Max Allowed Loss: ${c['loss']}',
-                    ),
+                    _metricMini(Icons.pause_circle_outline, '$held on hold'),
                   ],
                 ),
               ],
@@ -423,12 +369,6 @@ class _AdminManagePageState extends State<AdminManagePage> {
       context: context,
       title: 'Wholesale Client Ledgers',
       subtitle: 'Client credit allocations, active orders and ledger caps',
-      actionLabel: 'Register Client',
-      onAction: () => CommonSnackbar.info(
-        context,
-        title: 'Clients',
-        message: 'Opening client registration modal...',
-      ),
       child: ListView.separated(
         shrinkWrap: true,
         itemCount: store.clients.length,
@@ -516,26 +456,13 @@ class _AdminManagePageState extends State<AdminManagePage> {
   // ==========================================
   void _showRoutesModal(BuildContext context) {
     final stages = store.stages
-        .map(
-          (stage) => {
-            'step': '${stage.stageNumber}',
-            'name': stage.name,
-            'sla': 'Live API',
-            'loss': '—',
-          },
-        )
+        .map((stage) => {'step': '${stage.stageNumber}', 'name': stage.name})
         .toList();
 
     _openSheet(
       context: context,
       title: 'Standard Production Routing',
       subtitle: '${stages.length} backend-configured production stages',
-      actionLabel: 'Edit Routing',
-      onAction: () => CommonSnackbar.info(
-        context,
-        title: 'Route',
-        message: 'Production pipeline SLA rules verified.',
-      ),
       child: ListView.separated(
         shrinkWrap: true,
         itemCount: stages.length,
@@ -571,107 +498,8 @@ class _AdminManagePageState extends State<AdminManagePage> {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        'Standard SLA: ${s['sla']} · Allowed Scrap: ${s['loss']}',
-                        style: const TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 11,
-                        ),
-                      ),
                     ],
                   ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ==========================================
-  // 6. CATEGORIES & HALLMARKING RULES MODAL
-  // ==========================================
-  void _showCategoriesModal(BuildContext context) {
-    final rules = [
-      {
-        'karat': '24KT (999 Purity)',
-        'app': 'Pure Gold Bullion Bars & Primary Coins',
-        'huid': 'Mandatory Assay',
-      },
-      {
-        'karat': '22KT (916 Purity)',
-        'app': 'Traditional Wholesale Necklaces, Bangles & Temple Jewellery',
-        'huid': 'BIS 2026 Laser HUID',
-      },
-      {
-        'karat': '18KT (750 Purity)',
-        'app': 'Diamond Studded Rings, Solitaires & Modern Fine Jewelry',
-        'huid': 'BIS 2026 + IGI/GIA',
-      },
-      {
-        'karat': '14KT (585 Purity)',
-        'app': 'Lightweight Export Pendants & High-Durability Chains',
-        'huid': 'BIS 2026 Export Standard',
-      },
-    ];
-
-    _openSheet(
-      context: context,
-      title: 'Jewellery Categories & Hallmarking',
-      subtitle: 'BIS 2026 HUID Laser-marking and Karatage purity guidelines',
-      actionLabel: 'Configure BIS Slabs',
-      onAction: () => CommonSnackbar.info(
-        context,
-        title: 'Hallmarking',
-        message: 'BIS 2026 compliance active.',
-      ),
-      child: ListView.separated(
-        shrinkWrap: true,
-        itemCount: rules.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (ctx, i) {
-          final r = rules[i];
-          return CommonCard(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      r['karat']!,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        color: AppColors.emeraldDark,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.sage,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        r['huid']!,
-                        style: const TextStyle(
-                          color: AppColors.emerald,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  r['app']!,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
                 ),
               ],
             ),
@@ -689,8 +517,8 @@ class _AdminManagePageState extends State<AdminManagePage> {
     required String title,
     required String subtitle,
     required Widget child,
-    required String actionLabel,
-    required VoidCallback onAction,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) {
     showModalBottomSheet<void>(
       context: context,
@@ -753,17 +581,19 @@ class _AdminManagePageState extends State<AdminManagePage> {
               ),
               const SizedBox(height: 14),
               Expanded(child: child),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: CommonButton.primary(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    onAction();
-                  },
-                  label: actionLabel,
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: CommonButton.primary(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      onAction();
+                    },
+                    label: actionLabel,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -800,59 +630,82 @@ class _AdminManagePageState extends State<AdminManagePage> {
       onAction: () {
         _showSendDirectiveDialog(context, 'Global Directive');
       },
-      child: ListView.separated(
-        shrinkWrap: true,
-        itemCount: store.adminDirectives.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (ctx, index) {
-          final directive = store.adminDirectives[index];
-
-          return CommonCard(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: AnimatedBuilder(
+        animation: store,
+        builder: (ctx, _) {
+          final directives = store.activeAdminDirectives;
+          if (directives.isEmpty) {
+            return const Center(
+              child: Text(
+                'No active governance directives from the API.',
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+            );
+          }
+          return ListView.separated(
+            shrinkWrap: true,
+            itemCount: directives.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (ctx, index) {
+              final directive = directives[index];
+              final audioUrl = directive['audioUrl'] ?? '';
+              final imageUrl = directive['imageUrl'] ?? '';
+              return CommonCard(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.emeraldLight,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'To: ${directive['recipient']}',
-                        style: const TextStyle(
-                          color: AppColors.emeraldDark,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.emeraldLight,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'To: ${directive['recipient']}',
+                            style: const TextStyle(
+                              color: AppColors.emeraldDark,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                      ),
+                        Text(
+                          directive['date'] ?? '',
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 8),
                     Text(
-                      directive['date']!,
+                      directive['content'] ?? '',
                       style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: AppColors.ink,
                       ),
                     ),
+                    if (audioUrl.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      DirectiveVoiceButton(audioUrl: audioUrl),
+                    ],
+                    if (imageUrl.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      DirectiveImageAttachment(imageUrl: imageUrl),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  directive['content']!,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: AppColors.ink,
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           );
         },
       ),

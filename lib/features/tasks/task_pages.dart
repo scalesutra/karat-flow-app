@@ -13,6 +13,7 @@ import '../workshop/bloc/workshop_bloc.dart';
 import 'widgets/cad_approval_task_card.dart';
 import 'widgets/instruction_task_card.dart';
 import '../admin/bloc/admin_bloc.dart';
+import '../directives/bloc/directives_bloc.dart';
 
 class AdminTasksPage extends StatefulWidget {
   const AdminTasksPage({super.key, required this.store});
@@ -30,6 +31,7 @@ class _AdminTasksPageState extends State<AdminTasksPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+        context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
       }
     });
   }
@@ -40,6 +42,7 @@ class _AdminTasksPageState extends State<AdminTasksPage> {
     return CommonRefreshIndicator(
       onRefresh: () async {
         context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+        context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
         await Future<void>.delayed(const Duration(milliseconds: 600));
       },
       child: AnimatedBuilder(
@@ -1092,7 +1095,7 @@ class _InstructionListState extends State<_InstructionList> {
                                   ),
                                   child: Center(
                                     child: Text(
-                                      'CAD 3D Approvals (${widget.store.cadTasks.length})',
+                                      'CAD 3D Approvals (${cadFiltered.length})',
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: _adminActiveTab == 1
@@ -1149,8 +1152,8 @@ class _InstructionListState extends State<_InstructionList> {
                         )
                       : CommonRefreshIndicator(
                           onRefresh: () async {
-                            await Future<void>.delayed(
-                              const Duration(milliseconds: 600),
+                            context.read<DirectivesBloc>().add(
+                              const FetchDirectivesEvent(),
                             );
                           },
                           child: ListView.separated(

@@ -22,6 +22,7 @@ abstract final class ApiDomainMapper {
 
     return CustomerOrder(
       id: value.orderNumber.isNotEmpty ? value.orderNumber : value.id,
+      apiId: value.id,
       clientFirmName: value.customerName.isNotEmpty
           ? value.customerName
           : 'Client Order',
@@ -50,6 +51,20 @@ abstract final class ApiDomainMapper {
           : value.parts
                 .map((part) => '${part.quantity}x ${part.designNumber}')
                 .join(', '),
+      designs: value.parts
+          .map(
+            (part) => OrderDesignProgress(
+              partId: part.id,
+              designNumber: part.designNumber,
+              quantity: part.quantity,
+              grossWeight: part.grossWeight,
+              currentStage: part.currentStage,
+              status: part.status,
+              isBlocked: part.isBlocked,
+              blockReason: part.blockReason,
+            ),
+          )
+          .toList(growable: false),
       currentWorkshopStage: firstPart?.currentStage ?? '',
       responsibleManager: '',
       isBlocked: isBlocked,
@@ -111,6 +126,7 @@ abstract final class ApiDomainMapper {
     category: parseCategory(value.category ?? value.sketch?.category),
     purity: '',
     grossWeightGrams: value.totalWeight,
+    estimatedPrice: value.price,
     imageUrl: value.xtlFileUrl ?? '',
     description: _cleanText(value.adminInstructions).isNotEmpty
         ? _cleanText(value.adminInstructions)
@@ -227,12 +243,12 @@ abstract final class ApiDomainMapper {
       id: value.id,
       name: value.name,
       craft: readableRole,
-      shift: 'Day Shift (9 AM - 7 PM)',
+      shift: '',
       activeLotsCount: value.workerAssignmentsCount,
       status: value.isActive
           ? EmployeeStatus.available
           : EmployeeStatus.blocked,
-      todayEfficiencyPercent: 95,
+      todayEfficiencyPercent: 0,
       currentAssignment: value.workerAssignmentsCount > 0
           ? '${value.workerAssignmentsCount} active lots assigned'
           : 'Ready for allocation',
@@ -262,6 +278,7 @@ abstract final class ApiDomainMapper {
       tone: value.status == 'FAILED' ? HealthTone.critical : HealthTone.healthy,
       blockerReason: value.status == 'FAILED' ? value.instructions : null,
       lastUpdatedTime: '',
+      apiStageName: value.stageName,
     );
   }
 
@@ -293,24 +310,28 @@ abstract final class ApiDomainMapper {
         : value['workerAssignments'] is List
         ? value['workerAssignments'] as List
         : const [];
-    final latestAssignment = assignments.isNotEmpty && assignments.last is Map
-        ? Map<String, dynamic>.from(assignments.last as Map)
-        : const <String, dynamic>{};
+    final latestAssignment = _currentWorkerAssignment(
+      assignments,
+      part: part,
+      value: value,
+    );
+    // The part's current stage is authoritative. Worker assignments can include
+    // historical stages and are only a fallback when the part omits it.
     final rawStage =
-        latestAssignment['stage'] ??
         part['currentStage'] ??
         part['stage'] ??
         value['currentStage'] ??
-        value['stage'];
+        value['stage'] ??
+        latestAssignment['stage'];
     String stageName = rawStage is Map
         ? rawStage['name'] as String? ?? ''
         : rawStage as String? ?? '';
     final stageId =
-        latestAssignment['stageId'] as String? ??
         part['currentStageId'] as String? ??
         part['stageId'] as String? ??
         value['currentStageId'] as String? ??
         value['stageId'] as String? ??
+        latestAssignment['stageId'] as String? ??
         '';
     if (stageId.isNotEmpty) {
       final matched = DemoStore.instance.stages
@@ -354,7 +375,10 @@ abstract final class ApiDomainMapper {
         employeeName = '$fName $lName'.trim();
       }
     } else if (rawEmployee is String) {
-      employeeName = rawEmployee;
+      final matched = DemoStore.instance.team
+          .where((member) => member.id == rawEmployee)
+          .firstOrNull;
+      employeeName = matched?.name ?? rawEmployee;
     }
 
     final empId =
@@ -387,48 +411,6 @@ abstract final class ApiDomainMapper {
           .firstOrNull;
       if (matched != null) {
         employeeName = matched.name;
-      }
-    }
-
-    if (employeeName.isEmpty ||
-        employeeName.trim().isEmpty ||
-        employeeName.toLowerCase() == 'unassigned') {
-      final instructions =
-          latestAssignment['instructions'] as String? ??
-          part['instructions'] as String? ??
-          value['instructions'] as String? ??
-          '';
-      if (instructions.contains('Assigned to ')) {
-        final idx = instructions.indexOf('Assigned to ');
-        final rest = instructions.substring(idx + 'Assigned to '.length).trim();
-        final cleanName = rest.contains(':')
-            ? rest.substring(0, rest.indexOf(':')).trim()
-            : (rest.contains('\n')
-                  ? rest.substring(0, rest.indexOf('\n')).trim()
-                  : rest);
-        if (cleanName.isNotEmpty) {
-          employeeName = cleanName;
-        }
-      }
-    }
-
-    // Preserve previously assigned worker from store if API omits employee details
-    if (employeeName.isEmpty ||
-        employeeName.trim().isEmpty ||
-        employeeName.toLowerCase() == 'unassigned') {
-      final existingLot = DemoStore.instance.lots
-          .where(
-            (l) =>
-                l.id == lotId ||
-                (l.orderId.isNotEmpty &&
-                    l.orderId == orderId &&
-                    l.designCode == designNumber),
-          )
-          .firstOrNull;
-      if (existingLot != null &&
-          existingLot.assignedEmployee.isNotEmpty &&
-          existingLot.assignedEmployee != 'Unassigned') {
-        employeeName = existingLot.assignedEmployee;
       }
     }
 
@@ -477,6 +459,8 @@ abstract final class ApiDomainMapper {
                 : 'Part placed on hold / failed in process')
           : null,
       lastUpdatedTime: '',
+      apiStageId: stageId,
+      apiStageName: stageName,
     );
   }
 
@@ -514,13 +498,98 @@ abstract final class ApiDomainMapper {
     return WorkshopStage.inQueue;
   }
 
+  static Map<String, dynamic> _currentWorkerAssignment(
+    List<dynamic> assignments, {
+    required Map<String, dynamic> part,
+    required Map<String, dynamic> value,
+  }) {
+    final candidates = assignments
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    if (candidates.isEmpty) return const <String, dynamic>{};
+
+    final rawCurrentStage =
+        part['currentStage'] ??
+        part['stage'] ??
+        value['currentStage'] ??
+        value['stage'];
+    final currentStageId =
+        part['currentStageId'] as String? ??
+        part['stageId'] as String? ??
+        value['currentStageId'] as String? ??
+        value['stageId'] as String? ??
+        (rawCurrentStage is Map ? rawCurrentStage['id'] as String? : null) ??
+        '';
+    final currentStageName = (rawCurrentStage is Map
+        ? rawCurrentStage['name'] as String? ?? ''
+        : rawCurrentStage as String? ?? '');
+
+    bool isActive(Map<String, dynamic> assignment) {
+      final status = (assignment['status'] as String? ?? '').toUpperCase();
+      return status.isEmpty ||
+          status == 'ASSIGNED' ||
+          status == 'IN_PROGRESS' ||
+          status == 'ACTIVE' ||
+          status == 'PAUSED';
+    }
+
+    bool matchesCurrentStage(Map<String, dynamic> assignment) {
+      final rawStage = assignment['stage'];
+      final assignmentStageId =
+          assignment['stageId'] as String? ??
+          (rawStage is Map ? rawStage['id'] as String? : null) ??
+          '';
+      final assignmentStageName = (rawStage is Map
+          ? rawStage['name'] as String? ?? ''
+          : rawStage as String? ?? '');
+      if (currentStageId.isNotEmpty && assignmentStageId.isNotEmpty) {
+        return currentStageId == assignmentStageId;
+      }
+      return currentStageName.isNotEmpty &&
+          assignmentStageName.trim().toLowerCase() ==
+              currentStageName.trim().toLowerCase();
+    }
+
+    final currentActive = candidates
+        .where((item) => isActive(item) && matchesCurrentStage(item))
+        .toList();
+    final active = candidates.where(isActive).toList();
+    final pool = currentActive.isNotEmpty
+        ? currentActive
+        : active.isNotEmpty
+        ? active
+        : candidates;
+    pool.sort((a, b) {
+      final aTime = DateTime.tryParse(
+        a['updatedAt'] as String? ?? a['createdAt'] as String? ?? '',
+      );
+      final bTime = DateTime.tryParse(
+        b['updatedAt'] as String? ?? b['createdAt'] as String? ?? '',
+      );
+      return (aTime ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
+        bTime ?? DateTime.fromMillisecondsSinceEpoch(0),
+      );
+    });
+    return pool.last;
+  }
+
   static Instruction directive(ApiDirective value) {
     final isAck = value.status.toUpperCase() == 'ACKNOWLEDGED';
+    var message = '${value.title}: ${value.instruction}';
+    if (value.audioUrl?.isNotEmpty == true) {
+      message += ' [ 🎙️ Voice Note: ${value.audioUrl} ]';
+    }
+    if (value.imageUrl?.isNotEmpty == true) {
+      message += ' [ 🖼️ Image: ${value.imageUrl} ]';
+    }
     return Instruction(
-      id: value.directiveCode.isNotEmpty ? value.directiveCode : value.id,
+      id: value.id,
       targetId: value.targetType,
-      targetLabel: value.targetType.replaceAll('_', ' '),
-      message: '${value.title}: ${value.instruction}',
+      targetLabel: value.directiveCode.isNotEmpty
+          ? value.directiveCode
+          : value.targetType.replaceAll('_', ' '),
+      message: message,
       createdBy: 'Admin / PM',
       assignedTo: value.targetType.replaceAll('_', ' '),
       urgency: InstructionUrgency.urgent,

@@ -8,6 +8,30 @@ abstract final class ApiErrorHandler {
     dynamic error, {
     String fallback = 'Operation could not be completed. Please try again.',
   }) {
+    if (error is String) {
+      final message = error.trim();
+      final lower = message.toLowerCase();
+      if (lower.contains('401') ||
+          lower.contains('unauthorized') ||
+          lower.contains('authentication required') ||
+          lower.contains('session expired')) {
+        return 'Your session has expired. Please log in again.';
+      }
+      if (lower.contains('invalid credential') ||
+          lower.contains('incorrect password')) {
+        return 'Incorrect email or password.';
+      }
+      if (lower.contains('403') || lower.contains('forbidden')) {
+        return 'You do not have permission for this action.';
+      }
+      if (lower.contains('dioexception') ||
+          lower.contains('requestoptions') ||
+          lower.contains('status code of')) {
+        return fallback;
+      }
+      return message.isEmpty ? fallback : message;
+    }
+
     if (error is DioException) {
       if (error.type == DioExceptionType.connectionTimeout ||
           error.type == DioExceptionType.receiveTimeout ||
@@ -22,20 +46,25 @@ abstract final class ApiErrorHandler {
 
         // 1. Check custom backend error fields
         String? serverMsg;
-        if (data['message'] is String && (data['message'] as String).trim().isNotEmpty) {
+        if (data['message'] is String &&
+            (data['message'] as String).trim().isNotEmpty) {
           serverMsg = data['message'] as String;
-        } else if (data['error'] is Map && (data['error'] as Map)['message'] is String) {
+        } else if (data['error'] is Map &&
+            (data['error'] as Map)['message'] is String) {
           serverMsg = (data['error'] as Map)['message'] as String;
         }
 
         if (serverMsg != null && serverMsg.trim().isNotEmpty) {
-          if (serverMsg.contains('Access restricted') || serverMsg.contains('Forbidden')) {
+          if (serverMsg.contains('Access restricted') ||
+              serverMsg.contains('Forbidden')) {
             return 'Access Restricted: You do not have permission for this role.';
           }
-          if (serverMsg.contains('expired') || serverMsg.contains('Authentication required')) {
+          if (serverMsg.contains('expired') ||
+              serverMsg.contains('Authentication required')) {
             return 'Session Expired: Please log in again to refresh your session.';
           }
-          if (serverMsg.contains('not found') || serverMsg.contains('NOT_FOUND')) {
+          if (serverMsg.contains('not found') ||
+              serverMsg.contains('NOT_FOUND')) {
             return 'Resource Not Found: Requested item does not exist on server.';
           }
           return serverMsg;

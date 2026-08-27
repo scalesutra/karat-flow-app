@@ -370,9 +370,8 @@ class _HealthStrip extends StatelessWidget {
         children: [
           Expanded(
             child: _HealthMetric(
-              value:
-                  '${store.lots.where((lot) => lot.blockerReason?.isNotEmpty ?? false).length}',
-              label: 'Critical Hold',
+              value: '${store.heldLotsCount}',
+              label: 'Parts on Hold',
               accent: const Color(0xFFFFA88D),
             ),
           ),
@@ -456,6 +455,9 @@ class _StatusCard extends StatelessWidget {
     final (label, color, icon) = statusTone(item.tone);
     final isCritical = item.tone == HealthTone.critical;
     final isWarning = item.tone == HealthTone.warning;
+    final displayId = item.pivot == StatusPivot.orders && item.id.length > 10
+        ? 'ORD-${item.id.substring(0, 6)}'
+        : item.id;
 
     return CommonCard(
       borderColor: isCritical
@@ -499,9 +501,7 @@ class _StatusCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            item.id.length > 10
-                                ? 'ORD-${item.id.substring(0, 6)}'
-                                : item.id,
+                            displayId,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -539,7 +539,7 @@ class _StatusCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _TonePill(label: label, color: color),
+              _TonePill(label: isCritical ? 'ON HOLD' : label, color: color),
             ],
           ),
           const SizedBox(height: 12),
@@ -557,17 +557,20 @@ class _StatusCard extends StatelessWidget {
                     item.status,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 12,
-                      color: AppColors.ink,
+                      color: isCritical ? AppColors.danger : AppColors.ink,
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    '${item.quantity} · ${item.owner}',
+                    [
+                      item.quantity,
+                      item.owner,
+                    ].where((value) => value.isNotEmpty).join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

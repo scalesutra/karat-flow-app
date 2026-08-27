@@ -59,7 +59,9 @@ class _JewelleryOpsAppState extends State<JewelleryOpsApp> {
         BlocProvider<ArtisanBloc>(create: (_) => ArtisanBloc()),
         BlocProvider<MaterialsBloc>(create: (_) => MaterialsBloc()),
         BlocProvider<InventoryBloc>(create: (_) => InventoryBloc()),
-        BlocProvider<DirectivesBloc>(create: (_) => DirectivesBloc()),
+        BlocProvider<DirectivesBloc>(
+          create: (_) => DirectivesBloc(store: _store),
+        ),
       ],
       child: GetMaterialApp(
         title: 'KaratFlow',

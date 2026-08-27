@@ -534,11 +534,12 @@ class KaratFlowApiRepository {
 
   Future<Map<String, dynamic>?> transitionPartNextStage({
     required String partId,
+    int? quantity,
     String notes = '',
   }) async {
     final response = await _api.post(
       ApiEndpoints.productionTransition(partId),
-      data: {'notes': notes},
+      data: {'notes': notes, 'quantity': ?quantity},
     );
     return response.data['data'] as Map<String, dynamic>?;
   }
@@ -547,10 +548,15 @@ class KaratFlowApiRepository {
     required String partId,
     required String targetStageId,
     required String reason,
+    int? quantity,
   }) async {
     await _api.post(
       ApiEndpoints.productionRollback(partId),
-      data: {'targetStageId': targetStageId, 'reason': reason},
+      data: {
+        'targetStageId': targetStageId,
+        'reason': reason,
+        'quantity': ?quantity,
+      },
     );
   }
 

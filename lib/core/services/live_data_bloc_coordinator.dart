@@ -28,6 +28,7 @@ abstract final class LiveDataBlocCoordinator {
       case AppRole.processManager:
         context.read<OrdersBloc>().add(const FetchOrdersEvent());
         context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent());
+        context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
       case AppRole.cadDesigner:
         context.read<CadBloc>().add(const FetchCadTasksEvent());
       case AppRole.rawDesigner:

@@ -427,6 +427,15 @@ class _CartPageState extends State<CartPage> {
     }
     final cartItems = widget.store.cart;
     if (cartItems.isEmpty) return;
+    if (cartItems.any((item) => !item.design.hasBackendPrice)) {
+      CommonSnackbar.error(
+        context,
+        title: 'Price Required',
+        message:
+            'Every selected design must have a valid backend price before the order can be placed.',
+      );
+      return;
+    }
     if (cartItems.any((item) => item.design.code.trim().isEmpty)) {
       CommonSnackbar.error(
         context,

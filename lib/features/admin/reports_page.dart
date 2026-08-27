@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/services/live_data_bloc_coordinator.dart';
@@ -7,7 +6,7 @@ import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../domain/models.dart';
 import '../../routes/app_routes.dart';
-import 'bloc/admin_bloc.dart';
+import '../instructions/instruction_composer.dart';
 
 class AdminReportsPage extends StatefulWidget {
   const AdminReportsPage({super.key, required this.store});
@@ -19,7 +18,8 @@ class AdminReportsPage extends StatefulWidget {
 }
 
 class _AdminReportsPageState extends State<AdminReportsPage> {
-  int _selectedTab = 0; // 0: All, 1: Delayed, 2: Pending, 3: Dispatched
+  int _selectedTab =
+      0; // 0: All, 1: Delayed, 2: Pending, 3: Dispatched, 4: Hold
 
   @override
   void initState() {
@@ -37,18 +37,17 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
       animation: widget.store,
       builder: (context, _) {
         final allOrders = widget.store.orders;
+        final orderItems = widget.store.workItemsFor(StatusPivot.orders);
 
         // 1. Pending orders
         final pendingOrders = allOrders
             .where((o) => o.status == OrderStatus.pending)
             .toList();
 
-        // 2. In Workshop / Daily Production orders
-        final productionOrders = allOrders
-            .where((o) => o.status == OrderStatus.inWorkshop)
-            .toList();
+        // 2. Active production lots from the production API
+        final productionLots = widget.store.lots;
 
-        // 3. Dispatched orders today
+        // 3. Dispatched / delivered orders (API has no dispatch timestamp)
         final dispatchedOrders = allOrders
             .where(
               (o) =>
@@ -57,20 +56,29 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
             )
             .toList();
 
-        // 4. Delayed / Attention orders (Urgent/Delayed or Promise Date passed)
+        // 4. Delayed orders with an actual passed due date
+        final today = DateTime.now();
+        final todayDate = DateTime(today.year, today.month, today.day);
         final delayedOrders = allOrders.where((o) {
-          final summary = o.itemsSummary.toLowerCase();
-          final isDelayedOrUrgent =
-              summary.contains('urgent') ||
-              summary.contains('delayed') ||
-              o.status == OrderStatus.pending;
-          return isDelayedOrUrgent && o.status != OrderStatus.delivered;
+          final dueDate = _parseApiDate(o.promiseDate);
+          return dueDate != null &&
+              dueDate.isBefore(todayDate) &&
+              o.status != OrderStatus.delivered &&
+              o.status != OrderStatus.cancelled;
         }).toList();
 
+        final heldOrderIds = orderItems
+            .where((item) => item.tone == HealthTone.critical)
+            .map((item) => item.id)
+            .toSet();
+        final heldOrders = allOrders
+            .where((order) => heldOrderIds.contains(order.id))
+            .toList();
+
         // Total daily production weight
-        final double productionGrams = productionOrders.fold(
+        final double productionGrams = productionLots.fold(
           0.0,
-          (sum, o) => sum + o.totalGrossGrams,
+          (sum, lot) => sum + lot.targetWeightGrams,
         );
 
         final double dispatchedGrams = dispatchedOrders.fold(
@@ -85,6 +93,8 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
           displayedOrders = pendingOrders;
         } else if (_selectedTab == 3) {
           displayedOrders = dispatchedOrders;
+        } else if (_selectedTab == 4) {
+          displayedOrders = heldOrders;
         } else {
           displayedOrders = allOrders;
         }
@@ -93,7 +103,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
           top: false,
           child: CommonRefreshIndicator(
             onRefresh: () async {
-              context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+              LiveDataBlocCoordinator.refreshForRole(context, AppRole.admin);
               await Future<void>.delayed(const Duration(milliseconds: 600));
             },
             child: ListView(
@@ -122,7 +132,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                       child: _ReportMetricCard(
                         title: 'Daily Production',
                         value: '${productionGrams.toStringAsFixed(1)} g',
-                        subtitle: '${productionOrders.length} lots on floor',
+                        subtitle: '${productionLots.length} lots on floor',
                         icon: Icons.precision_manufacturing_rounded,
                         color: AppColors.emerald,
                         bgColor: AppColors.emeraldLight,
@@ -168,7 +178,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                     // 4. Total Dispatched Orders Today
                     Expanded(
                       child: _ReportMetricCard(
-                        title: 'Dispatched Today',
+                        title: 'Dispatched / Delivered',
                         value: '${dispatchedOrders.length}',
                         subtitle:
                             '${dispatchedGrams.toStringAsFixed(1)} g sent',
@@ -180,6 +190,17 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 10),
+                _ReportMetricCard(
+                  title: 'Orders On Hold',
+                  value: '${heldOrders.length}',
+                  subtitle: '${widget.store.heldLotsCount} held parts',
+                  icon: Icons.pause_circle_outline,
+                  color: AppColors.danger,
+                  bgColor: AppColors.dangerLight,
+                  onTap: () => setState(() => _selectedTab = 4),
+                  isSelected: _selectedTab == 4,
                 ),
 
                 const SizedBox(height: 20),
@@ -215,6 +236,13 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                         badgeColor: AppColors.emerald,
                         onTap: () => setState(() => _selectedTab = 3),
                       ),
+                      const SizedBox(width: 8),
+                      _FilterTabChip(
+                        label: 'On Hold (${heldOrders.length})',
+                        isSelected: _selectedTab == 4,
+                        badgeColor: AppColors.danger,
+                        onTap: () => setState(() => _selectedTab = 4),
+                      ),
                     ],
                   ),
                 ),
@@ -239,8 +267,23 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final order = displayedOrders[index];
+                      final workItem = orderItems
+                          .where((item) => item.id == order.id)
+                          .firstOrNull;
                       return _OrderReportRow(
                         order: order,
+                        holdStatus: workItem?.tone == HealthTone.critical
+                            ? workItem?.status
+                            : null,
+                        onDirective:
+                            workItem == null ||
+                                workItem.tone != HealthTone.critical
+                            ? null
+                            : () => showInstructionComposer(
+                                context,
+                                store: widget.store,
+                                target: workItem,
+                              ),
                         onTap: () {
                           final orderMap = {
                             'id': order.id,
@@ -281,6 +324,20 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     OrderStatus.delivered => AppColors.emeraldDark,
     OrderStatus.cancelled => AppColors.danger,
   };
+
+  DateTime? _parseApiDate(String value) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed != null) {
+      return DateTime(parsed.year, parsed.month, parsed.day);
+    }
+    final parts = value.split(RegExp(r'[-/]'));
+    if (parts.length != 3) return null;
+    final day = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) return null;
+    return DateTime(year, month, day);
+  }
 }
 
 class _ReportMetricCard extends StatelessWidget {
@@ -449,10 +506,17 @@ class _FilterTabChip extends StatelessWidget {
 }
 
 class _OrderReportRow extends StatelessWidget {
-  const _OrderReportRow({required this.order, required this.onTap});
+  const _OrderReportRow({
+    required this.order,
+    required this.onTap,
+    this.holdStatus,
+    this.onDirective,
+  });
 
   final CustomerOrder order;
   final VoidCallback onTap;
+  final String? holdStatus;
+  final VoidCallback? onDirective;
 
   @override
   Widget build(BuildContext context) {
@@ -474,8 +538,12 @@ class _OrderReportRow extends StatelessWidget {
       OrderStatus.cancelled => AppColors.dangerLight,
     };
 
+    final isOnHold = holdStatus?.isNotEmpty == true;
     return CommonCard(
       onTap: onTap,
+      borderColor: isOnHold
+          ? AppColors.danger.withValues(alpha: 0.55)
+          : AppColors.outline,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -496,13 +564,13 @@ class _OrderReportRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: statusBg,
+                  color: isOnHold ? AppColors.dangerLight : statusBg,
                   borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
                 ),
                 child: Text(
-                  order.status.label,
+                  isOnHold ? 'ON HOLD' : order.status.label,
                   style: TextStyle(
-                    color: statusColor,
+                    color: isOnHold ? AppColors.danger : statusColor,
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                   ),
@@ -524,6 +592,25 @@ class _OrderReportRow extends StatelessWidget {
             order.itemsSummary,
             style: const TextStyle(color: AppColors.muted, fontSize: 11),
           ),
+          if (isOnHold) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+              ),
+              child: Text(
+                holdStatus!,
+                style: const TextStyle(
+                  color: AppColors.danger,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -553,6 +640,17 @@ class _OrderReportRow extends StatelessWidget {
               ],
             ),
           ),
+          if (onDirective != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onDirective,
+                icon: const Icon(Icons.add_comment_outlined, size: 16),
+                label: const Text('Send Directive'),
+              ),
+            ),
+          ],
         ],
       ),
     );

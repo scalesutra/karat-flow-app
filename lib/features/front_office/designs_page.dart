@@ -193,10 +193,22 @@ class _DesignsPageState extends State<DesignsPage> {
                                   return _DesignCard(
                                     design: design,
                                     cartQuantity: cartItem?.quantity ?? 0,
-                                    onAddToCart: () =>
-                                        widget.store.addToCart(design),
-                                    onIncrease: () =>
-                                        widget.store.addToCart(design),
+                                    onAddToCart: () {
+                                      if (!design.hasBackendPrice) {
+                                        CommonSnackbar.error(
+                                          context,
+                                          title: 'Price Unavailable',
+                                          message:
+                                              'This design has no backend price and cannot be added yet.',
+                                        );
+                                        return;
+                                      }
+                                      widget.store.addToCart(design);
+                                    },
+                                    onIncrease: () {
+                                      if (!design.hasBackendPrice) return;
+                                      widget.store.addToCart(design);
+                                    },
                                     onDecrease: () =>
                                         widget.store.updateCartQuantity(
                                           design.id,
@@ -381,7 +393,9 @@ class _DesignCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'â‚¹${_formatPrice(design.estimatedPrice)}',
+                        design.hasBackendPrice
+                            ? 'â‚¹${_formatPrice(design.estimatedPrice)}'
+                            : 'Price unavailable',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -574,8 +588,10 @@ class _DesignDetailModal extends StatelessWidget {
                 ),
                 const Divider(height: 14),
                 _specRow(
-                  'Est. Total (Approx)',
-                  'â‚¹${design.estimatedPrice.toStringAsFixed(0)}',
+                  'Backend Price',
+                  design.hasBackendPrice
+                      ? 'â‚¹${design.estimatedPrice.toStringAsFixed(0)}'
+                      : 'Not provided',
                   isBold: true,
                 ),
               ],
@@ -583,18 +599,22 @@ class _DesignDetailModal extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           CommonButton.primary(
-            label: 'Add to Order Cart',
+            label: design.hasBackendPrice
+                ? 'Add to Order Cart'
+                : 'Backend Price Required',
             icon: Icons.shopping_bag_outlined,
-            onPressed: () {
-              store.addToCart(design);
-              Navigator.pop(context);
-              CommonSnackbar.success(
-                context,
-                title: 'Added to Cart',
-                message: '${design.name} has been added.',
-                duration: const Duration(seconds: 2),
-              );
-            },
+            onPressed: design.hasBackendPrice
+                ? () {
+                    store.addToCart(design);
+                    Navigator.pop(context);
+                    CommonSnackbar.success(
+                      context,
+                      title: 'Added to Cart',
+                      message: '${design.name} has been added.',
+                      duration: const Duration(seconds: 2),
+                    );
+                  }
+                : null,
           ),
         ],
       ),
