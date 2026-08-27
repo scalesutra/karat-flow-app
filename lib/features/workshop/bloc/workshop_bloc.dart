@@ -42,34 +42,29 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
   ) async {
     emit(const WorkshopLoading());
     try {
-      final role = (await _tokenStorage.getUserRole() ?? '').toUpperCase();
+      final roleStr = await _tokenStorage.getUserRole();
+      final appRole = AppRole.fromRoleString(roleStr);
       final stages = await _api.listStages();
-      final isWorker = role == 'OTHER_EMPLOYEE';
-      final isFrontier = role == 'FRONTIER' || role == 'SALES_EXECUTIVE';
+      final isWorker = appRole == AppRole.workshopArtisan;
+      final isFrontier = appRole == AppRole.frontOffice;
       List<WorkshopLot> lots = [];
       if (isWorker) {
         lots = (await _api.listWorkerTasks())
             .map(ApiDomainMapper.workerTask)
             .toList();
       } else if (!isFrontier) {
-        try {
-          lots = (await _api.listPendingProductionFloor())
-              .map(
-                (item) => ApiDomainMapper.pendingPart(
-                  Map<String, dynamic>.from(item as Map),
-                ),
-              )
-              .toList();
-        } catch (_) {
-          lots = _store.lots;
-        }
+        lots = (await _api.listPendingProductionFloor())
+            .map(
+              (item) => ApiDomainMapper.pendingPart(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
+            .toList();
       } else {
-        lots = _store.lots;
+        lots = <WorkshopLot>[];
       }
       final canManageAssignments =
-          role == 'ADMIN' ||
-          role == 'PRODUCTION_MANAGER' ||
-          role == 'PROCESS_MANAGER';
+          appRole == AppRole.admin || appRole == AppRole.processManager;
       final team = canManageAssignments
           ? (await _api.listEmployees()).map(ApiDomainMapper.employee).toList()
           : <TeamMember>[];
@@ -115,10 +110,9 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
         _store.updateLotStage(event.lotId, WorkshopStage.readyForDispatch);
       } else if (currentStage != null && currentStage.isNotEmpty) {
         _store.updateLotStage(event.lotId, ApiDomainMapper.stage(currentStage));
-      } else {
-        _store.advanceLotStage(event.lotId);
       }
       emit(const WorkshopStageUpdated('Part advanced successfully.'));
+      add(const FetchWorkshopLotsEvent());
     } catch (error) {
       emit(WorkshopError('Failed to advance part: $error'));
     }
@@ -178,17 +172,9 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     BlockLotPartEvent event,
     Emitter<WorkshopState> emit,
   ) async {
-    _store.toggleLotHold(event.partId, isBlocked: true, reason: event.reason);
-    emit(
-      WorkshopLoaded(
-        lots: _store.lots,
-        filteredLots: _store.lots,
-        team: _store.team,
-        apiStages: _store.stages,
-      ),
-    );
     try {
       await _api.blockOrderPart(partId: event.partId, reason: event.reason);
+      _store.toggleLotHold(event.partId, isBlocked: true, reason: event.reason);
       emit(const WorkshopStageUpdated('Part blocked / placed on hold.'));
       add(const FetchWorkshopLotsEvent());
     } catch (error) {
@@ -200,17 +186,9 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     UnblockLotPartEvent event,
     Emitter<WorkshopState> emit,
   ) async {
-    _store.toggleLotHold(event.partId, isBlocked: false);
-    emit(
-      WorkshopLoaded(
-        lots: _store.lots,
-        filteredLots: _store.lots,
-        team: _store.team,
-        apiStages: _store.stages,
-      ),
-    );
     try {
       await _api.unblockOrderPart(partId: event.partId, notes: event.notes);
+      _store.toggleLotHold(event.partId, isBlocked: false);
       emit(const WorkshopStageUpdated('Part unblocked / hold released.'));
       add(const FetchWorkshopLotsEvent());
     } catch (error) {
@@ -287,7 +265,9 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
 
   WorkshopStage _stageForId(String stageId) {
     final index = _store.stages.indexWhere((stage) => stage.id == stageId);
-    if (index < 0) return WorkshopStage.inQueue;
+    if (index < 0) {
+      throw StateError('Production stage $stageId is not loaded from the API.');
+    }
     final apiStage = _store.stages[index];
     return ApiDomainMapper.stage(apiStage.name);
   }

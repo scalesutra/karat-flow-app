@@ -19,11 +19,9 @@ class WorkshopMorePage extends StatefulWidget {
 }
 
 class _WorkshopMorePageState extends State<WorkshopMorePage> {
-  bool _printerConnected = true;
-  bool _scaleConnected = true;
-  bool _scannerConnected = true;
-  double _scaleReadingGrams = 0.000;
-  bool _isWeighingSample = false;
+  bool _printerConnected = false;
+  bool _scaleConnected = false;
+  bool _scannerConnected = false;
 
   @override
   Widget build(BuildContext context) {
@@ -400,9 +398,7 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
               const SizedBox(height: 18),
 
               // 3. CONNECTED WORKSHOP HARDWARE
-              const CommonText.titleMedium(
-                'Connected Workshop Hardware (BLE/USB)',
-              ),
+              const CommonText.titleMedium('Workshop Hardware (BLE/USB)'),
               const SizedBox(height: 8),
 
               // 2A. ZEBRA PRINTER CARD
@@ -472,7 +468,7 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                               Text(
                                 _printerConnected
                                     ? 'Ready · 38x25mm Barcode Roll'
-                                    : 'Disconnected · Tap connect',
+                                    : 'Live printer integration unavailable',
                                 style: TextStyle(
                                   color: _printerConnected
                                       ? AppColors.emeraldDark
@@ -486,8 +482,7 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                         Switch.adaptive(
                           value: _printerConnected,
                           activeTrackColor: AppColors.emerald,
-                          onChanged: (val) =>
-                              setState(() => _printerConnected = val),
+                          onChanged: null,
                         ),
                       ],
                     ),
@@ -510,11 +505,11 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                               label: 'Test Print 1x',
                               icon: Icons.print,
                               onPressed: () {
-                                CommonSnackbar.info(
+                                CommonSnackbar.error(
                                   context,
-                                  title: 'Test Print Sent',
+                                  title: 'Printer unavailable',
                                   message:
-                                      'Sent 38x25mm lot barcode test label to Zebra ZD421.',
+                                      'No live printer bridge is configured.',
                                 );
                               },
                             ),
@@ -594,8 +589,8 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                               const SizedBox(height: 2),
                               Text(
                                 _scaleConnected
-                                    ? 'BLE COM4 · NABL Certified Calibration'
-                                    : 'Disconnected',
+                                    ? 'Live scale connected'
+                                    : 'Live scale integration unavailable',
                                 style: TextStyle(
                                   color: _scaleConnected
                                       ? AppColors.emeraldDark
@@ -609,8 +604,7 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                         Switch.adaptive(
                           value: _scaleConnected,
                           activeTrackColor: AppColors.emerald,
-                          onChanged: (val) =>
-                              setState(() => _scaleConnected = val),
+                          onChanged: null,
                         ),
                       ],
                     ),
@@ -656,9 +650,9 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                                 ),
                               ],
                             ),
-                            Text(
-                              '${_scaleReadingGrams.toStringAsFixed(3)} g',
-                              style: const TextStyle(
+                            const Text(
+                              '-- g',
+                              style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: Color(0xFFFFD18A),
                                 fontWeight: FontWeight.w900,
@@ -678,15 +672,11 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                               label: 'Zero Tare (0.000g)',
                               icon: Icons.restart_alt,
                               onPressed: () {
-                                setState(() {
-                                  _scaleReadingGrams = 0.000;
-                                  _isWeighingSample = false;
-                                });
-                                CommonSnackbar.info(
+                                CommonSnackbar.error(
                                   context,
-                                  title: 'Scale Zeroed',
+                                  title: 'Scale unavailable',
                                   message:
-                                      'Tare baseline calibrated to 0.000 g.',
+                                      'No live scale bridge is configured.',
                                 );
                               },
                             ),
@@ -695,25 +685,14 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                           Expanded(
                             child: CommonButton.primary(
                               height: 34,
-                              label: _isWeighingSample
-                                  ? 'Remove Sample'
-                                  : 'Weigh 22K Ring',
+                              label: 'Read Live Scale',
                               icon: Icons.scale_outlined,
                               onPressed: () {
-                                setState(() {
-                                  _isWeighingSample = !_isWeighingSample;
-                                  _scaleReadingGrams = _isWeighingSample
-                                      ? 14.852
-                                      : 0.000;
-                                });
-                                CommonSnackbar.info(
+                                CommonSnackbar.error(
                                   context,
-                                  title: _isWeighingSample
-                                      ? 'Sample Placed'
-                                      : 'Sample Removed',
-                                  message: _isWeighingSample
-                                      ? 'Scale reading: 14.852 g (22KT casting).'
-                                      : 'Scale returned to 0.000 g.',
+                                  title: 'Scale unavailable',
+                                  message:
+                                      'No live scale reading is available.',
                                 );
                               },
                             ),
@@ -793,8 +772,8 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                               const SizedBox(height: 2),
                               Text(
                                 _scannerConnected
-                                    ? 'Active · Ready for Pouch Barcode & Aztec QR'
-                                    : 'Disconnected',
+                                    ? 'Live scanner connected'
+                                    : 'Live scanner integration unavailable',
                                 style: TextStyle(
                                   color: _scannerConnected
                                       ? AppColors.emeraldDark
@@ -808,8 +787,7 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                         Switch.adaptive(
                           value: _scannerConnected,
                           activeTrackColor: AppColors.emerald,
-                          onChanged: (val) =>
-                              setState(() => _scannerConnected = val),
+                          onChanged: null,
                         ),
                       ],
                     ),
@@ -823,11 +801,11 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                               label: 'Beep Sound Test',
                               icon: Icons.volume_up_outlined,
                               onPressed: () {
-                                CommonSnackbar.info(
+                                CommonSnackbar.error(
                                   context,
-                                  title: 'Beep Triggered',
+                                  title: 'Scanner unavailable',
                                   message:
-                                      'Good Read 80dB tone played on scanner.',
+                                      'No live scanner bridge is configured.',
                                 );
                               },
                             ),
@@ -839,11 +817,11 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                               label: 'Trigger Laser Aim',
                               icon: Icons.line_weight,
                               onPressed: () {
-                                CommonSnackbar.info(
+                                CommonSnackbar.error(
                                   context,
-                                  title: 'Laser Active',
+                                  title: 'Scanner unavailable',
                                   message:
-                                      'Red targeting crosshair enabled for 10 seconds.',
+                                      'No live scanner bridge is configured.',
                                 );
                               },
                             ),

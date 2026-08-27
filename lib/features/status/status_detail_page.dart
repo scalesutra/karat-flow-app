@@ -855,35 +855,7 @@ class StatusDetailPage extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
             ],
-            const SizedBox(height: 12),
-            const CommonText.titleMedium('Order SLA & Quality Governance'),
-            const SizedBox(height: 10),
-            CommonCard(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                children: [
-                  _sopRow(
-                    Icons.workspace_premium_outlined,
-                    'BIS Hallmarking & XRF Purity Audit',
-                    '916 / 22K Certified',
-                  ),
-                  const Divider(height: 16),
-                  _sopRow(
-                    Icons.security_outlined,
-                    'Secure Vault Transfer & RFID Lock',
-                    'Insured transit',
-                  ),
-                  const Divider(height: 16),
-                  _sopRow(
-                    Icons.event_available_outlined,
-                    'Promised Delivery Window',
-                    order.promiseDate,
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),

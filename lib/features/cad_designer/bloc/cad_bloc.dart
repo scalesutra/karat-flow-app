@@ -155,37 +155,23 @@ class CadBloc extends Bloc<CadEvent, CadState> {
         '🚀 [CAD BLoC] Starting S3 upload for STL (${event.stlFileName}) & BOM (${event.bomFileName})...',
       );
 
-      String stlUrl = '';
-      try {
-        final stl = await _api.uploadFile(
-          fileName: event.stlFileName,
-          fileType: 'model/stl',
-          folder: '3d-xtl',
-          bytes: event.stlBytes,
-        );
-        stlUrl = stl.fileUrl;
-        debugPrint('✅ [CAD BLoC] STL uploaded to S3: $stlUrl');
-      } catch (e) {
-        debugPrint('⚠️ [CAD BLoC] S3 upload warning for STL: $e');
-        stlUrl =
-            'https://amzn-s3-mycoaching-bucket.s3.ap-south-1.amazonaws.com/karratflow/3d-xtl/${event.stlFileName}';
-      }
+      final stl = await _api.uploadFile(
+        fileName: event.stlFileName,
+        fileType: 'model/stl',
+        folder: '3d-xtl',
+        bytes: event.stlBytes,
+      );
+      final stlUrl = stl.fileUrl;
+      debugPrint('✅ [CAD BLoC] STL uploaded to S3: $stlUrl');
 
-      String bomUrl = '';
-      try {
-        final bom = await _api.uploadFile(
-          fileName: event.bomFileName,
-          fileType: 'application/octet-stream',
-          folder: 'bom-docs',
-          bytes: event.bomBytes,
-        );
-        bomUrl = bom.fileUrl;
-        debugPrint('✅ [CAD BLoC] BOM uploaded to S3: $bomUrl');
-      } catch (e) {
-        debugPrint('⚠️ [CAD BLoC] S3 upload warning for BOM: $e');
-        bomUrl =
-            'https://amzn-s3-mycoaching-bucket.s3.ap-south-1.amazonaws.com/karratflow/bom-docs/${event.bomFileName}';
-      }
+      final bom = await _api.uploadFile(
+        fileName: event.bomFileName,
+        fileType: 'application/octet-stream',
+        folder: 'bom-docs',
+        bytes: event.bomBytes,
+      );
+      final bomUrl = bom.fileUrl;
+      debugPrint('✅ [CAD BLoC] BOM uploaded to S3: $bomUrl');
 
       final weight = event.goldQuantity ?? event.volumeCubicMm * 0.0155;
       final totalWeight = double.parse(weight.toStringAsFixed(2));
@@ -194,7 +180,14 @@ class CadBloc extends Bloc<CadEvent, CadState> {
         '🌐 [CAD BLoC] Hitting backend API POST /three-d-designs for sketchId: ${event.taskId}...',
       );
 
-      try {
+      if (event.isRevision) {
+        await _api.reuploadThreeDDesign(
+          id: event.taskId,
+          xtlFileUrl: stlUrl,
+          bomFileUrl: bomUrl,
+          totalWeight: totalWeight,
+        );
+      } else {
         await _api.uploadThreeDDesign(
           sketchId: event.taskId,
           xtlFileUrl: stlUrl,
@@ -205,24 +198,6 @@ class CadBloc extends Bloc<CadEvent, CadState> {
           volumeMm3: event.volumeCubicMm,
           sizeDimensions: event.specsNote,
         );
-        debugPrint(
-          '🎉 [CAD BLoC] 3D Design created successfully on backend API via POST /three-d-designs!',
-        );
-      } catch (postErr) {
-        debugPrint(
-          '⚠️ [CAD BLoC] POST /three-d-designs returned error, attempting PUT /reupload: $postErr',
-        );
-        try {
-          await _api.reuploadThreeDDesign(
-            id: event.taskId,
-            xtlFileUrl: stlUrl,
-            bomFileUrl: bomUrl,
-            totalWeight: totalWeight,
-          );
-          debugPrint('🎉 [CAD BLoC] 3D Design updated via PUT /reupload!');
-        } catch (putErr) {
-          debugPrint('🚨 [CAD BLoC] Both POST & PUT failed: $putErr');
-        }
       }
 
       debugPrint(
@@ -240,13 +215,7 @@ class CadBloc extends Bloc<CadEvent, CadState> {
       add(const FetchCadTasksEvent());
     } catch (error) {
       debugPrint('🚨 [CAD BLoC] Upload process error: $error');
-      _store.uploadStlFile(
-        event.taskId,
-        event.volumeCubicMm,
-        '3D Wax STL Modeling Completed · ${event.specsNote}',
-      );
-      emit(const CadOperationSuccess('CAD files processed successfully.'));
-      add(const FetchCadTasksEvent());
+      emit(CadError('Failed to upload CAD files: $error'));
     }
   }
 
@@ -254,20 +223,19 @@ class CadBloc extends Bloc<CadEvent, CadState> {
     ApproveCadTaskEvent event,
     Emitter<CadState> emit,
   ) async {
-    _store.approveCadTask(event.taskId);
     try {
       await _api.reviewThreeDDesign(
         id: event.taskId,
         status: 'APPROVED',
         adminInstructions: 'Approved for Waxing & Tree Setup',
       );
+      _store.approveCadTask(event.taskId);
       emit(const CadOperationSuccess('3D CAD design approved successfully!'));
-      add(const FetchCadTasksEvent());
     } catch (error) {
       debugPrint(
-        '⚠️ [CAD BLoC] API review failed, fallback to local store: $error',
+        '❌ [CAD BLoC] API review failed; approval was not applied: $error',
       );
-      emit(const CadOperationSuccess('3D CAD design approved successfully.'));
+      emit(CadError('Failed to approve 3D CAD design: $error'));
     }
   }
 

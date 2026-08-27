@@ -163,6 +163,7 @@ class DemoStore extends ChangeNotifier {
     final id = directive['id'] ?? 'DIR';
     final recipient = directive['recipient'] ?? 'All';
     final content = directive['content'] ?? '';
+    final savedStatus = (directive['status'] ?? 'Active').toLowerCase();
     return Instruction(
       id: id,
       targetId: id,
@@ -171,9 +172,12 @@ class DemoStore extends ChangeNotifier {
       createdBy: 'Admin',
       assignedTo: recipient,
       urgency: InstructionUrgency.urgent,
-      status: directive['status'] == 'Acknowledged'
-          ? InstructionStatus.acknowledged
-          : InstructionStatus.sent,
+      status: switch (savedStatus) {
+        'approved' || 'resolved' => InstructionStatus.resolved,
+        'in progress' => InstructionStatus.inProgress,
+        'acknowledged' => InstructionStatus.acknowledged,
+        _ => InstructionStatus.sent,
+      },
       createdAt:
           DateTime.tryParse(directive['createdAt'] ?? '') ?? DateTime.now(),
       hasPhoto: content.contains('[ 🖼️ Image: '),
@@ -338,6 +342,23 @@ class DemoStore extends ChangeNotifier {
     final index = _instructions.indexWhere((item) => item.id == id);
     if (index == -1) return;
     _instructions[index] = _instructions[index].copyWith(status: status);
+
+    final directiveIndex = _adminDirectives.indexWhere(
+      (directive) => directive['id'] == id,
+    );
+    if (directiveIndex >= 0) {
+      _adminDirectives[directiveIndex] = {
+        ..._adminDirectives[directiveIndex],
+        'status': switch (status) {
+          InstructionStatus.sent => 'Active',
+          InstructionStatus.acknowledged => 'Acknowledged',
+          InstructionStatus.inProgress => 'In Progress',
+          InstructionStatus.resolved => 'Approved',
+        },
+      };
+      _persistAdminDirectives();
+    }
+
     notifyListeners();
   }
 

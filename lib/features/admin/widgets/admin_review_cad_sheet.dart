@@ -24,13 +24,7 @@ class AdminReviewCadSheet extends StatelessWidget {
   final void Function(String contextRef) onSendDirective;
 
   void _approveTask(BuildContext context, CadDesignTask task) {
-    store.approveCadTask(task.id);
     context.read<CadBloc>().add(ApproveCadTaskEvent(task.id));
-    CommonSnackbar.success(
-      context,
-      title: '3D Model Approved ✓',
-      message: '${task.productTitle} approved for tree setup.',
-    );
   }
 
   static void show(
@@ -68,7 +62,9 @@ class AdminReviewCadSheet extends StatelessWidget {
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) {
-        final pendingTasks = store.cadTasks;
+        final pendingTasks = store.cadTasks
+            .where((task) => task.hasStlFile)
+            .toList();
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),

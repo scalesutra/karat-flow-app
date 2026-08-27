@@ -204,26 +204,16 @@ class __InstructionComposerSheetState extends State<_InstructionComposerSheet> {
         : 'Image Directive Note Attached';
     final fullMessage = '$targetInfo$messageBody';
 
-    try {
-      bloc.add(
-        SendDirectiveEvent(
-          recipient: _selectedRecipient,
-          directive: fullMessage,
-          audioFileName: path?.split(Platform.pathSeparator).last,
-          audioBytes: bytes,
-          imageFileName: _selectedImage?.name,
-          imageBytes: _selectedImageBytes,
-        ),
-      );
-    } catch (_) {}
-
-    if (mounted) {
-      CommonSnackbar.success(
-        context,
-        title: 'Directive Dispatched',
-        message: 'Successfully sent to $_selectedRecipient',
-      );
-    }
+    bloc.add(
+      SendDirectiveEvent(
+        recipient: _selectedRecipient,
+        directive: fullMessage,
+        audioFileName: path?.split(Platform.pathSeparator).last,
+        audioBytes: bytes,
+        imageFileName: _selectedImage?.name,
+        imageBytes: _selectedImageBytes,
+      ),
+    );
 
     navigator.pop();
   }

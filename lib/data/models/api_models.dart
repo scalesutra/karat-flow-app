@@ -155,7 +155,7 @@ class ApiStage {
     return ApiStage(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
-      stageNumber: json['stageNumber'] as int? ?? 1,
+      stageNumber: json['stageNumber'] as int? ?? 0,
       isActive: json['isActive'] as bool? ?? true,
     );
   }
@@ -339,7 +339,7 @@ class ApiOrderPart {
   const ApiOrderPart({
     required this.id,
     required this.designNumber,
-    this.quantity = 1,
+    this.quantity = 0,
     this.grossWeight = 0.0,
     this.currentStage = '',
     this.status = 'ASSIGNED',
@@ -357,7 +357,7 @@ class ApiOrderPart {
     return ApiOrderPart(
       id: json['id'] as String? ?? '',
       designNumber: json['designNumber'] as String? ?? '',
-      quantity: json['quantity'] as int? ?? 1,
+      quantity: json['quantity'] as int? ?? 0,
       grossWeight: (json['grossWeight'] as num?)?.toDouble() ?? 0.0,
       currentStage: stgName,
       status: json['status'] as String? ?? 'ASSIGNED',
@@ -392,14 +392,14 @@ class ApiWorkerTask {
 
   factory ApiWorkerTask.fromJson(Map<String, dynamic> json) {
     String dNum = '';
-    int qty = 1;
+    int qty = 0;
     double gWt = 0.0;
     String oId = '';
     String sName = '';
     String employeeName = '';
     if (json['orderPart'] is Map) {
       dNum = json['orderPart']['designNumber'] as String? ?? '';
-      qty = json['orderPart']['quantity'] as int? ?? 1;
+      qty = json['orderPart']['quantity'] as int? ?? 0;
       gWt = (json['orderPart']['grossWeight'] as num?)?.toDouble() ?? 0.0;
       if (json['orderPart']['order'] is Map) {
         oId =

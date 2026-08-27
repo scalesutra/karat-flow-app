@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 
 import '../../data/repositories/karatflow_api_repository.dart';
 import '../constants/app_colors.dart';
-import 'common_3d_viewer.dart';
 
 /// Cache for resolved presigned S3 CAD download URLs
 final Map<String, String> _cadUrlCache = {};
@@ -60,7 +59,9 @@ class _RemoteCadMeshState extends State<RemoteCadMesh> {
       String targetUrl = widget.modelUrl;
 
       // Extract S3 fileKey and fetch presigned GET download URL if private bucket
-      if (targetUrl.contains('amazonaws.com') || targetUrl.contains('s3') || targetUrl.contains('karratflow/')) {
+      if (targetUrl.contains('amazonaws.com') ||
+          targetUrl.contains('s3') ||
+          targetUrl.contains('karratflow/')) {
         final pathIndex = targetUrl.indexOf('karratflow/');
         if (pathIndex != -1) {
           final fileKey = targetUrl.substring(pathIndex);
@@ -68,7 +69,8 @@ class _RemoteCadMeshState extends State<RemoteCadMesh> {
             targetUrl = _cadUrlCache[fileKey]!;
           } else {
             try {
-              final presignedObj = await KaratFlowApiRepository().getPresignedDownloadUrl(fileKey);
+              final presignedObj = await KaratFlowApiRepository()
+                  .getPresignedDownloadUrl(fileKey);
               if (presignedObj.downloadUrl.isNotEmpty) {
                 _cadUrlCache[fileKey] = presignedObj.downloadUrl;
                 targetUrl = presignedObj.downloadUrl;
@@ -117,47 +119,30 @@ class _RemoteCadMeshState extends State<RemoteCadMesh> {
     }
 
     if (_error != null) {
-      // Gracefully render the interactive procedural 3D Solitaire mesh if S3 download fails or file is mock
-      return Stack(
-        children: [
-          Positioned.fill(
-            child: CustomPaint(
-              painter: Ring3DPainter(
-                rotationX: widget.rotationX,
-                rotationY: widget.rotationY,
-                metalColor: widget.metalColor,
-                isWireframe: widget.isWireframe,
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.broken_image_outlined,
+                color: AppColors.danger,
+                size: 32,
               ),
-              size: Size.infinite,
-            ),
+              SizedBox(height: 8),
+              Text(
+                'CAD model could not be loaded from storage.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
-          Positioned(
-            top: 10,
-            left: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.goldLight,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.goldDark),
-                  SizedBox(width: 4),
-                  Text(
-                    'Procedural 3D Mesh Active',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.goldDark,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       );
     }
 

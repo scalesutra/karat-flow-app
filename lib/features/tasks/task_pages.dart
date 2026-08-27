@@ -14,13 +14,29 @@ import 'widgets/cad_approval_task_card.dart';
 import 'widgets/instruction_task_card.dart';
 import '../admin/bloc/admin_bloc.dart';
 
-class AdminTasksPage extends StatelessWidget {
+class AdminTasksPage extends StatefulWidget {
   const AdminTasksPage({super.key, required this.store});
 
   final DemoStore store;
 
   @override
+  State<AdminTasksPage> createState() => _AdminTasksPageState();
+}
+
+class _AdminTasksPageState extends State<AdminTasksPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final store = widget.store;
     return CommonRefreshIndicator(
       onRefresh: () async {
         context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
@@ -894,6 +910,14 @@ class _InstructionListState extends State<_InstructionList> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.mode == TaskDisplayMode.admin) {
+      _selectedFilter = 'All';
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -925,6 +949,7 @@ class _InstructionListState extends State<_InstructionList> {
         }).toList();
 
         final cadFiltered = widget.store.cadTasks.where((task) {
+          if (!task.hasStlFile) return false;
           if (_searchQuery.isNotEmpty) {
             final q = _searchQuery.toLowerCase();
             return task.designCode.toLowerCase().contains(q) ||

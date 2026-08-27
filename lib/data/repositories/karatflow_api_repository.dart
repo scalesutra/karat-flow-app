@@ -55,14 +55,18 @@ class KaratFlowApiRepository {
 
   // ── SECTION 2: Employee & User Management (/employees) ───────────
   Future<List<ApiEmployee>> listEmployees({
-    String role = 'OTHER_EMPLOYEE',
+    String? role,
     int page = 1,
     int limit = 100,
   }) async {
     try {
+      final query = <String, dynamic>{'page': page, 'limit': limit};
+      if (role != null && role.isNotEmpty) {
+        query['role'] = role;
+      }
       final response = await _api.get(
         ApiEndpoints.employees,
-        queryParameters: {'role': role, 'page': page, 'limit': limit},
+        queryParameters: query,
       );
       final list = response.data['data'] as List? ?? [];
       return list
@@ -503,8 +507,12 @@ class KaratFlowApiRepository {
 
   // ── SECTION 8: Production Floor (/production) ─────────────────────
   Future<List<dynamic>> listPendingProductionFloor() async {
-    final response = await _api.get(ApiEndpoints.productionPending);
-    return response.data['data'] as List? ?? [];
+    try {
+      final response = await _api.get(ApiEndpoints.productionPending);
+      return response.data['data'] as List? ?? [];
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<void> assignPartToArtisan({
@@ -565,11 +573,15 @@ class KaratFlowApiRepository {
 
   // ── SECTION 9: Worker Tasks (/worker-tasks) ───────────────────────
   Future<List<ApiWorkerTask>> listWorkerTasks() async {
-    final response = await _api.get(ApiEndpoints.workerTasks);
-    final list = response.data['data'] as List? ?? [];
-    return list
-        .map((w) => ApiWorkerTask.fromJson(w as Map<String, dynamic>))
-        .toList();
+    try {
+      final response = await _api.get(ApiEndpoints.workerTasks);
+      final list = response.data['data'] as List? ?? [];
+      return list
+          .map((w) => ApiWorkerTask.fromJson(w as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<void> startWorkerTask(String id) async {
@@ -593,30 +605,12 @@ class KaratFlowApiRepository {
     required String fileType,
     required String folder,
   }) async {
-    try {
-      final response = await _api.post(
-        ApiEndpoints.storageUploadUrl,
-        data: {'fileName': fileName, 'fileType': fileType, 'folder': folder},
-      );
-      final data = response.data['data'] as Map<String, dynamic>;
-      return ApiPresignedUrl.fromJson(data);
-    } catch (_) {
-      // If server rejected folder (e.g. 400 Bad Request for 'directive-images'),
-      // fallback to standard 'sketches' folder supported by storage endpoint
-      if (folder != 'sketches') {
-        final response = await _api.post(
-          ApiEndpoints.storageUploadUrl,
-          data: {
-            'fileName': fileName,
-            'fileType': fileType,
-            'folder': 'sketches',
-          },
-        );
-        final data = response.data['data'] as Map<String, dynamic>;
-        return ApiPresignedUrl.fromJson(data);
-      }
-      rethrow;
-    }
+    final response = await _api.post(
+      ApiEndpoints.storageUploadUrl,
+      data: {'fileName': fileName, 'fileType': fileType, 'folder': folder},
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiPresignedUrl.fromJson(data);
   }
 
   Future<ApiPresignedUrl> uploadFile({

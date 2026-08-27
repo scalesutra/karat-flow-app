@@ -13,13 +13,31 @@ import 'widgets/admin_review_sketches_sheet.dart';
 import 'widgets/send_directive_dialog.dart';
 import 'bloc/admin_bloc.dart';
 
-class AdminManagePage extends StatelessWidget {
+class AdminManagePage extends StatefulWidget {
   const AdminManagePage({super.key, required this.store});
 
   final DemoStore store;
 
   @override
+  State<AdminManagePage> createState() => _AdminManagePageState();
+}
+
+class _AdminManagePageState extends State<AdminManagePage> {
+  DemoStore get store => widget.store;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final store = widget.store;
     return CommonRefreshIndicator(
       onRefresh: () async {
         context.read<AdminBloc>().add(const FetchAdminDashboardEvent());

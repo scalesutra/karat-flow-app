@@ -5,7 +5,6 @@ import 'package:jewellery_ops_mobile/core/constants/app_dimensions.dart';
 import 'package:jewellery_ops_mobile/core/widgets/common_3d_viewer.dart';
 import 'package:jewellery_ops_mobile/core/widgets/common_button.dart';
 import 'package:jewellery_ops_mobile/core/widgets/common_card.dart';
-import 'package:jewellery_ops_mobile/core/widgets/common_snackbar.dart';
 import 'package:jewellery_ops_mobile/data/demo_store.dart';
 import 'package:jewellery_ops_mobile/domain/models.dart';
 import '../../instructions/instruction_composer.dart';
@@ -23,14 +22,7 @@ class CadApprovalTaskCard extends StatelessWidget {
   final DemoStore store;
 
   void _approve(BuildContext context) {
-    store.approveCadTask(task.id);
     context.read<CadBloc>().add(ApproveCadTaskEvent(task.id));
-    CommonSnackbar.success(
-      context,
-      title: '3D CAD Approved ✓',
-      message:
-          'Design ${task.designCode} approved and sent for wax casting setup.',
-    );
   }
 
   @override

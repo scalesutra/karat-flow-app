@@ -50,9 +50,10 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       final sketches = await _api.listSketches(limit: 100);
       final stages = await _api.listStages();
       final threeDDesigns = await _api.listThreeDDesigns(limit: 100);
+      final orders = await _api.listOrders(limit: 100);
 
       debugPrint(
-        '📦 [Admin BLoC API RES] Received ${employees.length} employees, ${customers.length} customers, ${sketches.length} sketches, ${threeDDesigns.length} 3D design stock items from API.',
+        '📦 [Admin BLoC API RES] Received ${employees.length} employees, ${customers.length} customers, ${sketches.length} sketches, ${orders.length} orders, ${threeDDesigns.length} 3D design stock items from API.',
       );
 
       final team = employees.map(ApiDomainMapper.employee).toList();
@@ -60,6 +61,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       final designs = sketches.map(ApiDomainMapper.sketch).toList();
       final cadTasks = threeDDesigns.map(ApiDomainMapper.cadTask).toList();
       final stockItems = threeDDesigns.map(ApiDomainMapper.stockItem).toList();
+      final customerOrders = orders.map(ApiDomainMapper.order).toList();
 
       _store
         ..setTeam(team)
@@ -67,7 +69,8 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         ..setDesigns(designs)
         ..setStages(stages)
         ..setCadTasks(cadTasks)
-        ..setStock(stockItems);
+        ..setStock(stockItems)
+        ..setOrders(customerOrders);
 
       emit(
         AdminLoaded(
@@ -267,9 +270,8 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       _store.approveDesign(event.sketchId);
       emit(const AdminActionSuccess('Sketch approved successfully.'));
       add(const FetchAdminDashboardEvent());
-    } catch (_) {
-      _store.approveDesign(event.sketchId);
-      emit(const AdminActionSuccess('Sketch approved successfully.'));
+    } catch (error) {
+      emit(AdminError('Failed to approve sketch: $error'));
     }
   }
 
@@ -328,8 +330,6 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       if (imageUrl != null && imageUrl.isNotEmpty) {
         storeMessage += ' [ 🖼️ Image: $imageUrl ]';
       }
-      await _store.addAdminDirective('CAD Designer', storeMessage);
-
       try {
         await _api.reviewSketch(
           id: event.sketchId,
@@ -345,24 +345,19 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         debugPrint(
           '⚠️ [Admin BLoC] PATCH /sketches returned error ($sketchErr), trying PATCH /three-d-designs...',
         );
-        try {
-          await _api.reviewThreeDDesign(
-            id: event.sketchId,
-            status: 'REJECTED',
-            adminInstructions: cleanInstructions,
-            feedbackAudioUrl: audioUrl,
-            feedbackImageUrl: imageUrl,
-          );
-          debugPrint(
-            '🎉 [Admin BLoC] Review 3D design directive sent successfully via PATCH /three-d-designs!',
-          );
-        } catch (threeDErr) {
-          debugPrint(
-            '🚨 [Admin BLoC] Both sketch & 3D design review endpoints failed: $threeDErr',
-          );
-        }
+        await _api.reviewThreeDDesign(
+          id: event.sketchId,
+          status: 'REJECTED',
+          adminInstructions: cleanInstructions,
+          feedbackAudioUrl: audioUrl,
+          feedbackImageUrl: imageUrl,
+        );
+        debugPrint(
+          '🎉 [Admin BLoC] Review 3D design directive sent successfully via PATCH /three-d-designs!',
+        );
       }
 
+      await _store.addAdminDirective('CAD Designer', storeMessage);
       emit(const AdminActionSuccess('Directive sent successfully.'));
       add(const FetchAdminDashboardEvent());
     } catch (error) {
@@ -430,11 +425,24 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       fullDirective += ' [ 🖼️ Image: $imageUrl ]';
     }
 
-    await _store.addAdminDirective(event.recipient, fullDirective);
-    emit(
-      AdminActionSuccess('Directive sent to ${event.recipient} successfully.'),
-    );
-    add(const FetchAdminDashboardEvent());
+    try {
+      await _api.dispatchDirective(
+        title: 'Directive to ${event.recipient}',
+        targetType: _directiveTargetType(event.recipient),
+        instruction: event.directive,
+        audioUrl: audioUrl,
+        imageUrl: imageUrl,
+      );
+      await _store.addAdminDirective(event.recipient, fullDirective);
+      emit(
+        AdminActionSuccess(
+          'Directive sent to ${event.recipient} successfully.',
+        ),
+      );
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      emit(AdminError('Failed to send directive: $error'));
+    }
   }
 
   Future<void> _onFetchStockInventory(
@@ -464,7 +472,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
   ) async {
     emit(const AdminLoading());
     try {
-      await _api.updateThreeDProductStock(
+      final updatedDesign = await _api.updateThreeDProductStock(
         designId: event.designId,
         stock: event.stock,
         stockStatus: event.stockStatus,
@@ -476,12 +484,25 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         description: event.description,
         imageUrl: event.imageUrl,
       );
+      final updatedStockItem = ApiDomainMapper.stockItem(updatedDesign);
+      final stockItems = [..._store.stock];
+      final stockIndex = stockItems.indexWhere(
+        (item) => item.id == updatedStockItem.id,
+      );
+      if (stockIndex >= 0) {
+        stockItems[stockIndex] = updatedStockItem;
+      } else {
+        stockItems.insert(0, updatedStockItem);
+      }
+      _store.setStock(stockItems);
+
       emit(
-        const AdminActionSuccess(
-          'Product catalog record & stock updated successfully.',
+        AdminActionSuccess(
+          'Stock updated to ${updatedStockItem.totalAvailable.toStringAsFixed(0)} '
+          '${updatedStockItem.unit}.',
         ),
       );
-      add(const FetchAdminDashboardEvent());
+      add(const FetchStockInventoryEvent());
     } catch (error) {
       emit(AdminError('Failed to update product stock: $error'));
     }
@@ -494,5 +515,19 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     }
     if (lower.endsWith('.webp')) return 'image/webp';
     return 'image/png';
+  }
+
+  String _directiveTargetType(String recipient) {
+    final normalized = recipient.toLowerCase();
+    if (normalized.contains('cad') || normalized.contains('3d')) {
+      return 'THREE_D_DESIGNER';
+    }
+    if (normalized.contains('sketch') || normalized.contains('raw')) {
+      return 'SKETCHER';
+    }
+    if (normalized.contains('artisan') || normalized.contains('goldsmith')) {
+      return 'ALL_ARTISANS';
+    }
+    return 'ALL_ARTISANS';
   }
 }

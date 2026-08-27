@@ -51,19 +51,10 @@ class _LoginPageState extends State<LoginPage> {
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) async {
           if (state is AuthAuthenticated) {
-            final roleController = Get.find<AppRoleController>();
-            final targetRole = switch (state.role.toUpperCase()) {
-              'ADMIN' => AppRole.admin,
-              'FRONTIER' => AppRole.frontOffice,
-              'FRONT_OFFICE' => AppRole.frontOffice,
-              'PRODUCTION_MANAGER' => AppRole.processManager,
-              'PROCESS_MANAGER' => AppRole.processManager,
-              'RAW_DESIGNER' => AppRole.rawDesigner,
-              'THREE_D_DESIGNER' => AppRole.cadDesigner,
-              'CAD_DESIGNER' => AppRole.cadDesigner,
-              'OTHER_EMPLOYEE' => AppRole.workshopArtisan,
-              _ => AppRole.admin,
-            };
+            final roleController = Get.isRegistered<AppRoleController>()
+                ? Get.find<AppRoleController>()
+                : Get.put(AppRoleController(), permanent: true);
+            final targetRole = AppRole.fromRoleString(state.role);
             roleController.setRole(targetRole);
             LiveDataBlocCoordinator.refreshForRole(context, targetRole);
 

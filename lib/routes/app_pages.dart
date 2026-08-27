@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart' hide Transition;
 import 'package:get/get.dart';
 import 'package:jewellery_ops_mobile/features/status/status_detail_page.dart';
+import '../core/services/live_data_bloc_coordinator.dart';
 import '../data/demo_store.dart';
 import '../domain/models.dart';
+import '../features/auth/bloc/auth_bloc.dart';
 import '../features/auth/login_page.dart';
 import '../features/shell/app_shell.dart';
 import '../features/splash/splash_screen.dart';
-import '../features/status/admin_status_page.dart';
 import '../features/workshop/stage_overview_screen.dart';
 import 'app_routes.dart';
 
@@ -53,13 +55,32 @@ class _AppShellRoute extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = Get.find<DemoStore>();
-    final roleController = Get.put(AppRoleController());
+    final roleController = Get.isRegistered<AppRoleController>()
+        ? Get.find<AppRoleController>()
+        : Get.put(AppRoleController(), permanent: true);
 
-    return Obx(
-      () => AppShell(
-        role: roleController.currentRole.value,
-        store: store,
-        onRoleChanged: roleController.setRole,
+    final currentAuthState = context.read<AuthBloc>().state;
+    if (currentAuthState is AuthAuthenticated) {
+      final targetRole = AppRole.fromRoleString(currentAuthState.role);
+      if (roleController.currentRole.value != targetRole) {
+        roleController.setRole(targetRole);
+      }
+    }
+
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is AuthAuthenticated) {
+          final targetRole = AppRole.fromRoleString(state.role);
+          roleController.setRole(targetRole);
+          LiveDataBlocCoordinator.refreshForRole(context, targetRole);
+        }
+      },
+      child: Obx(
+        () => AppShell(
+          role: roleController.currentRole.value,
+          store: store,
+          onRoleChanged: roleController.setRole,
+        ),
       ),
     );
   }
@@ -89,25 +110,166 @@ class AppRoleController extends GetxController {
   }
 }
 
-class _StageOverviewRoute extends StatelessWidget {
+class _StageOverviewRoute extends StatefulWidget {
   const _StageOverviewRoute();
+
+  @override
+  State<_StageOverviewRoute> createState() => _StageOverviewRouteState();
+}
+
+class _StageOverviewRouteState extends State<_StageOverviewRoute> {
+  bool _isLoadingDirectApi = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadFallbackIfNeeded();
+    });
+  }
+
+  Future<void> _loadFallbackIfNeeded() async {
+    final routeArgs = ModalRoute.of(context)?.settings.arguments;
+    final rawArgs = routeArgs ?? Get.arguments;
+    if (rawArgs != null) return;
+
+    if (mounted) {
+      setState(() {
+        _isLoadingDirectApi = true;
+      });
+    }
+
+    try {
+      final store = Get.isRegistered<DemoStore>()
+          ? Get.find<DemoStore>()
+          : null;
+      if (store == null || store.orders.isEmpty) {
+        final roleController = Get.isRegistered<AppRoleController>()
+            ? Get.find<AppRoleController>()
+            : null;
+        final role = roleController?.currentRole.value ?? AppRole.admin;
+        LiveDataBlocCoordinator.refreshForRole(context, role);
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _isLoadingDirectApi = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final routeArgs = ModalRoute.of(context)?.settings.arguments;
     final rawArgs = routeArgs ?? Get.arguments;
 
-    Map<String, dynamic> orderData;
+    Map<String, dynamic>? orderData;
     if (rawArgs is Map<String, dynamic>) {
       orderData = rawArgs;
     } else if (rawArgs is Map) {
       orderData = Map<String, dynamic>.from(rawArgs);
-    } else {
-      return const Scaffold(
-        body: Center(child: Text('Live order data was not provided.')),
-      );
     }
 
-    return StageOverviewScreen(orderData: orderData);
+    if (orderData != null) {
+      return StageOverviewScreen(orderData: orderData);
+    }
+
+    final store = Get.isRegistered<DemoStore>() ? Get.find<DemoStore>() : null;
+
+    return AnimatedBuilder(
+      animation: store ?? ValueNotifier(0),
+      builder: (context, _) {
+        if (store != null && store.orders.isNotEmpty) {
+          final firstOrder = store.orders.first;
+          final fallbackData = <String, dynamic>{
+            'id': firstOrder.id,
+            'firmName': firstOrder.clientFirmName,
+            'city': firstOrder.clientCity,
+            'promiseDate': firstOrder.promiseDate,
+            'status': firstOrder.status.label,
+            'summary': firstOrder.itemsSummary,
+            'itemsCount': firstOrder.itemsCount,
+          };
+          return StageOverviewScreen(orderData: fallbackData);
+        }
+
+        if (_isLoadingDirectApi) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFF9F7F2),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: Color(0xFF1E3A2B)),
+                  SizedBox(height: 16),
+                  Text(
+                    'Syncing live order details...',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2C241D),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF9F7F2),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.inventory_2_outlined,
+                    size: 56,
+                    color: Color(0xFF8C7A6B),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Order details session reset on web refresh.',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2C241D),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Please return to the control center to select an order.',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF7A6E65)),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () => Get.offAllNamed(Routes.shell),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E3A2B),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: const Icon(Icons.arrow_back, size: 20),
+                    label: const Text(
+                      'Back to Control Center',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }

@@ -1,7 +1,7 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:jewellery_ops_mobile/data/repositories/karatflow_api_repository.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
@@ -153,7 +153,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       }
     }
 
-    // 5. Fallback to orderData direct partId if valid UUID (not ORD-)
+    // Use a direct API part ID when one is present in the route payload.
     final directPartId =
         widget.orderData['orderPartId'] as String? ??
         widget.orderData['partId'] as String? ??
@@ -163,21 +163,6 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         directPartId.contains('-') &&
         !directPartId.toUpperCase().startsWith('ORD-')) {
       return directPartId;
-    }
-
-    if (rawId.length > 20 &&
-        rawId.contains('-') &&
-        !rawId.toUpperCase().startsWith('ORD-')) {
-      return rawId;
-    }
-
-    // 6. Ultimate fallback: return first valid UUID from DemoStore
-    for (final lot in DemoStore.instance.lots) {
-      if (lot.id.length > 20 &&
-          lot.id.contains('-') &&
-          !lot.id.toUpperCase().startsWith('ORD-')) {
-        return lot.id;
-      }
     }
 
     return null;
@@ -399,44 +384,6 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       return items;
     }
 
-    // Dynamic fallback when storeLots is empty so pieces are NEVER 0
-    final int quantity =
-        (widget.orderData['quantity'] as num?)?.toInt() ??
-        (widget.orderData['pieces'] as num?)?.toInt() ??
-        1;
-    final String currentStageName =
-        widget.orderData['currentStageName'] as String? ??
-        widget.orderData['stage'] as String? ??
-        '';
-    final String assignedEmp = _extractWorkerName(widget.orderData);
-
-    items.add(
-      ParentJewelleryItem(
-        name: _title.isNotEmpty
-            ? _title
-            : (designNum.isNotEmpty ? designNum : 'Jewellery Order'),
-        code: _orderId.isNotEmpty ? _orderId : orderNum,
-        category: _title.contains('Ring') ? 'Rings' : 'Necklace',
-        parts: [
-          JewelleryPart(
-            name: designNum.isNotEmpty
-                ? designNum
-                : (_title.isNotEmpty ? _title : 'Jewellery Part'),
-            code: designNum.isNotEmpty ? designNum : _orderId,
-            pieces: quantity,
-            passedPieces: quantity,
-            stage: isCompletedOrder
-                ? WorkshopStage.readyForDispatch
-                : ApiDomainMapper.stage(currentStageName),
-            assignedEmployee: assignedEmp,
-            blockerReason: widget.orderData['blockReason'] as String?,
-            weight:
-                (widget.orderData['grossWeight'] as num?)?.toDouble() ?? 0.0,
-          ),
-        ],
-      ),
-    );
-
     return items;
   }
 
@@ -490,6 +437,18 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     JewelleryPart part,
   ) async {
     var workers = DemoStore.instance.team;
+    if (workers.isEmpty) {
+      try {
+        final apiEmployees = await KaratFlowApiRepository().listEmployees();
+        final team = apiEmployees.map(ApiDomainMapper.employee).toList();
+        if (team.isNotEmpty) {
+          DemoStore.instance.setTeam(team);
+          workers = team;
+        }
+      } catch (e) {
+        debugPrint('Could not fetch employees directly: $e');
+      }
+    }
     if (workers.isEmpty) {
       final workshopBloc = context.read<WorkshopBloc>();
       final refresh = workshopBloc.stream.firstWhere(
@@ -3295,16 +3254,14 @@ class JewelleryPart {
   JewelleryPart({
     required this.name,
     required this.code,
-    int? pieces,
-    int? passedPieces,
-    int? defectivePieces,
+    required this.pieces,
+    required this.passedPieces,
+    this.defectivePieces = 0,
     required this.stage,
     this.assignedEmployee,
     this.blockerReason,
     this.weight,
-  }) : pieces = pieces ?? 1,
-       defectivePieces = defectivePieces ?? 0,
-       passedPieces = passedPieces ?? ((pieces ?? 1) - (defectivePieces ?? 0));
+  });
 
   JewelleryPart copyWith({
     String? name,

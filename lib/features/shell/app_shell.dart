@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:jewellery_ops_mobile/features/auth/bloc/auth_bloc.dart';
 import '../../core/services/live_data_bloc_coordinator.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/localization/localization.dart';
@@ -44,6 +46,21 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final authState = context.read<AuthBloc>().state;
+        final activeRole = authState is AuthAuthenticated
+            ? AppRole.fromRoleString(authState.role)
+            : widget.role;
+        LiveDataBlocCoordinator.refreshForRole(context, activeRole);
+      }
+    });
+  }
+
   Future<void> _refreshApiData() async {
     LiveDataBlocCoordinator.refreshForRole(context, widget.role);
   }

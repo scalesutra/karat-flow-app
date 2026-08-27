@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/services/live_data_bloc_coordinator.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../domain/models.dart';
@@ -19,6 +20,16 @@ class AdminReportsPage extends StatefulWidget {
 
 class _AdminReportsPageState extends State<AdminReportsPage> {
   int _selectedTab = 0; // 0: All, 1: Delayed, 2: Pending, 3: Dispatched
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        LiveDataBlocCoordinator.refreshForRole(context, AppRole.admin);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

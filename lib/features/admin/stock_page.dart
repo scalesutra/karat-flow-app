@@ -19,6 +19,16 @@ class AdminStockPage extends StatefulWidget {
 class _AdminStockPageState extends State<AdminStockPage> {
   String _selectedCategory = 'All';
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+      }
+    });
+  }
+
   final List<String> _categories = const [
     'All',
     'Raw Gold',
@@ -260,10 +270,22 @@ class _AdminStockPageState extends State<AdminStockPage> {
                 DropdownButtonFormField<String>(
                   initialValue: selectedStatus,
                   items: const [
-                    DropdownMenuItem(value: 'In Stock', child: Text('In Stock')),
-                    DropdownMenuItem(value: 'Low Stock', child: Text('Low Stock')),
-                    DropdownMenuItem(value: 'Out of Stock', child: Text('Out of Stock')),
-                    DropdownMenuItem(value: 'Custom Made', child: Text('Custom Made')),
+                    DropdownMenuItem(
+                      value: 'In Stock',
+                      child: Text('In Stock'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Low Stock',
+                      child: Text('Low Stock'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Out of Stock',
+                      child: Text('Out of Stock'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Custom Made',
+                      child: Text('Custom Made'),
+                    ),
                   ],
                   onChanged: (val) {
                     if (val != null) {
@@ -285,18 +307,19 @@ class _AdminStockPageState extends State<AdminStockPage> {
                   label: 'Update Stock Product (PATCH API)',
                   onPressed: () {
                     final stockVal = int.tryParse(stockController.text.trim());
-                    final priceVal = double.tryParse(priceController.text.trim());
+                    final priceVal = double.tryParse(
+                      priceController.text.trim(),
+                    );
                     Navigator.pop(ctx);
 
                     context.read<AdminBloc>().add(
-                          UpdateProductStockEvent(
-                            designId: item.id,
-                            stock: stockVal,
-                            stockStatus: selectedStatus,
-                            price: priceVal,
-                            title: item.name,
-                          ),
-                        );
+                      UpdateProductStockEvent(
+                        designId: item.id,
+                        stock: stockVal,
+                        stockStatus: selectedStatus,
+                        price: priceVal,
+                      ),
+                    );
                   },
                 ),
               ],
@@ -306,7 +329,6 @@ class _AdminStockPageState extends State<AdminStockPage> {
       ),
     );
   }
-
 }
 
 class _StockCard extends StatelessWidget {

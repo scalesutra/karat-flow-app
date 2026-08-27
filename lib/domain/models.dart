@@ -10,6 +10,20 @@ enum AppRole {
   rawDesigner,
   workshopArtisan;
 
+  static AppRole fromRoleString(String? role) {
+    if (role == null || role.trim().isEmpty) return AppRole.admin;
+    final normalized = role.trim().toUpperCase().replaceAll(' ', '_');
+    return switch (normalized) {
+      'ADMIN' || 'ADMINISTRATOR' || 'SUPER_ADMIN' || 'SUPERADMIN' => AppRole.admin,
+      'FRONTLINER' || 'FRONTIER' || 'FRONT_OFFICE' || 'FRONT_OFFICE_STAFF' || 'SALES' || 'RECEPTION' => AppRole.frontOffice,
+      'MANAGER' || 'PRODUCTION_MANAGER' || 'PROCESS_MANAGER' || 'PRODUCT_MANAGER' || 'WORKSHOP_MANAGER' => AppRole.processManager,
+      'DESIGNER' || 'CAD_DESIGNER' || 'THREE_D_DESIGNER' || '3D_DESIGNER' || 'CAD' => AppRole.cadDesigner,
+      'SKETCHER' || 'RAW_DESIGNER' || 'SKETCH_DESIGNER' || 'SKETCH' => AppRole.rawDesigner,
+      'CRAFTSMAN' || 'WORKSHOP_ARTISAN' || 'ARTISAN' || 'OTHER_EMPLOYEE' || 'GOLDSMITH' || 'QC' || 'WORKSHOP' || 'WORKER' || 'BENCH_WORKER' => AppRole.workshopArtisan,
+      _ => AppRole.admin,
+    };
+  }
+
   String get label => switch (this) {
     AppRole.admin => 'Admin',
     AppRole.frontOffice => 'Front Office',

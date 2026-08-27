@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jewellery_ops_mobile/core/services/live_data_bloc_coordinator.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/localization.dart';
@@ -22,6 +23,16 @@ class _AdminStatusPageState extends State<AdminStatusPage> {
   bool _exceptionsOnly = false;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        LiveDataBlocCoordinator.refreshForRole(context, AppRole.admin);
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -50,8 +61,10 @@ class _AdminStatusPageState extends State<AdminStatusPage> {
     return SafeArea(
       top: false,
       child: CommonRefreshIndicator(
-        onRefresh: () async =>
-            Future<void>.delayed(const Duration(milliseconds: 450)),
+        onRefresh: () async {
+          LiveDataBlocCoordinator.refreshForRole(context, AppRole.admin);
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        },
         child: CustomScrollView(
           slivers: [
             SliverPadding(

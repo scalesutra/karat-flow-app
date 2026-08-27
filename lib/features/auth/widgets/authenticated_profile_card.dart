@@ -153,12 +153,19 @@ class AuthenticatedProfileCard extends StatelessWidget {
   static String _roleLabel(String role) {
     const labels = <String, String>{
       'ADMIN': 'Admin',
+      'FRONTLINER': 'Front Office (Frontliner)',
+      'FRONTIER': 'Front Office (Frontliner)',
       'FRONT_OFFICE': 'Front Office',
-      'PROCESS_MANAGER': 'Production Manager',
-      'PRODUCTION_MANAGER': 'Production Manager',
+      'MANAGER': 'Process Manager',
+      'PROCESS_MANAGER': 'Process Manager',
+      'PRODUCTION_MANAGER': 'Process Manager',
+      'DESIGNER': 'CAD Designer',
       'CAD_DESIGNER': 'CAD Designer',
       'THREE_D_DESIGNER': 'CAD Designer',
+      'SKETCHER': 'Raw Designer (Sketcher)',
       'RAW_DESIGNER': 'Raw Designer',
+      'CRAFTSMAN': 'Workshop Artisan (Craftsman)',
+      'WORKSHOP_ARTISAN': 'Workshop Artisan',
       'OTHER_EMPLOYEE': 'Workshop Artisan',
     };
     final normalized = role.trim().toUpperCase();

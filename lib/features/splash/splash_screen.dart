@@ -124,21 +124,11 @@ class _SplashScreenState extends State<SplashScreen>
           '🎉 [SplashScreen] Session verified for ${profile.name} (${profile.role}). Navigating directly to App Shell...',
         );
         await tokenStorage.saveUserRole(profile.role.toLowerCase());
-        final targetRole = switch (profile.role.toUpperCase()) {
-          'ADMIN' => AppRole.admin,
-          'FRONTIER' || 'FRONT_OFFICE' => AppRole.frontOffice,
-          'PRODUCTION_MANAGER' || 'PROCESS_MANAGER' => AppRole.processManager,
-          'RAW_DESIGNER' => AppRole.rawDesigner,
-          'THREE_D_DESIGNER' || 'CAD_DESIGNER' => AppRole.cadDesigner,
-          'OTHER_EMPLOYEE' => AppRole.workshopArtisan,
-          _ => AppRole.admin,
-        };
-        if (Get.isRegistered<AppRoleController>()) {
-          Get.find<AppRoleController>().setRole(targetRole);
-        } else {
-          final roleController = Get.put(AppRoleController());
-          roleController.setRole(targetRole);
-        }
+        final targetRole = AppRole.fromRoleString(profile.role);
+        final roleController = Get.isRegistered<AppRoleController>()
+            ? Get.find<AppRoleController>()
+            : Get.put(AppRoleController(), permanent: true);
+        roleController.setRole(targetRole);
         if (mounted) {
           LiveDataBlocCoordinator.refreshForRole(context, targetRole);
           Get.offAllNamed(Routes.shell);

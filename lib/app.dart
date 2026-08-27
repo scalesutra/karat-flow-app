@@ -54,21 +54,12 @@ class _JewelleryOpsAppState extends State<JewelleryOpsApp> {
         BlocProvider<OrdersBloc>(create: (_) => OrdersBloc(store: _store)),
         BlocProvider<WorkshopBloc>(create: (_) => WorkshopBloc(store: _store)),
         BlocProvider<CadBloc>(create: (_) => CadBloc(store: _store)),
-        BlocProvider<AdminBloc>(
-          create: (_) =>
-              AdminBloc(store: _store)..add(const FetchAdminDashboardEvent()),
-        ),
+        BlocProvider<AdminBloc>(create: (_) => AdminBloc(store: _store)),
         BlocProvider<SketchBloc>(create: (_) => SketchBloc()),
         BlocProvider<ArtisanBloc>(create: (_) => ArtisanBloc()),
-        BlocProvider<MaterialsBloc>(
-          create: (_) => MaterialsBloc()..add(const FetchMaterialsEvent()),
-        ),
-        BlocProvider<InventoryBloc>(
-          create: (_) => InventoryBloc()..add(const FetchInventoryEvent()),
-        ),
-        BlocProvider<DirectivesBloc>(
-          create: (_) => DirectivesBloc()..add(const FetchDirectivesEvent()),
-        ),
+        BlocProvider<MaterialsBloc>(create: (_) => MaterialsBloc()),
+        BlocProvider<InventoryBloc>(create: (_) => InventoryBloc()),
+        BlocProvider<DirectivesBloc>(create: (_) => DirectivesBloc()),
       ],
       child: GetMaterialApp(
         title: 'KaratFlow',

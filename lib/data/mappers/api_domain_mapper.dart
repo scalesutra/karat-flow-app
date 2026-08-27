@@ -144,7 +144,7 @@ abstract final class ApiDomainMapper {
         'APPROVED' => CadTaskStatus.completed,
         'REVISION' || 'REJECTED' => CadTaskStatus.revision,
         'IN_PROGRESS' => CadTaskStatus.inProgress,
-        _ => CadTaskStatus.completed,
+        _ => CadTaskStatus.newTask,
       },
       hasSketchImage: value.sketch?.sketchUrl.isNotEmpty ?? true,
       hasStlFile: value.xtlFileUrl?.isNotEmpty ?? false,
@@ -190,7 +190,7 @@ abstract final class ApiDomainMapper {
       _ => StockCategory.rawGold,
     };
 
-    final available = (value.stock != null && value.stock! > 0)
+    final available = value.stock != null
         ? value.stock!.toDouble()
         : (value.goldQuantity > 0 ? value.goldQuantity : value.totalWeight);
 
@@ -324,29 +324,60 @@ abstract final class ApiDomainMapper {
     final rawEmployee =
         latestAssignment['assignedEmployee'] ??
         latestAssignment['employee'] ??
+        latestAssignment['artisan'] ??
+        latestAssignment['worker'] ??
+        latestAssignment['assignedTo'] ??
+        latestAssignment['user'] ??
         part['assignedEmployee'] ??
-        value['assignedEmployee'];
-    String employeeName = rawEmployee is Map
-        ? rawEmployee['name'] as String? ?? ''
-        : rawEmployee as String? ?? '';
+        part['employee'] ??
+        part['artisan'] ??
+        part['worker'] ??
+        part['assignedTo'] ??
+        part['user'] ??
+        value['assignedEmployee'] ??
+        value['employee'] ??
+        value['artisan'] ??
+        value['worker'] ??
+        value['assignedTo'] ??
+        value['user'];
 
-    if (employeeName.isEmpty || employeeName.trim().isEmpty) {
-      final instructions =
-          latestAssignment['instructions'] as String? ??
-          part['instructions'] as String? ??
-          value['instructions'] as String? ??
+    String employeeName = '';
+    if (rawEmployee is Map) {
+      employeeName =
+          rawEmployee['name'] as String? ??
+          rawEmployee['fullName'] as String? ??
+          rawEmployee['username'] as String? ??
           '';
-      if (instructions.startsWith('Assigned to ')) {
-        employeeName = instructions.substring('Assigned to '.length).trim();
+      if (employeeName.isEmpty && rawEmployee['firstName'] != null) {
+        final fName = rawEmployee['firstName'] as String? ?? '';
+        final lName = rawEmployee['lastName'] as String? ?? '';
+        employeeName = '$fName $lName'.trim();
       }
+    } else if (rawEmployee is String) {
+      employeeName = rawEmployee;
     }
 
     final empId =
         latestAssignment['assignedEmployeeId'] as String? ??
+        latestAssignment['employeeId'] as String? ??
+        latestAssignment['artisanId'] as String? ??
+        latestAssignment['workerId'] as String? ??
+        latestAssignment['userId'] as String? ??
         part['assignedEmployeeId'] as String? ??
+        part['employeeId'] as String? ??
+        part['artisanId'] as String? ??
+        part['workerId'] as String? ??
+        part['userId'] as String? ??
         value['assignedEmployeeId'] as String? ??
+        value['employeeId'] as String? ??
+        value['artisanId'] as String? ??
+        value['workerId'] as String? ??
+        value['userId'] as String? ??
         '';
-    if ((employeeName.isEmpty || employeeName.trim().isEmpty) &&
+
+    if ((employeeName.isEmpty ||
+            employeeName.trim().isEmpty ||
+            employeeName.toLowerCase() == 'unassigned') &&
         empId.isNotEmpty) {
       final matched = DemoStore.instance.team
           .where(
@@ -359,8 +390,32 @@ abstract final class ApiDomainMapper {
       }
     }
 
+    if (employeeName.isEmpty ||
+        employeeName.trim().isEmpty ||
+        employeeName.toLowerCase() == 'unassigned') {
+      final instructions =
+          latestAssignment['instructions'] as String? ??
+          part['instructions'] as String? ??
+          value['instructions'] as String? ??
+          '';
+      if (instructions.contains('Assigned to ')) {
+        final idx = instructions.indexOf('Assigned to ');
+        final rest = instructions.substring(idx + 'Assigned to '.length).trim();
+        final cleanName = rest.contains(':')
+            ? rest.substring(0, rest.indexOf(':')).trim()
+            : (rest.contains('\n')
+                  ? rest.substring(0, rest.indexOf('\n')).trim()
+                  : rest);
+        if (cleanName.isNotEmpty) {
+          employeeName = cleanName;
+        }
+      }
+    }
+
     // Preserve previously assigned worker from store if API omits employee details
-    if (employeeName.isEmpty || employeeName.trim().isEmpty) {
+    if (employeeName.isEmpty ||
+        employeeName.trim().isEmpty ||
+        employeeName.toLowerCase() == 'unassigned') {
       final existingLot = DemoStore.instance.lots
           .where(
             (l) =>

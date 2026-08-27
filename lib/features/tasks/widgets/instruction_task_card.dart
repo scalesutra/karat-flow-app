@@ -50,7 +50,43 @@ class InstructionTaskCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              StatusPill(status: instruction.status),
+              if (mode == TaskDisplayMode.admin && isResolved)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.successLight,
+                    borderRadius: BorderRadius.circular(
+                      AppDimensions.radiusFull,
+                    ),
+                    border: Border.all(
+                      color: AppColors.success.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        size: 13,
+                        color: AppColors.success,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'Approved',
+                        style: TextStyle(
+                          color: AppColors.success,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                StatusPill(status: instruction.status),
             ],
           ),
           const SizedBox(height: 12),
