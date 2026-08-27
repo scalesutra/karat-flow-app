@@ -174,14 +174,22 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     widget.orderData['artisan'] = workerName;
 
     final partId = _livePartId(part);
-    final workers = DemoStore.instance.team
-        .where((worker) => worker.name == workerName)
-        .toList();
+    final selectedMember = DemoStore.instance.team
+        .where(
+          (worker) =>
+              worker.name.trim().toLowerCase() ==
+                  workerName.trim().toLowerCase() ||
+              worker.id == workerName,
+        )
+        .firstOrNull;
+    final workerId = selectedMember?.id ?? workerName;
+    final workerDisplayName = selectedMember?.name ?? workerName;
+
     final stages =
         DemoStore.instance.stages.where((stage) => stage.isActive).toList()
           ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
 
-    if (partId == null || workers.isEmpty) {
+    if (partId == null || workerName.trim().isEmpty) {
       CommonSnackbar.error(
         context,
         title: 'Assignment Unavailable',
@@ -217,14 +225,14 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
     final String stageId = targetStage != null
         ? targetStage.id
-        : 'b467cd15-4845-4ba3-a30e-cbcc42809b76'; // Default to Waxing stage ID if stages list unpopulated
+        : 'b467cd15-4845-4ba3-a30e-cbcc42809b76'; // Default stage ID if unpopulated
 
-    DemoStore.instance.allocateLotArtisan(partId, workers.first.name);
+    DemoStore.instance.allocateLotArtisan(partId, workerDisplayName);
     context.read<WorkshopBloc>().add(
       AllocateLotArtisanEvent(
         lotId: partId,
-        artisanName: workers.first.name,
-        artisanId: workers.first.id,
+        artisanName: workerDisplayName,
+        artisanId: workerId,
         stageId: stageId,
       ),
     );

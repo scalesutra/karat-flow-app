@@ -816,6 +816,22 @@ class DemoStore extends ChangeNotifier {
         updated = true;
       }
     }
+    if (artisanName.isNotEmpty) {
+      final tIndex = _team.indexWhere(
+        (t) =>
+            t.name.toLowerCase() == artisanName.toLowerCase() ||
+            t.id == artisanName,
+      );
+      if (tIndex >= 0) {
+        final member = _team[tIndex];
+        _team[tIndex] = member.copyWith(
+          status: EmployeeStatus.working,
+          activeLotsCount: member.activeLotsCount + 1,
+          currentAssignment: 'Lot #$lotId',
+        );
+        updated = true;
+      }
+    }
     if (updated) {
       notifyListeners();
     }
@@ -1159,8 +1175,29 @@ class DemoStore extends ChangeNotifier {
   void setLots(List<WorkshopLot> lots) {
     final uniqueLots = <WorkshopLot>[];
     final seenIds = <String>{};
-    for (final lot in lots) {
-      if (lot.id.isEmpty || seenIds.add(lot.id)) {
+    for (var lot in lots) {
+      final lotKey = lot.id.isNotEmpty
+          ? lot.id
+          : '${lot.orderId}_${lot.designCode}';
+      if (lotKey.isEmpty || seenIds.add(lotKey)) {
+        // Preserve locally assigned worker if backend API omits assignment details in pending response
+        if (lot.assignedEmployee.isEmpty ||
+            lot.assignedEmployee.toLowerCase() == 'unassigned') {
+          final existing = _lots
+              .where(
+                (l) =>
+                    (lot.id.isNotEmpty && l.id == lot.id) ||
+                    (l.orderId.isNotEmpty &&
+                        l.orderId == lot.orderId &&
+                        l.designCode == lot.designCode),
+              )
+              .firstOrNull;
+          if (existing != null &&
+              existing.assignedEmployee.isNotEmpty &&
+              existing.assignedEmployee != 'Unassigned') {
+            lot = lot.copyWith(assignedEmployee: existing.assignedEmployee);
+          }
+        }
         uniqueLots.add(lot);
       }
     }

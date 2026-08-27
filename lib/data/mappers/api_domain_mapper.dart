@@ -74,13 +74,31 @@ abstract final class ApiDomainMapper {
 
   static String _cleanText(String? text) {
     if (text == null || text.trim().isEmpty) return '';
-    if (text.contains('[ 🎙️ Voice Note: ')) {
-      final clean = text
-          .substring(0, text.indexOf('[ 🎙️ Voice Note: '))
+    var cleaned = text.trim();
+    if (cleaned.contains('[ 🎙️ Voice Note: ')) {
+      cleaned = cleaned
+          .substring(0, cleaned.indexOf('[ 🎙️ Voice Note: '))
           .trim();
-      return clean.isNotEmpty ? clean : 'Voice Directive Note Attached';
     }
-    return text.trim();
+    if (cleaned.contains('Price:') ||
+        cleaned.contains('Stock:') ||
+        cleaned.contains('Status:')) {
+      final parts = cleaned.split('|').map((p) => p.trim()).toList();
+      final uniqueParts = <String>[];
+      final seenMetaKeys = <String>{};
+      for (final part in parts) {
+        if (part.contains(':')) {
+          final key = part.split(':').first.trim().toLowerCase();
+          if (key == 'price' || key == 'stock' || key == 'status') {
+            if (seenMetaKeys.contains(key)) continue;
+            seenMetaKeys.add(key);
+          }
+        }
+        uniqueParts.add(part);
+      }
+      cleaned = uniqueParts.join(' | ');
+    }
+    return cleaned;
   }
 
   static JewelleryCategory parseCategory(String? value) {
@@ -105,6 +123,27 @@ abstract final class ApiDomainMapper {
     return JewelleryCategory.all;
   }
 
+  static double? parsePrice(dynamic jsonValue, String? adminInstructions) {
+    if (jsonValue != null && jsonValue is num && jsonValue > 0) {
+      return jsonValue.toDouble();
+    }
+    if (adminInstructions != null && adminInstructions.isNotEmpty) {
+      final reg = RegExp(
+        r'Price:\s*₹?\s*(\d+(?:\.\d+)?)',
+        caseSensitive: false,
+      );
+      final match = reg.firstMatch(adminInstructions);
+      if (match != null) {
+        final parsedStr = match.group(1);
+        if (parsedStr != null) {
+          final val = double.tryParse(parsedStr);
+          if (val != null && val > 0) return val;
+        }
+      }
+    }
+    return null;
+  }
+
   static JewelleryDesign sketch(ApiSketch value) => JewelleryDesign(
     id: value.id,
     name: value.title,
@@ -112,6 +151,7 @@ abstract final class ApiDomainMapper {
     category: parseCategory(value.category),
     purity: '',
     grossWeightGrams: 0,
+    estimatedPrice: parsePrice(value.price, value.adminInstructions),
     imageUrl: value.sketchUrl,
     description: _cleanText(value.adminInstructions),
     isPopular: value.status == 'APPROVED',
@@ -126,8 +166,11 @@ abstract final class ApiDomainMapper {
     category: parseCategory(value.category ?? value.sketch?.category),
     purity: '',
     grossWeightGrams: value.totalWeight,
-    estimatedPrice: value.price,
-    imageUrl: value.xtlFileUrl ?? '',
+    estimatedPrice: parsePrice(
+      value.price ?? value.sketch?.price,
+      value.adminInstructions ?? value.sketch?.adminInstructions,
+    ),
+    imageUrl: value.xtlFileUrl ?? value.sketch?.sketchUrl ?? '',
     description: _cleanText(value.adminInstructions).isNotEmpty
         ? _cleanText(value.adminInstructions)
         : value.sizeDimensions,
@@ -262,6 +305,22 @@ abstract final class ApiDomainMapper {
               ? 'LOT-${value.id.substring(0, 6).toUpperCase()}'
               : value.id);
 
+    var empName = value.assignedEmployeeName;
+    if (empName.isEmpty || empName.trim().isEmpty) {
+      if (value.instructions.contains('Assigned to ')) {
+        final idx = value.instructions.indexOf('Assigned to ');
+        final rest = value.instructions.substring(idx + 'Assigned to '.length).trim();
+        final cleanName = rest.contains(':')
+            ? rest.substring(0, rest.indexOf(':')).trim()
+            : (rest.contains('\n')
+                  ? rest.substring(0, rest.indexOf('\n')).trim()
+                  : rest);
+        if (cleanName.isNotEmpty) {
+          empName = cleanName;
+        }
+      }
+    }
+
     return WorkshopLot(
       id: lotCode,
       orderId: value.orderId,
@@ -270,7 +329,7 @@ abstract final class ApiDomainMapper {
           ? value.designNumber
           : 'Jewellery Lot $lotCode',
       stage: stage(value.stageName),
-      assignedEmployee: value.assignedEmployeeName,
+      assignedEmployee: empName.isNotEmpty ? empName : 'Unassigned',
       assignedEmployeeRole: value.status,
       pieces: value.quantity,
       issueWeightGrams: value.grossWeight,
@@ -411,6 +470,49 @@ abstract final class ApiDomainMapper {
           .firstOrNull;
       if (matched != null) {
         employeeName = matched.name;
+      }
+    }
+
+    if (employeeName.isEmpty ||
+        employeeName.trim().isEmpty ||
+        employeeName.toLowerCase() == 'unassigned') {
+      final instructions =
+          latestAssignment['instructions'] as String? ??
+          part['instructions'] as String? ??
+          value['instructions'] as String? ??
+          '';
+      if (instructions.contains('Assigned to ')) {
+        final idx = instructions.indexOf('Assigned to ');
+        final rest = instructions.substring(idx + 'Assigned to '.length).trim();
+        final cleanName = rest.contains(':')
+            ? rest.substring(0, rest.indexOf(':')).trim()
+            : (rest.contains('\n')
+                  ? rest.substring(0, rest.indexOf('\n')).trim()
+                  : rest);
+        if (cleanName.isNotEmpty) {
+          employeeName = cleanName;
+        }
+      }
+    }
+
+    // Preserve previously assigned worker from local store if API omits employee details
+    final targetLotId = part['id'] as String? ?? value['id'] as String? ?? '';
+    if (employeeName.isEmpty ||
+        employeeName.trim().isEmpty ||
+        employeeName.toLowerCase() == 'unassigned') {
+      final existingLot = DemoStore.instance.lots
+          .where(
+            (l) =>
+                l.id == targetLotId ||
+                (l.orderId.isNotEmpty &&
+                    l.orderId == orderId &&
+                    l.designCode == designNumber),
+          )
+          .firstOrNull;
+      if (existingLot != null &&
+          existingLot.assignedEmployee.isNotEmpty &&
+          existingLot.assignedEmployee != 'Unassigned') {
+        employeeName = existingLot.assignedEmployee;
       }
     }
 

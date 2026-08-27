@@ -333,7 +333,7 @@ class _CartPageState extends State<CartPage> {
                             color: Colors.white70,
                           ),
                           Text(
-                            'â‚¹${widget.store.cartTotalEstimatedPrice.toStringAsFixed(0)}',
+                            '₹${widget.store.cartTotalEstimatedPrice.toStringAsFixed(0)}',
                             style: const TextStyle(
                               color: AppColors.pureWhite,
                               fontWeight: FontWeight.w800,
@@ -721,7 +721,7 @@ class _CartItemCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 CommonText.bodySmall(
-                  '${item.totalGrossWeight.toStringAsFixed(1)}g GW Â· â‚¹${item.totalEstimatedPrice.toStringAsFixed(0)}',
+                  '${item.totalGrossWeight.toStringAsFixed(1)}g GW · ₹${item.totalEstimatedPrice.toStringAsFixed(0)}',
                   color: AppColors.muted,
                 ),
               ],

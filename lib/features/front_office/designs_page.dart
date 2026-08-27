@@ -5,7 +5,6 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/localization.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
-import '../../data/repositories/karatflow_api_repository.dart';
 import '../../domain/models.dart';
 import 'bloc/orders_bloc.dart';
 
@@ -74,7 +73,7 @@ class _DesignsPageState extends State<DesignsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               CommonText.headlineLarge(
-                                '${AppStrings.navDesigns.trClean} Catalogue',
+                                AppStrings.navDesigns.trClean,
                               ),
                               const SizedBox(height: 1),
                               CommonText.bodySmall(
@@ -347,7 +346,7 @@ class _DesignCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       CommonText.labelSmall(
-                        design.code,
+                        _formatDesignCode(design.code),
                         color: AppColors.muted,
                         fontWeight: FontWeight.w700,
                       ),
@@ -394,7 +393,7 @@ class _DesignCard extends StatelessWidget {
                     children: [
                       Text(
                         design.hasBackendPrice
-                            ? 'â‚¹${_formatPrice(design.estimatedPrice)}'
+                            ? '₹${_formatPrice(design.estimatedPrice)}'
                             : 'Price unavailable',
                         style: const TextStyle(
                           fontSize: 13,
@@ -545,7 +544,7 @@ class _DesignDetailModal extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            design.code,
+                            _formatDesignCode(design.code),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -584,13 +583,13 @@ class _DesignDetailModal extends StatelessWidget {
                 const Divider(height: 14),
                 _specRow(
                   'Making Charges',
-                  'â‚¹${design.makingChargesPerGram}/g',
+                  '₹${design.makingChargesPerGram}/g',
                 ),
                 const Divider(height: 14),
                 _specRow(
                   'Backend Price',
                   design.hasBackendPrice
-                      ? 'â‚¹${design.estimatedPrice.toStringAsFixed(0)}'
+                      ? '₹${design.estimatedPrice.toStringAsFixed(0)}'
                       : 'Not provided',
                   isBold: true,
                 ),
@@ -637,4 +636,13 @@ class _DesignDetailModal extends StatelessWidget {
       ],
     );
   }
+}
+
+String _formatDesignCode(String code) {
+  if (code.isEmpty) return 'SKU: #----';
+  if (code.length > 12 && code.contains('-')) {
+    return 'SKU: #${code.substring(0, 8).toUpperCase()}';
+  }
+  if (code.toUpperCase().startsWith('SKU:')) return code;
+  return code.startsWith('#') ? 'SKU: $code' : 'SKU: #$code';
 }

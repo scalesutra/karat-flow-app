@@ -228,11 +228,14 @@ class _AdminManagePageState extends State<AdminManagePage> {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            member.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
+                          Flexible(
+                            child: Text(
+                              member.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 6),

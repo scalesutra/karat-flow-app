@@ -458,6 +458,33 @@ class KaratFlowApiRepository {
         .toList();
   }
 
+  /// Returns raw order parts (including [workerAssignments]) as plain Maps.
+  /// Used by [WorkshopBloc] on startup to restore assigned worker state since
+  /// [listPendingProductionFloor] only returns UNASSIGNED parts.
+  Future<List<Map<String, dynamic>>> listOrderPartsRaw({int limit = 100}) async {
+    try {
+      final response = await _api.get(
+        ApiEndpoints.orders,
+        queryParameters: {'limit': limit},
+      );
+      final orders = response.data['data'] as List? ?? [];
+      final parts = <Map<String, dynamic>>[];
+      for (final o in orders) {
+        final orderMap = o as Map<String, dynamic>;
+        final rawParts = orderMap['parts'] as List? ?? [];
+        for (final p in rawParts) {
+          final partMap = Map<String, dynamic>.from(p as Map);
+          partMap['_orderId'] = orderMap['id'];
+          partMap['_orderNumber'] = orderMap['orderNumber'];
+          parts.add(partMap);
+        }
+      }
+      return parts;
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<ApiOrder> getOrderDetails(String id) async {
     final response = await _api.get(ApiEndpoints.orderDetails(id));
     final data = response.data['data'] as Map<String, dynamic>;

@@ -181,6 +181,7 @@ class ApiSketch {
     this.designer,
     this.createdAt,
     this.category,
+    this.price,
   });
 
   factory ApiSketch.fromJson(Map<String, dynamic> json) {
@@ -199,6 +200,7 @@ class ApiSketch {
           : null,
       createdAt: json['createdAt'] as String?,
       category: json['category'] as String?,
+      price: (json['price'] as num?)?.toDouble(),
     );
   }
 
@@ -214,6 +216,7 @@ class ApiSketch {
   final ApiUser? designer;
   final String? createdAt;
   final String? category;
+  final double? price;
 }
 
 // ── 6. 3D CAD Models ────────────────────────────────────────────────
@@ -416,14 +419,45 @@ class ApiWorkerTask {
     if (json['stage'] is Map) {
       sName = json['stage']['name'] as String? ?? '';
     }
-    final employee = json['assignedEmployee'] ?? json['employee'];
+    final employee =
+        json['assignedEmployee'] ??
+        json['employee'] ??
+        json['artisan'] ??
+        json['worker'];
     if (employee is Map) {
-      employeeName = employee['name'] as String? ?? '';
+      employeeName =
+          employee['name'] as String? ?? employee['fullName'] as String? ?? '';
+      if (employeeName.isEmpty && employee['firstName'] != null) {
+        final fName = employee['firstName'] as String? ?? '';
+        final lName = employee['lastName'] as String? ?? '';
+        employeeName = '$fName $lName'.trim();
+      }
+    } else if (employee is String) {
+      employeeName = employee;
     }
+
+    final instructionsStr = json['instructions'] as String? ?? '';
+    if (employeeName.isEmpty || employeeName.trim().isEmpty) {
+      if (instructionsStr.contains('Assigned to ')) {
+        final idx = instructionsStr.indexOf('Assigned to ');
+        final rest = instructionsStr
+            .substring(idx + 'Assigned to '.length)
+            .trim();
+        final cleanName = rest.contains(':')
+            ? rest.substring(0, rest.indexOf(':')).trim()
+            : (rest.contains('\n')
+                  ? rest.substring(0, rest.indexOf('\n')).trim()
+                  : rest);
+        if (cleanName.isNotEmpty) {
+          employeeName = cleanName;
+        }
+      }
+    }
+
     return ApiWorkerTask(
       id: json['id'] as String? ?? '',
       status: json['status'] as String? ?? 'ASSIGNED',
-      instructions: json['instructions'] as String? ?? '',
+      instructions: instructionsStr,
       designNumber: dNum,
       quantity: qty,
       stageName: sName,
