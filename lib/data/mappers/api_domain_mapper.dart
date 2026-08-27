@@ -458,4 +458,21 @@ abstract final class ApiDomainMapper {
     }
     return WorkshopStage.inQueue;
   }
+
+  static Instruction directive(ApiDirective value) {
+    final isAck = value.status.toUpperCase() == 'ACKNOWLEDGED';
+    return Instruction(
+      id: value.directiveCode.isNotEmpty ? value.directiveCode : value.id,
+      targetId: value.targetType,
+      targetLabel: value.targetType.replaceAll('_', ' '),
+      message: '${value.title}: ${value.instruction}',
+      createdBy: 'Admin / PM',
+      assignedTo: value.targetType.replaceAll('_', ' '),
+      urgency: InstructionUrgency.urgent,
+      status: isAck ? InstructionStatus.acknowledged : InstructionStatus.sent,
+      createdAt: DateTime.tryParse(value.createdAt ?? '') ?? DateTime.now(),
+      hasPhoto: value.imageUrl != null && value.imageUrl!.isNotEmpty,
+      hasVoice: value.audioUrl != null && value.audioUrl!.isNotEmpty,
+    );
+  }
 }

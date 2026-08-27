@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/widgets/common_3d_viewer.dart';
 import '../../../../core/widgets/common_button.dart';
 import '../../../../core/widgets/common_card.dart';
@@ -23,7 +24,13 @@ class AdminReviewCadSheet extends StatelessWidget {
   final void Function(String contextRef) onSendDirective;
 
   void _approveTask(BuildContext context, CadDesignTask task) {
+    store.approveCadTask(task.id);
     context.read<CadBloc>().add(ApproveCadTaskEvent(task.id));
+    CommonSnackbar.success(
+      context,
+      title: '3D Model Approved ✓',
+      message: '${task.productTitle} approved for tree setup.',
+    );
   }
 
   static void show(
@@ -202,7 +209,7 @@ class AdminReviewCadSheet extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Code: ${task.designCode} Â· Client: ${task.clientName} Â· ${task.specs}',
+                                  'Code: ${task.designCode} · Client: ${task.clientName} · ${task.specs}',
                                   style: const TextStyle(
                                     color: AppColors.muted,
                                     fontSize: 11,
@@ -233,7 +240,44 @@ class AdminReviewCadSheet extends StatelessWidget {
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    if (!isApproved) ...[
+                                    if (isApproved) ...[
+                                      Expanded(
+                                        child: Container(
+                                          height: 34,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.emeraldLight,
+                                            borderRadius: BorderRadius.circular(
+                                              AppDimensions.radiusSmall,
+                                            ),
+                                            border: Border.all(
+                                              color: AppColors.emerald
+                                                  .withValues(alpha: 0.4),
+                                            ),
+                                          ),
+                                          child: const Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.check_circle,
+                                                size: 14,
+                                                color: AppColors.emeraldDark,
+                                              ),
+                                              SizedBox(width: 4),
+                                              Text(
+                                                'Approved ✓',
+                                                style: TextStyle(
+                                                  color: AppColors.emeraldDark,
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                    ] else ...[
                                       Expanded(
                                         child: CommonButton.primary(
                                           height: 34,

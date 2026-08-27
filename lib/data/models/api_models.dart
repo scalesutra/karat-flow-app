@@ -65,6 +65,7 @@ class ApiEmployee {
     required this.email,
     required this.phone,
     required this.role,
+    this.specialty = '',
     this.isActive = true,
     this.workerAssignmentsCount = 0,
   });
@@ -80,6 +81,7 @@ class ApiEmployee {
       email: json['email'] as String? ?? '',
       phone: json['phone'] as String? ?? '',
       role: json['role'] as String? ?? 'OTHER_EMPLOYEE',
+      specialty: json['specialty'] as String? ?? '',
       isActive: json['isActive'] as bool? ?? true,
       workerAssignmentsCount: count,
     );
@@ -90,6 +92,7 @@ class ApiEmployee {
   final String email;
   final String phone;
   final String role;
+  final String specialty;
   final bool isActive;
   final int workerAssignmentsCount;
 }
@@ -572,4 +575,191 @@ class ApiHealthStatus {
       status.toLowerCase() == 'ok' &&
       databaseStatus.toLowerCase() == 'healthy' &&
       cacheStatus.toLowerCase() == 'healthy';
+}
+
+// ── 12. Master Raw Materials & Pricing Matrix Models ──────────────────
+class ApiMaterial {
+  const ApiMaterial({
+    required this.id,
+    required this.code,
+    required this.name,
+    required this.category,
+    required this.specification,
+    required this.unit,
+    required this.presetPricePerUnit,
+    this.description = '',
+    this.isActive = true,
+  });
+
+  factory ApiMaterial.fromJson(Map<String, dynamic> json) {
+    return ApiMaterial(
+      id: json['id'] as String? ?? '',
+      code: json['code'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      category: json['category'] as String? ?? 'METAL',
+      specification: json['specification'] as String? ?? '',
+      unit: json['unit'] as String? ?? 'g',
+      presetPricePerUnit:
+          (json['presetPricePerUnit'] as num?)?.toDouble() ?? 0.0,
+      description: json['description'] as String? ?? '',
+      isActive: json['isActive'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'code': code,
+    'name': name,
+    'category': category,
+    'specification': specification,
+    'unit': unit,
+    'presetPricePerUnit': presetPricePerUnit,
+    'description': description,
+  };
+
+  final String id;
+  final String code;
+  final String name;
+  final String category; // METAL | DIAMOND | GEMSTONE | FINDING | MAKING_CHARGE
+  final String specification;
+  final String unit;
+  final double presetPricePerUnit;
+  final String description;
+  final bool isActive;
+}
+
+// ── 13. Vault & Safe Inventory Stock Models ──────────────────────────
+class ApiInventoryItem {
+  const ApiInventoryItem({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.purity,
+    required this.totalStock,
+    this.reservedWip = 0.0,
+    required this.freeBalance,
+    required this.unit,
+    required this.location,
+  });
+
+  factory ApiInventoryItem.fromJson(Map<String, dynamic> json) {
+    return ApiInventoryItem(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      category: json['category'] as String? ?? 'RAW_GOLD',
+      purity: json['purity'] as String? ?? '',
+      totalStock: (json['totalStock'] as num?)?.toDouble() ?? 0.0,
+      reservedWip: (json['reservedWip'] as num?)?.toDouble() ?? 0.0,
+      freeBalance: (json['freeBalance'] as num?)?.toDouble() ?? 0.0,
+      unit: json['unit'] as String? ?? 'g',
+      location: json['location'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'category': category,
+    'purity': purity,
+    'totalStock': totalStock,
+    'reservedWip': reservedWip,
+    'freeBalance': freeBalance,
+    'unit': unit,
+    'location': location,
+  };
+
+  final String id;
+  final String name;
+  final String category; // RAW_GOLD | DIAMONDS | FINDINGS_CASTS | READY_ALLOY
+  final String purity;
+  final double totalStock;
+  final double reservedWip;
+  final double freeBalance;
+  final String unit;
+  final String location;
+}
+
+class ApiInventorySummary {
+  const ApiInventorySummary({
+    this.totalVaultGold = 0.0,
+    this.totalReservedWip = 0.0,
+    this.totalFreeBalance = 0.0,
+  });
+
+  factory ApiInventorySummary.fromJson(Map<String, dynamic> json) {
+    return ApiInventorySummary(
+      totalVaultGold: (json['totalVaultGold'] as num?)?.toDouble() ?? 0.0,
+      totalReservedWip: (json['totalReservedWip'] as num?)?.toDouble() ?? 0.0,
+      totalFreeBalance: (json['totalFreeBalance'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  final double totalVaultGold;
+  final double totalReservedWip;
+  final double totalFreeBalance;
+}
+
+class ApiInventoryResponse {
+  const ApiInventoryResponse({required this.items, required this.summary});
+
+  factory ApiInventoryResponse.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'] as List? ?? [];
+    final itemsList = rawItems
+        .map((item) => ApiInventoryItem.fromJson(item as Map<String, dynamic>))
+        .toList();
+    final summaryData = json['summary'] is Map
+        ? ApiInventorySummary.fromJson(json['summary'] as Map<String, dynamic>)
+        : const ApiInventorySummary();
+
+    return ApiInventoryResponse(items: itemsList, summary: summaryData);
+  }
+
+  final List<ApiInventoryItem> items;
+  final ApiInventorySummary summary;
+}
+
+// ── 14. Floor Directives & Voice Notes Models ────────────────────────
+class ApiDirective {
+  const ApiDirective({
+    required this.id,
+    required this.directiveCode,
+    required this.title,
+    required this.targetType,
+    required this.instruction,
+    this.audioUrl,
+    this.imageUrl,
+    this.status = 'ACTIVE',
+    this.createdAt,
+  });
+
+  factory ApiDirective.fromJson(Map<String, dynamic> json) {
+    return ApiDirective(
+      id: json['id'] as String? ?? '',
+      directiveCode: json['directiveCode'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      targetType: json['targetType'] as String? ?? 'ALL_ARTISANS',
+      instruction: json['instruction'] as String? ?? '',
+      audioUrl: json['audioUrl'] as String?,
+      imageUrl: json['imageUrl'] as String?,
+      status: json['status'] as String? ?? 'ACTIVE',
+      createdAt: json['createdAt'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'title': title,
+    'targetType': targetType,
+    'instruction': instruction,
+    'audioUrl': audioUrl,
+    'imageUrl': imageUrl,
+  };
+
+  final String id;
+  final String directiveCode;
+  final String title;
+  final String
+  targetType; // THREE_D_DESIGNER | SKETCHER | ALL_ARTISANS | BENCH_ARTISAN
+  final String instruction;
+  final String? audioUrl;
+  final String? imageUrl;
+  final String status; // ACTIVE | ACKNOWLEDGED
+  final String? createdAt;
 }

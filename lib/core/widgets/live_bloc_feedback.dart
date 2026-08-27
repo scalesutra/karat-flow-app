@@ -3,7 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../features/admin/bloc/admin_bloc.dart';
 import '../../features/cad_designer/bloc/cad_bloc.dart';
+import '../../features/directives/bloc/directives_bloc.dart';
 import '../../features/front_office/bloc/orders_bloc.dart';
+import '../../features/inventory/bloc/inventory_bloc.dart';
+import '../../features/materials/bloc/materials_bloc.dart';
 import '../../features/raw_designer/bloc/sketch_bloc.dart';
 import '../../features/workshop/bloc/workshop_bloc.dart';
 import '../../features/workshop_artisan/bloc/artisan_bloc.dart';
@@ -18,6 +21,57 @@ class LiveBlocFeedback extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocListener(
       listeners: [
+        BlocListener<MaterialsBloc, MaterialsState>(
+          listener: (context, state) {
+            if (state case MaterialsOperationSuccess(:final message)) {
+              CommonSnackbar.success(
+                context,
+                title: 'Materials Updated',
+                message: message,
+              );
+            } else if (state case MaterialsError(:final message)) {
+              CommonSnackbar.error(
+                context,
+                title: 'Materials API Error',
+                message: message,
+              );
+            }
+          },
+        ),
+        BlocListener<InventoryBloc, InventoryState>(
+          listener: (context, state) {
+            if (state case InventoryOperationSuccess(:final message)) {
+              CommonSnackbar.success(
+                context,
+                title: 'Inventory Updated',
+                message: message,
+              );
+            } else if (state case InventoryError(:final message)) {
+              CommonSnackbar.error(
+                context,
+                title: 'Inventory API Error',
+                message: message,
+              );
+            }
+          },
+        ),
+        BlocListener<DirectivesBloc, DirectivesState>(
+          listener: (context, state) {
+            if (state case DirectivesOperationSuccess(:final message)) {
+              CommonSnackbar.success(
+                context,
+                title: 'Directive Sent',
+                message: message,
+              );
+            } else if (state case DirectivesError(:final message)) {
+              CommonSnackbar.error(
+                context,
+                title: 'Directive API Error',
+                message: message,
+              );
+            }
+          },
+        ),
         BlocListener<OrdersBloc, OrdersState>(
           listener: (context, state) {
             if (state case OrderOperationSuccess(:final message)) {

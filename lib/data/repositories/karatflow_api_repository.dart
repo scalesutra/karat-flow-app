@@ -85,10 +85,17 @@ class KaratFlowApiRepository {
     required String email,
     required String phone,
     String role = 'OTHER_EMPLOYEE',
+    String specialty = '',
   }) async {
     final response = await _api.post(
       ApiEndpoints.employees,
-      data: {'name': name, 'email': email, 'phone': phone, 'role': role},
+      data: {
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'role': role,
+        if (specialty.isNotEmpty) 'specialty': specialty,
+      },
     );
     final data = response.data['data'] as Map<String, dynamic>;
     return ApiEmployee.fromJson(data);
@@ -549,10 +556,7 @@ class KaratFlowApiRepository {
     );
   }
 
-  Future<void> unblockOrderPart({
-    required String partId,
-    String? notes,
-  }) async {
+  Future<void> unblockOrderPart({required String partId, String? notes}) async {
     await _api.post(
       ApiEndpoints.productionUnblock(partId),
       data: {if (notes?.isNotEmpty == true) 'notes': notes},
@@ -686,7 +690,153 @@ class KaratFlowApiRepository {
     return key.isEmpty ? null : key;
   }
 
-  // ── SECTION 11: Health (/health) ──────────────────────────────────
+  // ── SECTION 11: Master Raw Materials & Preset Pricing Matrix ────
+  Future<List<ApiMaterial>> listMaterials({
+    String? category,
+    String? search,
+  }) async {
+    final response = await _api.get(
+      ApiEndpoints.materials,
+      queryParameters: {
+        if (category != null && category.isNotEmpty) 'category': category,
+        if (search != null && search.isNotEmpty) 'search': search,
+      },
+    );
+    final list = _dataList(response.data);
+    return list
+        .map((e) => ApiMaterial.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<ApiMaterial> updateMaterialRate(
+    String id,
+    double presetPricePerUnit,
+  ) async {
+    final response = await _api.patch(
+      ApiEndpoints.updateMaterialRate(id),
+      data: {'presetPricePerUnit': presetPricePerUnit},
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiMaterial.fromJson(data);
+  }
+
+  Future<ApiMaterial> createMaterial({
+    required String code,
+    required String name,
+    required String category,
+    required String specification,
+    required String unit,
+    required double presetPricePerUnit,
+    String description = '',
+  }) async {
+    final response = await _api.post(
+      ApiEndpoints.materials,
+      data: {
+        'code': code,
+        'name': name,
+        'category': category,
+        'specification': specification,
+        'unit': unit,
+        'presetPricePerUnit': presetPricePerUnit,
+        'description': description,
+      },
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiMaterial.fromJson(data);
+  }
+
+  // ── SECTION 12: Vault & Safe Inventory Stock ──────────────────────
+  Future<ApiInventoryResponse> getInventory({
+    String? category,
+    String? search,
+  }) async {
+    final response = await _api.get(
+      ApiEndpoints.inventory,
+      queryParameters: {
+        if (category != null && category.isNotEmpty) 'category': category,
+        if (search != null && search.isNotEmpty) 'search': search,
+      },
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiInventoryResponse.fromJson(data);
+  }
+
+  Future<ApiInventoryItem> addInventoryItem({
+    required String name,
+    required String category,
+    required String purity,
+    required double totalStock,
+    double reservedWip = 0.0,
+    required double freeBalance,
+    required String unit,
+    required String location,
+  }) async {
+    final response = await _api.post(
+      ApiEndpoints.inventory,
+      data: {
+        'name': name,
+        'category': category,
+        'purity': purity,
+        'totalStock': totalStock,
+        'reservedWip': reservedWip,
+        'freeBalance': freeBalance,
+        'unit': unit,
+        'location': location,
+      },
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiInventoryItem.fromJson(data);
+  }
+
+  // ── SECTION 13: Floor Directives & Voice Notes ────────────────────
+  Future<List<ApiDirective>> listDirectives({
+    String? status,
+    String? search,
+  }) async {
+    final response = await _api.get(
+      ApiEndpoints.directives,
+      queryParameters: {
+        if (status != null && status.isNotEmpty) 'status': status,
+        if (search != null && search.isNotEmpty) 'search': search,
+      },
+    );
+    final list = _dataList(response.data);
+    return list
+        .map((e) => ApiDirective.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<ApiDirective> dispatchDirective({
+    required String title,
+    required String targetType,
+    required String instruction,
+    String? audioUrl,
+    String? imageUrl,
+  }) async {
+    final response = await _api.post(
+      ApiEndpoints.directives,
+      data: {
+        'title': title,
+        'targetType': targetType,
+        'instruction': instruction,
+        if (audioUrl != null && audioUrl.isNotEmpty) 'audioUrl': audioUrl,
+        if (imageUrl != null && imageUrl.isNotEmpty) 'imageUrl': imageUrl,
+      },
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiDirective.fromJson(data);
+  }
+
+  Future<ApiDirective> acknowledgeDirective(String id) async {
+    final response = await _api.patch(
+      ApiEndpoints.acknowledgeDirective(id),
+      data: <String, dynamic>{},
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiDirective.fromJson(data);
+  }
+
+  // ── SECTION 14: Health (/health) ──────────────────────────────────
   Future<ApiHealthStatus> checkHealth() async {
     final response = await _api.get(ApiEndpoints.health);
     return ApiHealthStatus.fromJson(_dataMap(response.data));

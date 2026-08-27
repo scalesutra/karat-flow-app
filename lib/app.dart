@@ -8,6 +8,9 @@ import 'core/theme/app_theme.dart';
 import 'core/widgets/live_bloc_feedback.dart';
 import 'data/demo_store.dart';
 import 'domain/models.dart';
+import 'features/directives/bloc/directives_bloc.dart';
+import 'features/inventory/bloc/inventory_bloc.dart';
+import 'features/materials/bloc/materials_bloc.dart';
 import 'features/admin/bloc/admin_bloc.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/cad_designer/bloc/cad_bloc.dart';
@@ -57,6 +60,15 @@ class _JewelleryOpsAppState extends State<JewelleryOpsApp> {
         ),
         BlocProvider<SketchBloc>(create: (_) => SketchBloc()),
         BlocProvider<ArtisanBloc>(create: (_) => ArtisanBloc()),
+        BlocProvider<MaterialsBloc>(
+          create: (_) => MaterialsBloc()..add(const FetchMaterialsEvent()),
+        ),
+        BlocProvider<InventoryBloc>(
+          create: (_) => InventoryBloc()..add(const FetchInventoryEvent()),
+        ),
+        BlocProvider<DirectivesBloc>(
+          create: (_) => DirectivesBloc()..add(const FetchDirectivesEvent()),
+        ),
       ],
       child: GetMaterialApp(
         title: 'KaratFlow',

@@ -71,6 +71,18 @@ abstract final class ApiEndpoints {
   static const String storageUploadUrl = '/storage/upload-url';
   static const String storageDownloadUrl = '/storage/download-url';
 
-  // ── SECTION 11: System & Database Health (/health) ───────────────
+  // ── SECTION 11: Master Raw Materials & Pricing (/materials) ─────
+  static const String materials = '/materials';
+  static String updateMaterialRate(String id) => '/materials/$id/rate';
+
+  // ── SECTION 12: Vault & Safe Inventory Stock (/inventory) ─────────
+  static const String inventory = '/inventory';
+
+  // ── SECTION 13: Floor Directives & Voice Notes (/directives) ──────
+  static const String directives = '/directives';
+  static String acknowledgeDirective(String id) =>
+      '/directives/$id/acknowledge';
+
+  // ── SECTION 14: System & Database Health (/health) ───────────────
   static const String health = '/health';
 }

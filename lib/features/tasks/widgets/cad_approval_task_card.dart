@@ -23,12 +23,21 @@ class CadApprovalTaskCard extends StatelessWidget {
   final DemoStore store;
 
   void _approve(BuildContext context) {
+    store.approveCadTask(task.id);
     context.read<CadBloc>().add(ApproveCadTaskEvent(task.id));
+    CommonSnackbar.success(
+      context,
+      title: '3D CAD Approved ✓',
+      message:
+          'Design ${task.designCode} approved and sent for wax casting setup.',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isApproved = task.specs.contains('(Approved)');
+    final isApproved =
+        task.status == CadTaskStatus.completed ||
+        task.specs.contains('(Approved)');
 
     return CommonCard(
       child: Column(
@@ -69,16 +78,33 @@ class CadApprovalTaskCard extends StatelessWidget {
                       ? AppColors.emeraldLight
                       : AppColors.goldLight,
                   borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-                ),
-                child: Text(
-                  isApproved ? 'APPROVED' : 'PENDING 3D SIGN-OFF',
-                  style: TextStyle(
-                    color: isApproved
-                        ? AppColors.emeraldDark
-                        : AppColors.goldDark,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
+                  border: Border.all(
+                    color: (isApproved ? AppColors.emerald : AppColors.gold)
+                        .withValues(alpha: 0.3),
                   ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isApproved ? Icons.check_circle : Icons.hourglass_empty,
+                      size: 11,
+                      color: isApproved
+                          ? AppColors.emeraldDark
+                          : AppColors.goldDark,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isApproved ? 'APPROVED ✓' : 'PENDING 3D SIGN-OFF',
+                      style: TextStyle(
+                        color: isApproved
+                            ? AppColors.emeraldDark
+                            : AppColors.goldDark,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -178,7 +204,42 @@ class CadApprovalTaskCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
               ],
-              if (!isApproved) ...[
+              if (isApproved) ...[
+                Expanded(
+                  child: Container(
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.emeraldLight,
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusSmall,
+                      ),
+                      border: Border.all(
+                        color: AppColors.emerald.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          size: 15,
+                          color: AppColors.emeraldDark,
+                        ),
+                        SizedBox(width: 5),
+                        Text(
+                          'Approved ✓',
+                          style: TextStyle(
+                            color: AppColors.emeraldDark,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ] else ...[
                 Expanded(
                   child: CommonButton.primary(
                     height: 36,
