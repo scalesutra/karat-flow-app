@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:jewellery_ops_mobile/core/constants/app_colors.dart';
+import 'package:jewellery_ops_mobile/data/mappers/api_domain_mapper.dart';
 import 'package:jewellery_ops_mobile/features/instructions/instruction_composer.dart';
 
 import '../../core/widgets/common_app_bar.dart';
@@ -314,32 +315,9 @@ class StatusDetailPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                CommonText.titleMedium(
-                  'Active Lots on Bench (${activeLots.length})',
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.sage,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'LIVE API',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.ink,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              CommonText.titleMedium(
+                'Active Lots on Bench (${activeLots.length})',
+              ),
             const SizedBox(height: 10),
             if (activeLots.isEmpty)
               const CommonCard(
@@ -391,7 +369,11 @@ class StatusDetailPage extends StatelessWidget {
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
-                                  lot.orderId,
+                                  lot.designCode.isNotEmpty
+                                      ? 'Design #${lot.designCode}'
+                                      : ApiDomainMapper.formatOrderNumber(
+                                          lot.orderId,
+                                        ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -415,7 +397,16 @@ class StatusDetailPage extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            lot.stage.label,
+                            (lot.stage == WorkshopStage.readyForDispatch ||
+                                    lot.apiStageName.toLowerCase().contains(
+                                      'complete',
+                                    ) ||
+                                    lot.apiStageName.toUpperCase() ==
+                                        'ALL_STAGES_COMPLETED')
+                                ? 'Ready for Dispatch'
+                                : (lot.apiStageName.isNotEmpty
+                                      ? lot.apiStageName
+                                      : lot.stage.label),
                             style: const TextStyle(
                               color: AppColors.emerald,
                               fontWeight: FontWeight.w800,
@@ -538,13 +529,27 @@ class StatusDetailPage extends StatelessWidget {
         .toList();
     final activeLots = orderLots;
     final isOnHold = order.isBlocked || activeLots.any((lot) => lot.isOnHold);
-    final liveStages = activeLots
-        .map(
-          (lot) =>
-              lot.apiStageName.isNotEmpty ? lot.apiStageName : lot.stage.label,
-        )
-        .toSet()
-        .toList();
+    final isOrderCompleted =
+        order.status == OrderStatus.ready ||
+        order.status == OrderStatus.delivered ||
+        (activeLots.isNotEmpty &&
+            activeLots.every(
+              (lot) =>
+                  lot.stage == WorkshopStage.readyForDispatch ||
+                  lot.apiStageName.toLowerCase().contains('complete') ||
+                  lot.apiStageName.toUpperCase() == 'ALL_STAGES_COMPLETED',
+            ));
+    final liveStages = isOrderCompleted
+        ? <String>['Completed / Ready for Dispatch']
+        : activeLots
+              .where((lot) => lot.stage != WorkshopStage.readyForDispatch)
+              .map(
+                (lot) => lot.apiStageName.isNotEmpty
+                    ? lot.apiStageName
+                    : lot.stage.label,
+              )
+              .toSet()
+              .toList();
 
     return Scaffold(
       appBar: CommonAppBar(
@@ -579,9 +584,7 @@ class StatusDetailPage extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          order.id.length > 10
-                              ? 'ORD-${order.id.substring(0, 6)}'
-                              : order.id,
+                          ApiDomainMapper.formatOrderNumber(order.id),
                           style: const TextStyle(
                             color: AppColors.gold,
                             fontWeight: FontWeight.w900,
@@ -603,7 +606,9 @@ class StatusDetailPage extends StatelessWidget {
                         child: Text(
                           isOnHold
                               ? 'ON HOLD'
-                              : order.status.label.toUpperCase(),
+                              : (isOrderCompleted
+                                    ? 'COMPLETED'
+                                    : order.status.label.toUpperCase()),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
@@ -667,7 +672,7 @@ class StatusDetailPage extends StatelessWidget {
                         child: _stageMetricTile(
                           'DUE DATE',
                           order.promiseDate,
-                          AppColors.emerald,
+                          const Color(0xFFFFD18A),
                         ),
                       ),
                     ],
@@ -696,40 +701,19 @@ class StatusDetailPage extends StatelessWidget {
                           _pipelineStep(
                             step: index + 1,
                             name: liveStages[index],
-                            status: 'Live API stage',
-                            isDone: false,
-                            isCurrent: true,
+                            status: isOrderCompleted
+                                ? 'All production completed'
+                                : 'In Workshop',
+                            isDone: isOrderCompleted,
+                            isCurrent: !isOrderCompleted,
                           ),
                         ],
                       ],
                     ),
             ),
             const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                CommonText.titleMedium(
-                  'Order Production Lots (${activeLots.length})',
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.sage,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'LIVE API',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.ink,
-                    ),
-                  ),
-                ),
-              ],
+            CommonText.titleMedium(
+              'Order Production Lots (${activeLots.length})',
             ),
             const SizedBox(height: 10),
             if (activeLots.isEmpty)
@@ -779,7 +763,11 @@ class StatusDetailPage extends StatelessWidget {
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
-                                  lot.orderId,
+                                  lot.designCode.isNotEmpty
+                                      ? 'Design #${lot.designCode}'
+                                      : ApiDomainMapper.formatOrderNumber(
+                                          lot.orderId,
+                                        ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -1014,31 +1002,8 @@ class StatusDetailPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                CommonText.titleMedium(
-                  'Assigned Active Lots (${activeLots.length})',
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.sage,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'LIVE API',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.ink,
-                    ),
-                  ),
-                ),
-              ],
+            CommonText.titleMedium(
+              'Assigned Active Lots (${activeLots.length})',
             ),
             const SizedBox(height: 10),
             if (activeLots.isEmpty)
@@ -1088,7 +1053,11 @@ class StatusDetailPage extends StatelessWidget {
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
-                                  lot.orderId,
+                                  lot.designCode.isNotEmpty
+                                      ? 'Design #${lot.designCode}'
+                                      : ApiDomainMapper.formatOrderNumber(
+                                          lot.orderId,
+                                        ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -1112,7 +1081,16 @@ class StatusDetailPage extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            lot.stage.label,
+                            (lot.stage == WorkshopStage.readyForDispatch ||
+                                    lot.apiStageName.toLowerCase().contains(
+                                      'complete',
+                                    ) ||
+                                    lot.apiStageName.toUpperCase() ==
+                                        'ALL_STAGES_COMPLETED')
+                                ? 'Ready for Dispatch'
+                                : (lot.apiStageName.isNotEmpty
+                                      ? lot.apiStageName
+                                      : lot.stage.label),
                             style: const TextStyle(
                               color: AppColors.emerald,
                               fontWeight: FontWeight.w800,

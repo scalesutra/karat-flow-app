@@ -154,21 +154,6 @@ class _AdminManagePageState extends State<AdminManagePage> {
                 ),
               ],
             ),
-
-            const SizedBox(height: 14),
-
-            AdminManageSection(
-              title: '5. Account & Session',
-              items: [
-                ManageItemData(
-                  icon: Icons.logout_rounded,
-                  title: 'Sign Out / Switch User',
-                  subtitle: 'End active session and return to login screen',
-                  badge: 'Auth',
-                  onTap: () => CommonLogoutDialog.show(context),
-                ),
-              ],
-            ),
           ],
         ),
       ),

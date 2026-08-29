@@ -299,6 +299,20 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                                 },
                               )
                               .toList(growable: false);
+                          final isOrderCompleted =
+                              order.status == OrderStatus.ready ||
+                              order.status == OrderStatus.delivered ||
+                              order.currentWorkshopStage
+                                  .toLowerCase()
+                                  .contains('complete') ||
+                              (designRows.isNotEmpty &&
+                                  designRows.every((d) {
+                                    final stg =
+                                        (d['stage'] as String? ?? '')
+                                            .toLowerCase();
+                                    return stg.contains('complete') ||
+                                        stg.contains('dispatch');
+                                  }));
                           final orderMap = {
                             'id': order.id,
                             'apiId': order.apiId,
@@ -306,8 +320,12 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                             'title': order.itemsSummary,
                             'client':
                                 '${order.clientFirmName} · ${order.clientCity}',
-                            'stage': order.currentWorkshopStage,
-                            'status': order.status.label,
+                            'stage': isOrderCompleted
+                                ? 'Completed'
+                                : order.currentWorkshopStage,
+                            'status': isOrderCompleted
+                                ? 'Completed'
+                                : order.status.label,
                             'statusColor': _statusColor(order.status),
                             'purity':
                                 '${order.totalGrossGrams}g · Due ${order.promiseDate}',

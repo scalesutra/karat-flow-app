@@ -366,7 +366,10 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     final bool isCompletedOrder =
         statusStr == 'complete' ||
         statusStr == 'completed' ||
-        statusStr == 'delivered';
+        statusStr == 'ready' ||
+        statusStr == 'delivered' ||
+        stageStr == 'completed' ||
+        stageStr == 'all_stages_completed';
 
     final rawId = widget.orderData['id'] as String? ?? '';
     final orderNum =
@@ -425,6 +428,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
         final isLotComplete =
             isCompletedOrder ||
+            lot.apiStageName.toLowerCase() == 'completed' ||
+            lot.apiStageName.toUpperCase() == 'ALL_STAGES_COMPLETED' ||
             (lot.stage == WorkshopStage.readyForDispatch && isCompletedOrder);
 
         return JewelleryPart(
@@ -490,11 +495,11 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         final workerName = (row['artisan'] as String? ?? '').trim();
         final rowStatus = (row['status'] as String? ?? '').toUpperCase();
         final isRowComplete =
+            isCompletedOrder ||
             rowStatus == 'COMPLETED' ||
             rawStg.toUpperCase() == 'ALL_STAGES_COMPLETED' ||
             (stg == WorkshopStage.readyForDispatch &&
-                (widget.orderData['status'] == 'complete' ||
-                    widget.orderData['status'] == 'COMPLETED'));
+                (statusStr == 'complete' || statusStr == 'completed'));
 
         return JewelleryPart(
           name: designTitle,
@@ -544,9 +549,11 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
               .firstOrNull
               ?.name;
 
-    final isOrderComplete =
+    final isOrderComplete = isCompletedOrder ||
         (widget.orderData['status'] as String? ?? '').toLowerCase() ==
             'complete' ||
+        (widget.orderData['status'] as String? ?? '').toLowerCase() ==
+            'completed' ||
         (widget.orderData['status'] as String? ?? '').toLowerCase() ==
             'delivered';
 
@@ -2489,49 +2496,43 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   }
 
   Widget _buildOrderInfoCard() {
-    final String statusStr = widget.orderData['status'] as String? ?? '';
-    final String stageStr = widget.orderData['stage'] as String? ?? '';
+    final String statusStr =
+        (widget.orderData['status'] as String? ?? '').toLowerCase();
+    final String stageStr =
+        (widget.orderData['stage'] as String? ?? '').toLowerCase();
     final bool hasUnfinishedParts = _parentItems.any(
       (item) => item.parts.any(
         (p) =>
+            !p.isCompleted &&
             p.stage != WorkshopStage.readyForDispatch &&
             !p.stage.label.toLowerCase().contains('pack') &&
             !p.stage.label.toLowerCase().contains('dispatch'),
       ),
     );
 
-    final bool allPartsInPacking =
-        _parentItems.isNotEmpty &&
-        _parentItems.every(
-          (item) => item.parts.every(
-            (p) =>
-                p.stage == WorkshopStage.readyForDispatch ||
-                p.stage.label.toLowerCase().contains('pack') ||
-                p.stage.label.toLowerCase().contains('dispatch'),
-          ),
-        );
-
-    final bool isCompleted =
-        !hasUnfinishedParts &&
-        (statusStr.toLowerCase() == 'complete' ||
-            statusStr.toLowerCase() == 'delivered' ||
-            allPartsInPacking);
+    final bool isCompleted = !hasUnfinishedParts &&
+        (statusStr == 'complete' ||
+            statusStr == 'completed' ||
+            statusStr == 'ready' ||
+            statusStr == 'delivered' ||
+            stageStr == 'completed' ||
+            stageStr == 'all_stages_completed' ||
+            (_parentItems.isNotEmpty &&
+                _parentItems.every(
+                  (item) => item.parts.every((p) => p.isCompleted),
+                )));
 
     final hasBlockedPart = _parentItems.any(
       (item) => item.parts.any((p) => p.blockerReason != null),
     );
 
     final String displayStatus = isCompleted
-        ? (statusStr.toLowerCase() == 'complete'
-              ? 'Completed'
-              : (stageStr.isNotEmpty ? stageStr : 'Completed'))
+        ? 'Completed'
         : (hasBlockedPart
-              ? 'ON CRITICAL HOLD'
-              : (_parentItems.isNotEmpty && _parentItems.first.parts.isNotEmpty
-                    ? _parentItems.first.parts.first.stage.label
-                    : (stageStr == 'ON CRITICAL HOLD'
-                          ? 'In Workshop'
-                          : (stageStr.isNotEmpty ? stageStr : 'In Workshop'))));
+            ? 'ON CRITICAL HOLD'
+            : (stageStr.isNotEmpty
+                ? (widget.orderData['stage'] as String? ?? 'In Workshop')
+                : 'In Workshop'));
 
     final Color badgeColor = isCompleted
         ? AppColors.emerald

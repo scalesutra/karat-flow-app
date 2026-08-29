@@ -238,13 +238,6 @@ class _CadMorePageState extends State<CadMorePage> {
                 label: 'Language / भाषा / ભાષા',
                 onPressed: () => CommonLanguagePicker.show(context),
               ),
-              const SizedBox(height: 10),
-              CommonButton.outlined(
-                height: 44,
-                icon: Icons.logout_rounded,
-                label: 'Sign Out / Switch User',
-                onPressed: () => CommonLogoutDialog.show(context),
-              ),
             ],
           ),
         );

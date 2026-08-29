@@ -879,14 +879,6 @@ class _WorkshopMorePageState extends State<WorkshopMorePage> {
                 badge: 'LIVE',
                 onTap: () => CommonLanguagePicker.show(context),
               ),
-              const SizedBox(height: 8),
-              _menuItem(
-                icon: Icons.logout_rounded,
-                title: 'Sign Out / Switch User',
-                subtitle: 'End active session & return to login screen',
-                badge: 'Auth',
-                onTap: () => CommonLogoutDialog.show(context),
-              ),
             ],
           ),
         );

@@ -372,7 +372,7 @@ class ApiOrderPart {
       currentStage: stgName,
       status: json['status'] as String? ?? 'ASSIGNED',
       isBlocked: json['isBlocked'] as bool? ?? false,
-      blockReason: json['blockReason'] as String? ?? json['notes'] as String?,
+      blockReason: json['blockReason'] as String?,
     );
   }
 

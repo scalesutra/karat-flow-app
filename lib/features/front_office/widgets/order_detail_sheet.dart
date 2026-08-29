@@ -128,13 +128,31 @@ class OrderDetailSheet extends StatelessWidget {
                           },
                         )
                         .toList(growable: false);
+                    final isOrderCompleted =
+                        order.status == OrderStatus.ready ||
+                        order.status == OrderStatus.delivered ||
+                        order.currentWorkshopStage
+                            .toLowerCase()
+                            .contains('complete') ||
+                        (designRows.isNotEmpty &&
+                            designRows.every((d) {
+                              final stg =
+                                  (d['stage'] as String? ?? '').toLowerCase();
+                              return stg.contains('complete') ||
+                                  stg.contains('dispatch');
+                            }));
                     final Map<String, dynamic> orderMap = {
                       'id': order.id,
                       'apiId': order.apiId,
                       'orderNumber': order.id,
                       'title': order.itemsSummary,
                       'client': '${order.clientFirmName} · ${order.clientCity}',
-                      'stage': order.currentWorkshopStage,
+                      'stage': isOrderCompleted
+                          ? 'Completed'
+                          : order.currentWorkshopStage,
+                      'status': isOrderCompleted
+                          ? 'Completed'
+                          : order.status.label,
                       'purity':
                           '${order.totalGrossGrams}g · Due ${order.promiseDate}',
                       'pieces': order.itemsCount,

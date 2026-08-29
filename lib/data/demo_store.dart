@@ -241,20 +241,43 @@ class DemoStore extends ChangeNotifier {
     }
     if (pivot == StatusPivot.people) {
       return _team
-          .map(
-            (member) => WorkItem(
+          .map((member) {
+            final assignedLots = _lots.where((lot) {
+              final lotArtisan = lot.assignedEmployee.trim().toLowerCase();
+              final memberName = member.name.trim().toLowerCase();
+              final memberId = member.id.trim().toLowerCase();
+              return (lotArtisan.isNotEmpty &&
+                      lotArtisan != 'unassigned' &&
+                      (lotArtisan == memberName ||
+                          lotArtisan == memberId ||
+                          lotArtisan.contains(memberName) ||
+                          memberName.contains(lotArtisan))) ||
+                  (lot.assignedEmployeeRole.toLowerCase() == memberId);
+            }).toList();
+
+            final liveCount = assignedLots.length;
+            final count = liveCount > 0 ? liveCount : member.activeLotsCount;
+            final hasHeldLot = assignedLots.any((lot) => lot.isOnHold);
+
+            return WorkItem(
               id: member.id,
               pivot: pivot,
               title: member.name,
               subtitle: member.craft,
-              status: member.status.label,
-              quantity: '${member.activeLotsCount} lots',
+              status: hasHeldLot
+                  ? 'Lot On Hold'
+                  : (count > 0
+                      ? '$count active lot${count == 1 ? '' : 's'}'
+                      : 'Available'),
+              quantity: '$count lot${count == 1 ? '' : 's'}',
               owner: member.shift,
-              tone: member.status.tone,
-              metrics: {'Active lots': '${member.activeLotsCount}'},
+              tone: hasHeldLot
+                  ? HealthTone.critical
+                  : (count > 0 ? HealthTone.healthy : HealthTone.healthy),
+              metrics: {'Active lots': '$count'},
               timeline: const [],
-            ),
-          )
+            );
+          })
           .toList(growable: false);
     }
     return (_stages.toList()

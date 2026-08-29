@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:jewellery_ops_mobile/core/services/live_data_bloc_coordinator.dart';
+import 'package:jewellery_ops_mobile/data/mappers/api_domain_mapper.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/localization.dart';
@@ -363,15 +364,27 @@ class _HealthStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final completedCount = store.orders.where((order) {
+      return order.status == OrderStatus.ready ||
+          order.status == OrderStatus.delivered ||
+          order.currentWorkshopStage.toLowerCase().contains('complete') ||
+          (order.designs.isNotEmpty &&
+              order.designs.every(
+                (d) =>
+                    d.currentStage.toLowerCase().contains('complete') ||
+                    d.currentStage.toLowerCase().contains('dispatch'),
+              ));
+    }).length;
+
     return CommonCard(
       backgroundColor: AppColors.ink,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
       child: Row(
         children: [
           Expanded(
             child: _HealthMetric(
               value: '${store.heldLotsCount}',
-              label: 'Parts on Hold',
+              label: 'On Hold',
               accent: const Color(0xFFFFA88D),
             ),
           ),
@@ -380,7 +393,7 @@ class _HealthStrip extends StatelessWidget {
             child: _HealthMetric(
               value:
                   '${store.orders.where((order) => order.status == OrderStatus.pending).length}',
-              label: 'Pending Orders',
+              label: 'Pending',
               accent: const Color(0xFFFFD18A),
             ),
           ),
@@ -390,6 +403,14 @@ class _HealthStrip extends StatelessWidget {
               value: '${store.cadTasks.length}',
               label: 'CAD Tasks',
               accent: const Color(0xFFA9DDD0),
+            ),
+          ),
+          const _MetricDivider(),
+          Expanded(
+            child: _HealthMetric(
+              value: '$completedCount',
+              label: 'Completed',
+              accent: const Color(0xFF34D399),
             ),
           ),
         ],
@@ -417,12 +438,21 @@ class _HealthMetric extends StatelessWidget {
         value,
         style: TextStyle(
           color: accent,
-          fontSize: 24,
+          fontSize: 20,
           fontWeight: FontWeight.w900,
         ),
       ),
       const SizedBox(height: 2),
-      Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+      Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Colors.white70,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     ],
   );
 }
@@ -432,9 +462,9 @@ class _MetricDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    height: 38,
+    height: 34,
     width: 1,
-    margin: const EdgeInsets.symmetric(horizontal: 10),
+    margin: const EdgeInsets.symmetric(horizontal: 6),
     color: Colors.white24,
   );
 }
@@ -455,9 +485,13 @@ class _StatusCard extends StatelessWidget {
     final (label, color, icon) = statusTone(item.tone);
     final isCritical = item.tone == HealthTone.critical;
     final isWarning = item.tone == HealthTone.warning;
-    final displayId = item.pivot == StatusPivot.orders && item.id.length > 10
-        ? 'ORD-${item.id.substring(0, 6)}'
-        : item.id;
+    final displayId = switch (item.pivot) {
+      StatusPivot.orders => ApiDomainMapper.formatOrderNumber(item.id),
+      StatusPivot.people =>
+        'EMP-${item.id.length > 6 ? item.id.substring(0, 6).toUpperCase() : item.id}',
+      StatusPivot.stages =>
+        item.id.length > 12 ? item.id.substring(0, 10) : item.id,
+    };
 
     return CommonCard(
       borderColor: isCritical
@@ -490,28 +524,30 @@ class _StatusCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Container(
-                          constraints: const BoxConstraints(maxWidth: 110),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.ink,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            displayId,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
+                        if (item.pivot == StatusPivot.orders) ...[
+                          Container(
+                            constraints: const BoxConstraints(maxWidth: 110),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.ink,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              displayId,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
+                          const SizedBox(width: 6),
+                        ],
                         Expanded(
                           child: Text(
                             item.title,

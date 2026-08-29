@@ -91,7 +91,7 @@ abstract final class ApiDomainMapper {
       estimatedTotalAmount: 0,
       status: switch (value.status.toUpperCase()) {
         'DRAFT' || 'PENDING' => OrderStatus.pending,
-        'READY' => OrderStatus.ready,
+        'READY' || 'COMPLETED' || 'COMPLETE' => OrderStatus.ready,
         'CHECKED_OUT' || 'IN_PRODUCTION' => OrderStatus.inWorkshop,
         'DISPATCHED' => OrderStatus.dispatched,
         'DELIVERED' => OrderStatus.delivered,
@@ -117,16 +117,25 @@ abstract final class ApiDomainMapper {
               designNumber: part.designNumber,
               quantity: part.quantity,
               grossWeight: part.grossWeight,
-              currentStage: part.currentStage,
+              currentStage:
+                  (value.status.toUpperCase() == 'COMPLETED' ||
+                          value.status.toUpperCase() == 'COMPLETE' ||
+                          part.status.toUpperCase() == 'COMPLETED')
+                      ? 'Completed'
+                      : part.currentStage,
               status: part.status,
               isBlocked: part.isBlocked,
               blockReason: part.blockReason,
             ),
           )
           .toList(growable: false),
-      currentWorkshopStage: (firstPart?.currentStage.trim().isNotEmpty == true)
-          ? firstPart!.currentStage.trim()
-          : 'Unassigned',
+      currentWorkshopStage:
+          (value.status.toUpperCase() == 'COMPLETED' ||
+                  value.status.toUpperCase() == 'COMPLETE')
+              ? 'Completed'
+              : ((firstPart?.currentStage.trim().isNotEmpty == true)
+                  ? firstPart!.currentStage.trim()
+                  : 'Unassigned'),
       responsibleManager: '',
       isBlocked: isBlocked,
       blockedReason: blockReason,
@@ -627,16 +636,14 @@ abstract final class ApiDomainMapper {
     final isBlocked =
         part['isBlocked'] as bool? ?? value['isBlocked'] as bool? ?? false;
     final blockReason =
-        part['blockReason'] as String? ??
-        part['notes'] as String? ??
-        value['blockReason'] as String? ??
-        value['notes'];
+        part['blockReason'] as String? ?? value['blockReason'] as String?;
     final statusStr =
         (part['status'] as String? ?? value['status'] as String? ?? '')
             .toUpperCase();
     final isFailedOrHold =
         isBlocked ||
         statusStr == 'FAILED' ||
+        statusStr == 'FAILED_STAGE' ||
         statusStr == 'HOLD' ||
         statusStr == 'ON_HOLD';
 
