@@ -117,17 +117,18 @@ class FrontOfficeOrderCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 4),
-          if (order.currentWorkshopStage.isNotEmpty) ...[
-            Text(
-              'Stage: ${order.currentWorkshopStage}',
-              style: const TextStyle(
-                color: AppColors.emeraldDark,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
+          Text(
+            'Stage: ${order.currentWorkshopStage.isNotEmpty ? order.currentWorkshopStage : 'Unassigned'}',
+            style: TextStyle(
+              color: order.currentWorkshopStage.isNotEmpty &&
+                      order.currentWorkshopStage.toLowerCase() != 'unassigned'
+                  ? AppColors.emeraldDark
+                  : AppColors.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(height: 4),
-          ],
+          ),
+          const SizedBox(height: 4),
           Text(
             '${order.promiseDate.isEmpty ? '' : 'Due: ${order.promiseDate} · '}${order.itemsCount} pcs · ${order.totalGrossGrams}g',
             style: const TextStyle(color: AppColors.muted, fontSize: 12),

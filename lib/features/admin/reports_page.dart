@@ -285,8 +285,24 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                                 target: workItem,
                               ),
                         onTap: () {
+                          final designRows = order.designs
+                              .map(
+                                (design) => <String, Object?>{
+                                  'partId': design.partId,
+                                  'designNumber': design.designNumber,
+                                  'quantity': design.quantity,
+                                  'stage': design.currentStage.isNotEmpty
+                                      ? design.currentStage
+                                      : design.status,
+                                  'isBlocked': design.isBlocked,
+                                  'blockReason': design.blockReason,
+                                },
+                              )
+                              .toList(growable: false);
                           final orderMap = {
                             'id': order.id,
+                            'apiId': order.apiId,
+                            'orderNumber': order.id,
                             'title': order.itemsSummary,
                             'client':
                                 '${order.clientFirmName} · ${order.clientCity}',
@@ -297,6 +313,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                                 '${order.totalGrossGrams}g · Due ${order.promiseDate}',
                             'pieces': order.itemsCount,
                             'artisan': order.responsibleManager,
+                            'designs': designRows,
                             'allowStageChange': false,
                           };
                           Navigator.pushNamed(

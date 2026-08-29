@@ -6,9 +6,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/network/api_endpoints.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/models/api_models.dart';
 import '../../data/repositories/karatflow_api_repository.dart';
+import '../instructions/directive_audio.dart';
 import 'bloc/sketch_bloc.dart';
 
 class RawDesignerDashboardPage extends StatefulWidget {
@@ -62,7 +64,7 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
         final loading = state is SketchLoading || state is SketchInitial;
 
         final pendingCount = _count(allSketches, 'PENDING');
-        final rejectedCount = _count(allSketches, 'REJECTED');
+        final revisionCount = _count(allSketches, 'CHANGES_REQUESTED');
         final approvedCount = _count(allSketches, 'APPROVED');
 
         return RefreshIndicator(
@@ -108,7 +110,7 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
                           color: AppColors.warning,
                         ),
                         DashboardMetric(
-                          value: '$rejectedCount',
+                          value: '$revisionCount',
                           label: 'Needs Revision',
                           icon: Icons.assignment_late_outlined,
                           color: AppColors.danger,
@@ -153,12 +155,18 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
 
                     CommonFilterChips<String>(
                       padding: EdgeInsets.zero,
-                      options: const ['', 'PENDING', 'REJECTED', 'APPROVED'],
+                      options: const [
+                        '',
+                        'PENDING',
+                        'CHANGES_REQUESTED',
+                        'APPROVED',
+                      ],
                       selected: _status,
                       onSelected: _filter,
                       labelBuilder: (value) => switch (value.toUpperCase()) {
                         'PENDING' => 'Pending ($pendingCount)',
-                        'REJECTED' => 'Needs Revision ($rejectedCount)',
+                        'CHANGES_REQUESTED' =>
+                          'Needs Revision ($revisionCount)',
                         'APPROVED' => 'Approved ($approvedCount)',
                         _ => 'All (${allSketches.length})',
                       },
@@ -281,7 +289,8 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
 
   static String statusLabel(String status) => switch (status.toUpperCase()) {
     'PENDING' => 'Pending Review',
-    'REJECTED' => 'Needs Revision',
+    'CHANGES_REQUESTED' => 'Needs Revision',
+    'REJECTED' => 'Rejected',
     'APPROVED' => 'Approved',
     _ => status,
   };
@@ -392,45 +401,71 @@ class _SketchImagePreviewDialog extends StatelessWidget {
                   ),
                 ),
                 // Footer info
-                if (sketch.adminInstructions?.trim().isNotEmpty ?? false)
+                if ((sketch.adminInstructions?.trim().isNotEmpty ?? false) ||
+                    (sketch.feedbackAudioUrl?.trim().isNotEmpty ?? false) ||
+                    (sketch.feedbackImageUrl?.trim().isNotEmpty ?? false))
                   Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: const BoxDecoration(
-                      color: AppColors.dangerLight,
-                      borderRadius: BorderRadius.vertical(
+                    decoration: BoxDecoration(
+                      color: sketch.status == 'CHANGES_REQUESTED'
+                          ? AppColors.dangerLight
+                          : AppColors.goldLight.withValues(alpha: 0.35),
+                      borderRadius: const BorderRadius.vertical(
                         bottom: Radius.circular(20),
                       ),
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.assignment_late_outlined,
-                          color: AppColors.danger,
-                          size: 20,
+                        Row(
+                          children: [
+                            Icon(
+                              sketch.status == 'CHANGES_REQUESTED'
+                                  ? Icons.assignment_late_outlined
+                                  : Icons.record_voice_over_outlined,
+                              color: sketch.status == 'CHANGES_REQUESTED'
+                                  ? AppColors.danger
+                                  : AppColors.goldDark,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              sketch.status == 'CHANGES_REQUESTED'
+                                  ? 'Admin Revision Notes'
+                                  : 'Admin Instructions',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: sketch.status == 'CHANGES_REQUESTED'
+                                    ? AppColors.danger
+                                    : AppColors.goldDark,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Admin Revision Notes:',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.danger,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              Text(
-                                sketch.adminInstructions!,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.ink,
-                                ),
-                              ),
-                            ],
+                        if (sketch.adminInstructions?.trim().isNotEmpty ?? false) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            sketch.adminInstructions!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.ink,
+                            ),
                           ),
-                        ),
+                        ],
+                        if (sketch.feedbackAudioUrl?.trim().isNotEmpty ?? false) ...[
+                          const SizedBox(height: 10),
+                          DirectiveVoiceButton(
+                            audioUrl: sketch.feedbackAudioUrl!.trim(),
+                          ),
+                        ],
+                        if (sketch.feedbackImageUrl?.trim().isNotEmpty ?? false) ...[
+                          const SizedBox(height: 10),
+                          DirectiveImageAttachment(
+                            imageUrl: sketch.feedbackImageUrl!.trim(),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -712,7 +747,8 @@ class _UploadSketchDialogState extends State<_UploadSketchDialog> {
 
 String statusLabel(String status) => switch (status.toUpperCase()) {
   'PENDING' => 'Pending Review',
-  'REJECTED' => 'Needs Revision',
+  'CHANGES_REQUESTED' => 'Needs Revision',
+  'REJECTED' => 'Rejected',
   'APPROVED' => 'Approved',
   _ => status,
 };
@@ -737,7 +773,7 @@ class _SketchCard extends StatelessWidget {
         AppColors.successLight,
         Icons.check_circle_rounded,
       ),
-      'REJECTED' => (
+      'CHANGES_REQUESTED' || 'REJECTED' => (
         AppColors.danger,
         AppColors.dangerLight,
         Icons.assignment_late_outlined,
@@ -748,6 +784,13 @@ class _SketchCard extends StatelessWidget {
         Icons.hourglass_top_rounded,
       ),
     };
+
+    final hasAdminInstructions =
+        sketch.adminInstructions?.trim().isNotEmpty ?? false;
+    final hasFeedbackAudio =
+        sketch.feedbackAudioUrl?.trim().isNotEmpty ?? false;
+    final hasFeedbackImage =
+        sketch.feedbackImageUrl?.trim().isNotEmpty ?? false;
 
     return CommonCard(
       padding: EdgeInsets.zero,
@@ -901,57 +944,85 @@ class _SketchCard extends StatelessWidget {
                     ),
                   ),
 
-                  // Admin Revision Feedback Container
-                  if (sketch.adminInstructions?.trim().isNotEmpty ?? false) ...[
+                  // Admin Feedback / Revision Container
+                  if (hasAdminInstructions ||
+                      hasFeedbackAudio ||
+                      hasFeedbackImage) ...[
                     const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: AppColors.dangerLight,
+                        color: status == 'CHANGES_REQUESTED'
+                            ? AppColors.dangerLight
+                            : AppColors.goldLight.withValues(alpha: 0.35),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: AppColors.danger.withValues(alpha: 0.3),
+                          color: status == 'CHANGES_REQUESTED'
+                              ? AppColors.danger.withValues(alpha: 0.3)
+                              : AppColors.gold.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
+                          Row(
                             children: [
                               Icon(
-                                Icons.report_problem_outlined,
-                                color: AppColors.danger,
+                                status == 'CHANGES_REQUESTED'
+                                    ? Icons.report_problem_outlined
+                                    : Icons.record_voice_over_outlined,
+                                color: status == 'CHANGES_REQUESTED'
+                                    ? AppColors.danger
+                                    : AppColors.goldDark,
                                 size: 14,
                               ),
-                              SizedBox(width: 6),
+                              const SizedBox(width: 6),
                               Text(
-                                'ADMIN REVISION NOTES',
+                                status == 'CHANGES_REQUESTED'
+                                    ? 'ADMIN REVISION NOTES'
+                                    : 'ADMIN INSTRUCTIONS',
                                 style: TextStyle(
-                                  color: AppColors.danger,
+                                  color: status == 'CHANGES_REQUESTED'
+                                      ? AppColors.danger
+                                      : AppColors.goldDark,
                                   fontWeight: FontWeight.w800,
                                   fontSize: 10,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            sketch.adminInstructions!,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.ink,
-                              fontSize: 12,
-                              height: 1.3,
+                          if (hasAdminInstructions) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              sketch.adminInstructions!,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.ink,
+                                fontSize: 12,
+                                height: 1.3,
+                              ),
                             ),
-                          ),
+                          ],
+                          if (hasFeedbackAudio) ...[
+                            const SizedBox(height: 8),
+                            DirectiveVoiceButton(
+                              audioUrl: sketch.feedbackAudioUrl!.trim(),
+                            ),
+                          ],
+                          if (hasFeedbackImage) ...[
+                            const SizedBox(height: 8),
+                            DirectiveImageAttachment(
+                              imageUrl: sketch.feedbackImageUrl!.trim(),
+                            ),
+                          ],
                         ],
                       ),
                     ),
                   ],
 
                   // Action for Needs Revision
-                  if (status == 'REJECTED') ...[
+                  if (status == 'CHANGES_REQUESTED') ...[
                     const SizedBox(height: 12),
                     CommonButton.tonal(
                       height: 38,
@@ -1027,47 +1098,42 @@ class _PresignedSketchImageState extends State<_PresignedSketchImage> {
       return;
     }
 
-    if (url.contains('X-Amz-Algorithm') || !url.contains('amazonaws.com')) {
-      _urlCache[url] = url;
-      if (mounted) {
-        setState(() {
-          _resolvedUrl = url;
-          _isLoading = false;
-        });
-      }
-      return;
-    }
-
     try {
       final uri = Uri.parse(url);
-      String fileKey = uri.path;
-      if (fileKey.startsWith('/')) {
-        fileKey = fileKey.substring(1);
-      }
-
-      if (fileKey.isNotEmpty) {
+      String resolvedUrl;
+      if (url.contains('X-Amz-Algorithm')) {
+        resolvedUrl = url;
+      } else if (!uri.hasScheme && url.startsWith('/api/')) {
+        resolvedUrl = Uri.parse(ApiEndpoints.baseUrl).resolve(url).toString();
+      } else if (!uri.hasScheme || url.contains('amazonaws.com')) {
+        final fileKey = uri.hasScheme
+            ? uri.path.replaceFirst(RegExp(r'^/+'), '')
+            : url.replaceFirst(RegExp(r'^/+'), '');
         final api = KaratFlowApiRepository();
         final signed = await api.getPresignedDownloadUrl(fileKey);
-        if (signed.downloadUrl.isNotEmpty) {
-          _urlCache[url] = signed.downloadUrl;
-          if (mounted) {
-            setState(() {
-              _resolvedUrl = signed.downloadUrl;
-              _isLoading = false;
-            });
-          }
-          return;
+        if (signed.downloadUrl.isEmpty) {
+          throw const FormatException('Storage API returned no download URL.');
         }
+        resolvedUrl = signed.downloadUrl;
+      } else {
+        resolvedUrl = url;
+      }
+      _urlCache[url] = resolvedUrl;
+      if (mounted) {
+        setState(() {
+          _resolvedUrl = resolvedUrl;
+          _isLoading = false;
+          _hasError = false;
+        });
       }
     } catch (_) {
-      // Fallback
-    }
-
-    if (mounted) {
-      setState(() {
-        _resolvedUrl = url;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _resolvedUrl = null;
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
     }
   }
 
@@ -1120,4 +1186,3 @@ class _PresignedSketchImageState extends State<_PresignedSketchImage> {
     );
   }
 }
-

@@ -46,6 +46,10 @@ class CadBloc extends Bloc<CadEvent, CadState> {
         tasks.add(task);
         if (d.id.isNotEmpty) seenKeys.add(d.id);
         if (d.sketchId.isNotEmpty) seenKeys.add(d.sketchId);
+        if (d.sketch?.id.isNotEmpty == true) seenKeys.add(d.sketch!.id);
+        if (d.sketch?.designNumber.isNotEmpty == true) {
+          seenKeys.add(d.sketch!.designNumber);
+        }
       }
 
       final approvedSketches = sketches
@@ -158,7 +162,7 @@ class CadBloc extends Bloc<CadEvent, CadState> {
       final stl = await _api.uploadFile(
         fileName: event.stlFileName,
         fileType: 'model/stl',
-        folder: '3d-xtl',
+        category: '3d-xtl',
         bytes: event.stlBytes,
       );
       final stlUrl = stl.fileUrl;
@@ -167,7 +171,7 @@ class CadBloc extends Bloc<CadEvent, CadState> {
       final bom = await _api.uploadFile(
         fileName: event.bomFileName,
         fileType: 'application/octet-stream',
-        folder: 'bom-docs',
+        category: 'bom-docs',
         bytes: event.bomBytes,
       );
       final bomUrl = bom.fileUrl;

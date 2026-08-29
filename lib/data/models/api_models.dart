@@ -71,10 +71,11 @@ class ApiEmployee {
   });
 
   factory ApiEmployee.fromJson(Map<String, dynamic> json) {
-    int count = 0;
-    if (json['_count'] is Map) {
-      count = json['_count']['workerAssignments'] as int? ?? 0;
-    }
+    final count =
+        (json['activeAssignmentsCount'] as num?)?.toInt() ??
+        (json['_count'] is Map
+            ? (json['_count']['workerAssignments'] as num?)?.toInt() ?? 0
+            : 0);
     return ApiEmployee(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
@@ -179,7 +180,9 @@ class ApiSketch {
     this.feedbackAudioUrl,
     this.feedbackImageUrl,
     this.designer,
+    this.designerId = '',
     this.createdAt,
+    this.updatedAt,
     this.category,
     this.price,
   });
@@ -198,7 +201,9 @@ class ApiSketch {
       designer: json['designer'] != null
           ? ApiUser.fromJson(json['designer'] as Map<String, dynamic>)
           : null,
+      designerId: json['designerId'] as String? ?? '',
       createdAt: json['createdAt'] as String?,
+      updatedAt: json['updatedAt'] as String?,
       category: json['category'] as String?,
       price: (json['price'] as num?)?.toDouble(),
     );
@@ -214,7 +219,9 @@ class ApiSketch {
   final String? feedbackAudioUrl;
   final String? feedbackImageUrl;
   final ApiUser? designer;
+  final String designerId;
   final String? createdAt;
+  final String? updatedAt;
   final String? category;
   final double? price;
 }
@@ -491,7 +498,11 @@ class ApiPresignedUrl {
     return ApiPresignedUrl(
       uploadUrl: json['uploadUrl'] as String? ?? '',
       fileKey: json['fileKey'] as String? ?? '',
-      fileUrl: json['fileUrl'] as String? ?? '',
+      fileUrl:
+          json['viewUrl'] as String? ??
+          json['fileUrl'] as String? ??
+          json['fileKey'] as String? ??
+          '',
       expiresInSeconds: json['expiresInSeconds'] as int? ?? 3600,
     );
   }

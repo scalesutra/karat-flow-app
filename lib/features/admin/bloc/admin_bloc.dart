@@ -218,13 +218,13 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       final upload = await _api.uploadFile(
         fileName: event.fileName,
         fileType: _imageContentType(event.fileName),
-        folder: 'sketches',
+        category: 'sketches',
         bytes: event.bytes,
       );
       await _api.uploadSketch(
         designNumber: event.designNumber,
         title: event.title,
-        sketchUrl: upload.fileUrl,
+        sketchUrl: upload.fileKey,
       );
       emit(const AdminActionSuccess('Sketch uploaded successfully.'));
       add(const FetchAdminDashboardEvent());
@@ -242,13 +242,13 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       final upload = await _api.uploadFile(
         fileName: event.fileName,
         fileType: _imageContentType(event.fileName),
-        folder: 'sketches',
+        category: 'sketches',
         bytes: event.bytes,
       );
       await _api.reuploadSketch(
         id: event.sketchId,
         title: event.title,
-        sketchUrl: upload.fileUrl,
+        sketchUrl: upload.fileKey,
       );
       emit(const AdminActionSuccess('Sketch revision uploaded.'));
       add(const FetchAdminDashboardEvent());
@@ -292,7 +292,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         final upload = await _api.uploadFile(
           fileName: audioFileName,
           fileType: 'audio/mp4',
-          folder: 'audio-instructions',
+          category: 'audio-instructions',
           bytes: audioBytes,
         );
         audioUrl = upload.fileUrl;
@@ -307,7 +307,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         final upload = await _api.uploadFile(
           fileName: imageFileName,
           fileType: _imageContentType(imageFileName),
-          folder: 'directive-images',
+          category: 'directive-images',
           bytes: imageBytes,
         );
         imageUrl = upload.fileUrl;
@@ -323,34 +323,15 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
           ? 'Image Directive Attached'
           : 'Directive Note';
 
-      try {
-        await _api.reviewSketch(
-          id: event.sketchId,
-          status: 'REJECTED',
-          adminInstructions: cleanInstructions,
-          feedbackAudioUrl: audioUrl,
-          feedbackImageUrl: imageUrl,
-        );
-        debugPrint(
-          '🎉 [Admin BLoC] Review sketch directive sent successfully via PATCH /sketches!',
-        );
-      } catch (sketchErr) {
-        debugPrint(
-          '⚠️ [Admin BLoC] PATCH /sketches returned error ($sketchErr), trying PATCH /three-d-designs...',
-        );
-        await _api.reviewThreeDDesign(
-          id: event.sketchId,
-          status: 'REJECTED',
-          adminInstructions: cleanInstructions,
-          feedbackAudioUrl: audioUrl,
-          feedbackImageUrl: imageUrl,
-        );
-        debugPrint(
-          '🎉 [Admin BLoC] Review 3D design directive sent successfully via PATCH /three-d-designs!',
-        );
-      }
+      await _api.reviewSketch(
+        id: event.sketchId,
+        status: 'CHANGES_REQUESTED',
+        adminInstructions: cleanInstructions,
+        feedbackAudioUrl: audioUrl,
+        feedbackImageUrl: imageUrl,
+      );
 
-      emit(const AdminActionSuccess('Directive sent successfully.'));
+      emit(const AdminActionSuccess('Sketch changes requested successfully.'));
       add(const FetchAdminDashboardEvent());
     } catch (error) {
       emit(AdminError('Failed to send directive: $error'));
@@ -382,7 +363,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         final upload = await _api.uploadFile(
           fileName: fileName,
           fileType: 'audio/mp4',
-          folder: 'audio-instructions',
+          category: 'audio-instructions',
           bytes: bytes,
         );
         audioUrl = upload.fileUrl;
@@ -399,7 +380,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         final upload = await _api.uploadFile(
           fileName: imageFileName,
           fileType: _imageContentType(imageFileName),
-          folder: 'directive-images',
+          category: 'directive-images',
           bytes: imageBytes,
         );
         imageUrl = upload.fileUrl;

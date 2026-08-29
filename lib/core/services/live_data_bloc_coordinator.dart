@@ -25,16 +25,20 @@ abstract final class LiveDataBlocCoordinator {
         context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
       case AppRole.frontOffice:
         context.read<OrdersBloc>().add(const FetchFrontOfficeDataEvent());
+        context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
       case AppRole.processManager:
         context.read<OrdersBloc>().add(const FetchOrdersEvent());
         context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent());
         context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
       case AppRole.cadDesigner:
         context.read<CadBloc>().add(const FetchCadTasksEvent());
+        context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
       case AppRole.rawDesigner:
         context.read<SketchBloc>().add(const FetchSketchesEvent());
+        context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
       case AppRole.workshopArtisan:
         context.read<ArtisanBloc>().add(const FetchArtisanTasksEvent());
+        context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
     }
   }
 }

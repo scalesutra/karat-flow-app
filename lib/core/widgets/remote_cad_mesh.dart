@@ -34,6 +34,7 @@ class RemoteCadMesh extends StatefulWidget {
 
 class _RemoteCadMeshState extends State<RemoteCadMesh> {
   List<_MeshTriangle>? _triangles;
+  Uint8List? _imageBytes;
   Object? _error;
   bool _isLoading = true;
 
@@ -46,56 +47,105 @@ class _RemoteCadMeshState extends State<RemoteCadMesh> {
   @override
   void didUpdateWidget(covariant RemoteCadMesh oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.modelUrl != widget.modelUrl) _load();
+    if (oldWidget.modelUrl != widget.modelUrl) {
+      _load();
+    }
+  }
+
+  static bool _isImageBytes(Uint8List bytes) {
+    if (bytes.length < 4) return false;
+    // JPEG: FF D8 FF
+    if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) return true;
+    // PNG: 89 50 4E 47
+    if (bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return true;
+    }
+    // GIF: 47 49 46
+    if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46) return true;
+    // WEBP: RIFF....WEBP
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return true;
+    }
+    return false;
   }
 
   Future<void> _load() async {
     setState(() {
       _triangles = null;
+      _imageBytes = null;
       _error = null;
       _isLoading = true;
     });
     try {
-      String targetUrl = widget.modelUrl;
+      final targetUrl = widget.modelUrl.trim();
+      if (targetUrl.isEmpty) {
+        throw const FormatException('The CAD model URL is empty.');
+      }
 
-      // Extract S3 fileKey and fetch presigned GET download URL if private bucket
-      if (targetUrl.contains('amazonaws.com') ||
-          targetUrl.contains('s3') ||
-          targetUrl.contains('karratflow/')) {
-        final pathIndex = targetUrl.indexOf('karratflow/');
-        if (pathIndex != -1) {
-          final fileKey = targetUrl.substring(pathIndex);
-          if (_cadUrlCache.containsKey(fileKey)) {
-            targetUrl = _cadUrlCache[fileKey]!;
-          } else {
-            try {
-              final presignedObj = await KaratFlowApiRepository()
-                  .getPresignedDownloadUrl(fileKey);
-              if (presignedObj.downloadUrl.isNotEmpty) {
-                _cadUrlCache[fileKey] = presignedObj.downloadUrl;
-                targetUrl = presignedObj.downloadUrl;
-              }
-            } catch (_) {
-              // Proceed with raw URL if presigned API fails
+      Uint8List bytes;
+      try {
+        bytes = await KaratFlowApiRepository().downloadStoredFile(targetUrl);
+      } catch (_) {
+        // Fallback to direct HTTP get if KaratFlowApiRepository fails
+        String directUrl = targetUrl;
+        if (targetUrl.contains('amazonaws.com') ||
+            targetUrl.contains('s3') ||
+            targetUrl.contains('karratflow/')) {
+          final pathIndex = targetUrl.indexOf('karratflow/');
+          if (pathIndex != -1) {
+            final fileKey = targetUrl.substring(pathIndex);
+            if (_cadUrlCache.containsKey(fileKey)) {
+              directUrl = _cadUrlCache[fileKey]!;
+            } else {
+              try {
+                final presignedObj = await KaratFlowApiRepository()
+                    .getPresignedDownloadUrl(fileKey);
+                if (presignedObj.downloadUrl.isNotEmpty) {
+                  _cadUrlCache[fileKey] = presignedObj.downloadUrl;
+                  directUrl = presignedObj.downloadUrl;
+                }
+              } catch (_) {}
             }
           }
         }
+
+        final response = await Dio().get<List<int>>(
+          directUrl,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        final data = response.data;
+        if (data == null || data.isEmpty) {
+          throw const FormatException('The uploaded CAD file is empty.');
+        }
+        bytes = Uint8List.fromList(data);
       }
 
-      final uri = Uri.tryParse(targetUrl);
-      if (uri == null || !uri.hasScheme) {
-        throw const FormatException('The CAD model URL is invalid.');
+      // Check if uploaded file is a 2D image instead of a 3D mesh
+      if (_isImageBytes(bytes) ||
+          targetUrl.toLowerCase().endsWith('.png') ||
+          targetUrl.toLowerCase().endsWith('.jpg') ||
+          targetUrl.toLowerCase().endsWith('.jpeg') ||
+          targetUrl.toLowerCase().endsWith('.webp')) {
+        if (!mounted) return;
+        setState(() {
+          _imageBytes = bytes;
+          _isLoading = false;
+        });
+        return;
       }
 
-      final response = await Dio().get<List<int>>(
-        targetUrl,
-        options: Options(responseType: ResponseType.bytes),
-      );
-      final data = response.data;
-      if (data == null || data.isEmpty) {
-        throw const FormatException('The uploaded CAD file is empty.');
-      }
-      final parsed = _CadMeshParser.parse(Uint8List.fromList(data));
+      final parsed = _CadMeshParser.parse(bytes);
       if (!mounted) return;
       setState(() {
         _triangles = parsed;
@@ -115,6 +165,49 @@ class _RemoteCadMeshState extends State<RemoteCadMesh> {
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(color: AppColors.emerald),
+      );
+    }
+
+    if (_imageBytes != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(_imageBytes!, fit: BoxFit.contain),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 12,
+            left: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.photo_outlined, color: Colors.white, size: 12),
+                  SizedBox(width: 4),
+                  Text(
+                    '2D Image Preview (Upload .STL for 3D Mesh)',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       );
     }
 

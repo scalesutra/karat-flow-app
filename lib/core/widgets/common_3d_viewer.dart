@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
@@ -27,6 +28,7 @@ class _Common3DViewerState extends State<Common3DViewer>
   bool _isAutoRotating = true;
   bool _isWireframe = false;
   String _selectedMaterial = 'Gold (22K)';
+  Timer? _autoResumeTimer;
 
   late final AnimationController _autoRotateController;
 
@@ -43,7 +45,7 @@ class _Common3DViewerState extends State<Common3DViewer>
     _autoRotateController =
         AnimationController(vsync: this, duration: const Duration(seconds: 10))
           ..addListener(() {
-            if (_isAutoRotating) {
+            if (_isAutoRotating && mounted) {
               setState(() {
                 _rotationY += 0.015;
               });
@@ -55,6 +57,7 @@ class _Common3DViewerState extends State<Common3DViewer>
 
   @override
   void dispose() {
+    _autoResumeTimer?.cancel();
     _autoRotateController.dispose();
     super.dispose();
   }
@@ -121,11 +124,20 @@ class _Common3DViewerState extends State<Common3DViewer>
 
           // 3D Visualizer Render Area
           GestureDetector(
+            onPanStart: (_) {
+              _autoResumeTimer?.cancel();
+              setState(() => _isAutoRotating = false);
+            },
             onPanUpdate: (details) {
               setState(() {
-                _isAutoRotating = false;
                 _rotationY += details.delta.dx * 0.01;
-                _rotationX -= details.delta.dy * 0.01;
+                _rotationX = (_rotationX - details.delta.dy * 0.01).clamp(-1.4, 1.4);
+              });
+            },
+            onPanEnd: (_) {
+              _autoResumeTimer?.cancel();
+              _autoResumeTimer = Timer(const Duration(milliseconds: 2500), () {
+                if (mounted) setState(() => _isAutoRotating = true);
               });
             },
             child: Container(
@@ -177,20 +189,26 @@ class _Common3DViewerState extends State<Common3DViewer>
                         color: AppColors.paper.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
                           Icon(
-                            Icons.touch_app,
+                            _isAutoRotating ? Icons.sync : Icons.touch_app,
                             size: 12,
-                            color: AppColors.muted,
+                            color: _isAutoRotating
+                                ? AppColors.emerald
+                                : AppColors.muted,
                           ),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text(
-                            'Drag to rotate 3D mesh',
+                            _isAutoRotating
+                                ? 'Auto Rotating (Drag to adjust)'
+                                : 'Drag to rotate 3D mesh',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.muted,
+                              color: _isAutoRotating
+                                  ? AppColors.emeraldDark
+                                  : AppColors.muted,
                             ),
                           ),
                         ],
@@ -224,9 +242,10 @@ class _Common3DViewerState extends State<Common3DViewer>
               Expanded(
                 child: CommonButton.outlined(
                   height: 40,
-                  icon: _isAutoRotating ? Icons.pause : Icons.play_arrow,
+                  icon: _isAutoRotating ? Icons.pause_circle_outline : Icons.play_circle_outline,
                   label: _isAutoRotating ? 'Pause Rotate' : 'Auto Rotate',
                   onPressed: () {
+                    _autoResumeTimer?.cancel();
                     setState(() {
                       _isAutoRotating = !_isAutoRotating;
                     });

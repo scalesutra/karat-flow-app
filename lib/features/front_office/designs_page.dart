@@ -266,21 +266,29 @@ class _DesignCard extends StatelessWidget {
         children: [
           // Visual Showcase Container
           Container(
-            height: 110,
+            height: 120,
             width: double.infinity,
             decoration: BoxDecoration(
-              color: design.accentColor.withValues(alpha: 0.1),
+              color: design.accentColor.withValues(alpha: 0.08),
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(AppDimensions.radiusLarge),
               ),
             ),
             child: Stack(
+              fit: StackFit.expand,
               children: [
-                Center(
-                  child: Icon(
-                    design.category.icon,
-                    size: 48,
-                    color: design.accentColor,
+                CommonRemoteImage(
+                  imageUrl: design.imageUrl,
+                  fit: BoxFit.cover,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(AppDimensions.radiusLarge),
+                  ),
+                  fallbackWidget: Center(
+                    child: Icon(
+                      design.category.icon,
+                      size: 48,
+                      color: design.accentColor,
+                    ),
                   ),
                 ),
                 Positioned(
@@ -292,13 +300,13 @@ class _DesignCard extends StatelessWidget {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.ink,
+                      color: AppColors.ink.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(
                         AppDimensions.radiusSmall,
                       ),
                     ),
                     child: Text(
-                      design.purity,
+                      design.purity.isNotEmpty ? design.purity : '22KT',
                       style: const TextStyle(
                         color: AppColors.pureWhite,
                         fontSize: 10,
@@ -321,6 +329,13 @@ class _DesignCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(
                           AppDimensions.radiusSmall,
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: const Text(
                         'TRENDING',
@@ -375,6 +390,31 @@ class _DesignCard extends StatelessWidget {
                             fontSize: 11,
                             color: AppColors.muted,
                           ),
+                          if (design.sizeDimensions != null &&
+                              design.sizeDimensions!.trim().isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.canvas,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: AppColors.outline,
+                                ),
+                              ),
+                              child: Text(
+                                design.sizeDimensions!.trim(),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                            ),
+                          ],
                           if (design.diamondCarats > 0) ...[
                             const SizedBox(width: 6),
                             CommonText.bodySmall(
@@ -503,17 +543,23 @@ class _DesignDetailModal extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
+              CommonRemoteImage(
+                imageUrl: design.imageUrl,
                 width: 64,
                 height: 64,
-                decoration: BoxDecoration(
-                  color: design.accentColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  design.category.icon,
-                  size: 36,
-                  color: design.accentColor,
+                borderRadius: BorderRadius.circular(16),
+                fallbackWidget: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: design.accentColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    design.category.icon,
+                    size: 36,
+                    color: design.accentColor,
+                  ),
                 ),
               ),
               const SizedBox(width: 14),
@@ -571,6 +617,11 @@ class _DesignDetailModal extends StatelessWidget {
             child: Column(
               children: [
                 _specRow('Gross Weight', '${design.grossWeightGrams} g'),
+                if (design.sizeDimensions != null &&
+                    design.sizeDimensions!.trim().isNotEmpty) ...[
+                  const Divider(height: 14),
+                  _specRow('Size / Dimensions', design.sizeDimensions!.trim()),
+                ],
                 const Divider(height: 14),
                 _specRow('Net Gold Weight', '${design.netGoldWeightGrams} g'),
                 const Divider(height: 14),

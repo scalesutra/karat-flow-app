@@ -8,7 +8,7 @@ import '../../domain/models.dart';
 import '../directives/bloc/directives_bloc.dart';
 import 'directive_audio.dart';
 
-class RoleDirectivesSection extends StatelessWidget {
+class RoleDirectivesSection extends StatefulWidget {
   const RoleDirectivesSection({
     super.key,
     required this.store,
@@ -19,11 +19,26 @@ class RoleDirectivesSection extends StatelessWidget {
   final AppRole role;
 
   @override
+  State<RoleDirectivesSection> createState() => _RoleDirectivesSectionState();
+}
+
+class _RoleDirectivesSectionState extends State<RoleDirectivesSection> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: store,
+      animation: widget.store,
       builder: (context, _) {
-        final directives = store.directivesForRole(role);
+        final directives = widget.store.directivesForRole(widget.role);
         return CommonCard(
           padding: const EdgeInsets.all(14),
           child: Column(
@@ -65,7 +80,7 @@ class RoleDirectivesSection extends StatelessWidget {
               else
                 ...directives.map(
                   (directive) =>
-                      _RoleDirectiveTile(directive: directive, store: store),
+                      _RoleDirectiveTile(directive: directive, store: widget.store),
                 ),
             ],
           ),
@@ -84,7 +99,21 @@ class _RoleDirectiveTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final message = DirectiveMessage.parse(directive['content'] ?? '');
+    final audioUrl = directive['audioUrl']?.trim().isNotEmpty == true
+        ? directive['audioUrl']!.trim()
+        : message.audioUrl;
+    final imageUrl = directive['imageUrl']?.trim().isNotEmpty == true
+        ? directive['imageUrl']!.trim()
+        : message.imageUrl;
+    final displayText = message.text.isNotEmpty
+        ? message.text
+        : (directive['title']?.trim().isNotEmpty == true
+            ? directive['title']!
+            : (directive['content']?.trim().isNotEmpty == true
+                ? directive['content']!
+                : 'Voice Directive Note Attached'));
     final acknowledged = directive['status'] == 'Acknowledged';
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 8),
@@ -119,18 +148,16 @@ class _RoleDirectiveTile extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            message.text.isEmpty
-                ? 'Voice Directive Note Attached'
-                : message.text,
+            displayText,
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
           ),
-          if (message.hasAudio) ...[
+          if (audioUrl != null && audioUrl.isNotEmpty) ...[
             const SizedBox(height: 8),
-            DirectiveVoiceButton(audioUrl: message.audioUrl!),
+            DirectiveVoiceButton(audioUrl: audioUrl),
           ],
-          if (message.hasImage) ...[
+          if (imageUrl != null && imageUrl.isNotEmpty) ...[
             const SizedBox(height: 8),
-            DirectiveImageAttachment(imageUrl: message.imageUrl!),
+            DirectiveImageAttachment(imageUrl: imageUrl),
           ],
           if (!acknowledged) ...[
             const SizedBox(height: 4),

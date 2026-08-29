@@ -155,7 +155,8 @@ class _SketchDirectiveTileState extends State<_SketchDirectiveTile> {
       }
       setState(() => _isLoading = true);
       final bytes = await _api.downloadStoredFile(url);
-      await _player.play(BytesSource(bytes, mimeType: 'audio/mp4'));
+      final mimeType = inferAudioMimeType(url);
+      await _player.play(BytesSource(bytes, mimeType: mimeType));
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -363,9 +364,8 @@ class _GovernanceDirectiveTileState extends State<_GovernanceDirectiveTile> {
                   setState(() => _isLoading = true);
                   try {
                     final bytes = await _api.downloadStoredFile(audioUrl);
-                    await _player.play(
-                      BytesSource(bytes, mimeType: 'audio/mp4'),
-                    );
+                    final mimeType = inferAudioMimeType(audioUrl);
+                    await _player.play(BytesSource(bytes, mimeType: mimeType));
                     if (!mounted) return;
                     setState(() {
                       _isLoading = false;

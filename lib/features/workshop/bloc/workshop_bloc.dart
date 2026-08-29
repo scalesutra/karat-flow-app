@@ -1,4 +1,3 @@
-import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/token_storage_service.dart';
@@ -63,23 +62,22 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
         lots = (await _api.listWorkerTasks())
             .map(ApiDomainMapper.workerTask)
             .toList();
-      } else if (!isFrontier) {
-        // Fetch raw order parts — they include workerAssignments even after assignment.
+      } else {
+        // Fetch raw order parts — they include assignments even after assignment.
         // /production/pending only returns UNASSIGNED parts, so assigned parts vanish from it.
-        List<Map<String, dynamic>> allOrderParts = [];
-        try {
-          allOrderParts = await _api.listOrderPartsRaw(limit: 100);
-        } catch (e) {
-          debugPrint('Could not fetch order parts for assignment merging: $e');
-        }
+        final allOrderParts = await _api.listOrderPartsRaw(limit: 100);
 
-        final pendingLots = (await _api.listPendingProductionFloor())
-            .map(
-              (item) => ApiDomainMapper.pendingPart(
-                Map<String, dynamic>.from(item as Map),
-              ),
-            )
-            .toList();
+        // Front Office has a read-only stage view. Its order data comes from
+        // /orders and it must not query the manager-only pending queue.
+        final pendingLots = isFrontier
+            ? <WorkshopLot>[]
+            : (await _api.listPendingProductionFloor())
+                  .map(
+                    (item) => ApiDomainMapper.pendingPart(
+                      Map<String, dynamic>.from(item as Map),
+                    ),
+                  )
+                  .toList();
 
         // Build a map starting with pending (unassigned) lots
         final lotMap = <String, WorkshopLot>{};
@@ -87,49 +85,29 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
           if (lot.id.isNotEmpty) lotMap[lot.id] = lot;
         }
 
-        // Merge in assigned lots from orders (parts with workerAssignments)
+        // Merge in assigned lots from orders (parts with assignments).
         for (final partMap in allOrderParts) {
           final partId = partMap['id'] as String? ?? '';
           if (partId.isEmpty) continue;
-          final assignments = partMap['workerAssignments'] as List? ?? [];
-          if (assignments.isEmpty) continue;
-          // Find latest assignment
-          final latestAssignment = assignments.last as Map? ?? {};
-          final assignedEmployee = latestAssignment['assignedEmployee'] as Map? ?? {};
-          String employeeName =
-              assignedEmployee['name'] as String? ??
-              assignedEmployee['fullName'] as String? ??
-              '';
-          if (employeeName.isEmpty) {
-            final empId = latestAssignment['assignedEmployeeId'] as String? ?? '';
-            if (empId.isNotEmpty) {
-              employeeName = _store.team
-                  .where((m) => m.id == empId)
-                  .firstOrNull
-                  ?.name ?? '';
-            }
+          final assignments =
+              partMap['assignments'] as List? ??
+              partMap['workerAssignments'] as List? ??
+              [];
+          if (assignments.isEmpty && !isFrontier) continue;
+          final mappedLot = ApiDomainMapper.pendingPart(partMap);
+          final employeeName = mappedLot.assignedEmployee;
+          if (!isFrontier &&
+              (employeeName.isEmpty || employeeName == 'Unassigned')) {
+            continue;
           }
-          if (employeeName.isEmpty || employeeName == 'Unassigned') {
-            final instr = latestAssignment['instructions'] as String? ?? '';
-            if (instr.contains('Assigned to ')) {
-              final idx = instr.indexOf('Assigned to ');
-              employeeName = instr.substring(idx + 'Assigned to '.length).trim();
-            }
-          }
-          if (employeeName.isEmpty) continue;
           if (lotMap.containsKey(partId)) {
-            lotMap[partId] = lotMap[partId]!.copyWith(
-              assignedEmployee: employeeName,
-            );
+            lotMap[partId] = mappedLot;
           } else {
             // Assigned part not in pending — add it from order data
-            final mappedLot = ApiDomainMapper.pendingPart(partMap);
-            lotMap[partId] = mappedLot.copyWith(assignedEmployee: employeeName);
+            lotMap[partId] = mappedLot;
           }
         }
         lots = lotMap.values.toList();
-      } else {
-        lots = <WorkshopLot>[];
       }
       _store
         ..setLots(lots)
@@ -209,8 +187,9 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
         assignedEmployee: event.artisanName,
       );
       emit(const WorkshopStageUpdated('Part assigned successfully.'));
-      // Do NOT re-fetch lots here — assigned parts are removed from /production/pending
-      // by the backend. The local store already has the correct assignment state.
+      // Rebuild all workshop views from persisted backend state. The pending
+      // endpoint drops assigned parts, while the orders endpoint retains them.
+      add(const FetchWorkshopLotsEvent());
     } catch (error) {
       emit(WorkshopError('Failed to assign part: $error'));
     }

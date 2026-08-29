@@ -235,6 +235,8 @@ class KaratFlowApiRepository {
   // ── SECTION 5: Raw Pencil Sketches (/sketches) ────────────────────
   Future<List<ApiSketch>> listSketches({
     String status = '',
+    String search = '',
+    String designerId = '',
     int page = 1,
     int limit = 50,
   }) async {
@@ -242,6 +244,8 @@ class KaratFlowApiRepository {
       ApiEndpoints.sketches,
       queryParameters: {
         if (status.isNotEmpty) 'status': status,
+        if (search.isNotEmpty) 'search': search,
+        if (designerId.isNotEmpty) 'designerId': designerId,
         'page': page,
         'limit': limit,
       },
@@ -290,7 +294,7 @@ class KaratFlowApiRepository {
 
   Future<ApiSketch> reviewSketch({
     required String id,
-    required String status, // 'APPROVED' or 'REJECTED'
+    required String status,
     String adminInstructions = '',
     String? feedbackAudioUrl,
     String? feedbackImageUrl,
@@ -458,31 +462,29 @@ class KaratFlowApiRepository {
         .toList();
   }
 
-  /// Returns raw order parts (including [workerAssignments]) as plain Maps.
+  /// Returns raw order parts (including `assignments`) as plain Maps.
   /// Used by [WorkshopBloc] on startup to restore assigned worker state since
   /// [listPendingProductionFloor] only returns UNASSIGNED parts.
-  Future<List<Map<String, dynamic>>> listOrderPartsRaw({int limit = 100}) async {
-    try {
-      final response = await _api.get(
-        ApiEndpoints.orders,
-        queryParameters: {'limit': limit},
-      );
-      final orders = response.data['data'] as List? ?? [];
-      final parts = <Map<String, dynamic>>[];
-      for (final o in orders) {
-        final orderMap = o as Map<String, dynamic>;
-        final rawParts = orderMap['parts'] as List? ?? [];
-        for (final p in rawParts) {
-          final partMap = Map<String, dynamic>.from(p as Map);
-          partMap['_orderId'] = orderMap['id'];
-          partMap['_orderNumber'] = orderMap['orderNumber'];
-          parts.add(partMap);
-        }
+  Future<List<Map<String, dynamic>>> listOrderPartsRaw({
+    int limit = 100,
+  }) async {
+    final response = await _api.get(
+      ApiEndpoints.orders,
+      queryParameters: {'page': 1, 'limit': limit},
+    );
+    final orders = response.data['data'] as List? ?? [];
+    final parts = <Map<String, dynamic>>[];
+    for (final o in orders) {
+      final orderMap = Map<String, dynamic>.from(o as Map);
+      final rawParts = orderMap['parts'] as List? ?? [];
+      for (final p in rawParts) {
+        final partMap = Map<String, dynamic>.from(p as Map);
+        partMap['_orderId'] = orderMap['id'];
+        partMap['_orderNumber'] = orderMap['orderNumber'];
+        parts.add(partMap);
       }
-      return parts;
-    } catch (_) {
-      return [];
     }
+    return parts;
   }
 
   Future<ApiOrder> getOrderDetails(String id) async {
@@ -534,12 +536,8 @@ class KaratFlowApiRepository {
 
   // ── SECTION 8: Production Floor (/production) ─────────────────────
   Future<List<dynamic>> listPendingProductionFloor() async {
-    try {
-      final response = await _api.get(ApiEndpoints.productionPending);
-      return response.data['data'] as List? ?? [];
-    } catch (_) {
-      return [];
-    }
+    final response = await _api.get(ApiEndpoints.productionPending);
+    return response.data['data'] as List? ?? [];
   }
 
   Future<void> assignPartToArtisan({
@@ -636,11 +634,11 @@ class KaratFlowApiRepository {
   Future<ApiPresignedUrl> getPresignedUploadUrl({
     required String fileName,
     required String fileType,
-    required String folder,
+    required String category,
   }) async {
     final response = await _api.post(
       ApiEndpoints.storageUploadUrl,
-      data: {'fileName': fileName, 'fileType': fileType, 'folder': folder},
+      data: {'fileName': fileName, 'fileType': fileType, 'category': category},
     );
     final data = response.data['data'] as Map<String, dynamic>;
     return ApiPresignedUrl.fromJson(data);
@@ -649,15 +647,15 @@ class KaratFlowApiRepository {
   Future<ApiPresignedUrl> uploadFile({
     required String fileName,
     required String fileType,
-    required String folder,
+    required String category,
     required Uint8List bytes,
   }) async {
     final signedUrl = await getPresignedUploadUrl(
       fileName: fileName,
       fileType: fileType,
-      folder: folder,
+      category: category,
     );
-    if (signedUrl.uploadUrl.isEmpty || signedUrl.fileUrl.isEmpty) {
+    if (signedUrl.uploadUrl.isEmpty || signedUrl.fileKey.isEmpty) {
       throw const FormatException(
         'Storage API returned an invalid upload URL.',
       );
@@ -681,12 +679,28 @@ class KaratFlowApiRepository {
   }
 
   Future<Uint8List> downloadStoredFile(String storedUrl) async {
-    final uri = Uri.tryParse(storedUrl.trim());
-    if (uri == null || !uri.hasScheme) {
-      throw const FormatException('The stored file URL is invalid.');
+    final reference = storedUrl.trim();
+    if (reference.isEmpty) {
+      throw const FormatException('The stored file reference is empty.');
+    }
+    final uri = Uri.tryParse(reference);
+    if (uri == null) {
+      throw const FormatException('The stored file reference is invalid.');
     }
 
-    String targetUrl = storedUrl;
+    if (!uri.hasScheme && !reference.startsWith('/api/')) {
+      final signed = await getPresignedDownloadUrl(
+        reference.replaceFirst(RegExp(r'^/+'), ''),
+      );
+      if (signed.downloadUrl.isEmpty) {
+        throw const FormatException('Storage API returned no download URL.');
+      }
+      return _api.getAbsoluteBytes(signed.downloadUrl);
+    }
+
+    String targetUrl = uri.hasScheme
+        ? reference
+        : Uri.parse(ApiEndpoints.baseUrl).resolve(reference).toString();
     final fileKey = _storageFileKey(uri);
     if (fileKey != null) {
       final signed = await getPresignedDownloadUrl(fileKey);

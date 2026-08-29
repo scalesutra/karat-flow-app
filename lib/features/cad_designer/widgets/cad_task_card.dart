@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:jewellery_ops_mobile/core/widgets/common_snackbar.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/widgets/common_3d_viewer.dart';
@@ -165,9 +164,16 @@ class CadTaskCard extends StatelessWidget {
                           );
                           if (result != null && result.files.isNotEmpty) {
                             final selected = result.files.first;
+                            final lowerName = selected.name.toLowerCase();
+                            final isImage = lowerName.endsWith('.png') ||
+                                lowerName.endsWith('.jpg') ||
+                                lowerName.endsWith('.jpeg') ||
+                                lowerName.endsWith('.webp');
                             setModalState(() {
                               stlFile = selected;
-                              stlFileName = stlFile!.name;
+                              stlFileName = isImage
+                                  ? '${stlFile!.name} (Image - recommend .stl)'
+                                  : stlFile!.name;
                             });
                           }
                         } catch (error) {
@@ -335,22 +341,6 @@ class CadTaskCard extends StatelessWidget {
       } catch (_) {}
     }
     return Uint8List.fromList([0, 1, 2, 3]);
-  }
-
-  static String _cadContentType(String? extension) =>
-      switch (extension?.toLowerCase()) {
-        'stl' => 'model/stl',
-        'obj' => 'model/obj',
-        _ => 'application/octet-stream',
-      };
-
-  static String _extensionOf(PlatformFile file) {
-    final pluginExtension = file.extension?.trim().toLowerCase();
-    if (pluginExtension != null && pluginExtension.isNotEmpty) {
-      return pluginExtension;
-    }
-    final dot = file.name.lastIndexOf('.');
-    return dot < 0 ? '' : file.name.substring(dot + 1).toLowerCase();
   }
 
   @override
@@ -553,7 +543,7 @@ class CadTaskCard extends StatelessWidget {
               ),
             ],
 
-            if (task.status == CadTaskStatus.inProgress) ...[
+            if (task.status == CadTaskStatus.inProgress && !task.hasStlFile) ...[
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
@@ -564,6 +554,42 @@ class CadTaskCard extends StatelessWidget {
                   label: 'Upload STL + Block File',
                   onPressed: () => _showDualFileUploadModal(context),
                 ),
+              ),
+            ],
+
+            if (task.hasStlFile || task.status == CadTaskStatus.completed) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: CommonButton.primary(
+                      height: 38,
+                      backgroundColor: AppColors.emerald,
+                      icon: Icons.view_in_ar,
+                      label: 'View 3D Model',
+                      onPressed: () {
+                        showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (ctx) => Common3DViewer(
+                            designCode: task.designCode,
+                            productTitle: task.productTitle,
+                            modelUrl: task.modelFileUrl,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  CommonButton.outlined(
+                    isFullWidth: false,
+                    height: 38,
+                    icon: Icons.replay_rounded,
+                    label: 'Re-upload',
+                    onPressed: () => _showDualFileUploadModal(context),
+                  ),
+                ],
               ),
             ],
           ],

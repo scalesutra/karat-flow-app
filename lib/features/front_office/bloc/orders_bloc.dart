@@ -70,13 +70,38 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
       final sketches = await _api.listSketches(limit: 100);
       final threeD = await _api.listThreeDDesigns(limit: 100);
       final mappedOrders = orders.map(ApiDomainMapper.order).toList();
+
+      final seenDesignKeys = <String>{};
+      final catalogueDesigns = <JewelleryDesign>[];
+
+      // 1. Add finished 3D CAD designs (with real weight, price & 3D models)
+      for (final t in threeD) {
+        catalogueDesigns.add(ApiDomainMapper.threeDDesign(t));
+        if (t.sketchId.isNotEmpty) seenDesignKeys.add(t.sketchId);
+        if (t.sketch?.id.isNotEmpty == true) seenDesignKeys.add(t.sketch!.id);
+        if (t.sketch?.designNumber.isNotEmpty == true) {
+          seenDesignKeys.add(t.sketch!.designNumber.toLowerCase().trim());
+        }
+        if (t.id.isNotEmpty) seenDesignKeys.add(t.id);
+      }
+
+      // 2. Add all 2D Sketches that do NOT already have a 3D CAD design
+      for (final s in sketches) {
+        final isDuplicate = seenDesignKeys.contains(s.id) ||
+            seenDesignKeys.contains(s.designNumber.toLowerCase().trim());
+        if (!isDuplicate) {
+          catalogueDesigns.add(ApiDomainMapper.sketch(s));
+          if (s.id.isNotEmpty) seenDesignKeys.add(s.id);
+          if (s.designNumber.isNotEmpty) {
+            seenDesignKeys.add(s.designNumber.toLowerCase().trim());
+          }
+        }
+      }
+
       _store
         ..setOrders(mappedOrders)
         ..setClients(customers.map(ApiDomainMapper.customer).toList())
-        ..setDesigns([
-          ...sketches.map(ApiDomainMapper.sketch),
-          ...threeD.map(ApiDomainMapper.threeDDesign),
-        ]);
+        ..setDesigns(catalogueDesigns);
       emit(OrdersLoaded(orders: mappedOrders, filteredOrders: mappedOrders));
     } catch (error) {
       emit(OrdersError('Failed to load live front-office data: $error'));

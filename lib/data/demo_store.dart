@@ -125,12 +125,16 @@ class DemoStore extends ChangeNotifier {
 
   Map<String, String> _apiDirectiveMap(ApiDirective directive) {
     final createdAt = DateTime.tryParse(directive.createdAt ?? '');
+    final contentText = directive.instruction.trim().isNotEmpty
+        ? directive.instruction.trim()
+        : (directive.title.trim().isNotEmpty ? directive.title.trim() : 'Directive Note');
     return {
       'id': directive.id,
+      'title': directive.title,
       'date': createdAt == null ? '' : _displayDate(createdAt.toLocal()),
       'createdAt': directive.createdAt ?? '',
       'recipient': _directiveRecipient(directive.targetType),
-      'content': directive.instruction,
+      'content': contentText,
       'status': directive.status.toUpperCase() == 'ACKNOWLEDGED'
           ? 'Acknowledged'
           : 'Active',
@@ -141,11 +145,11 @@ class DemoStore extends ChangeNotifier {
 
   String _directiveRecipient(String targetType) =>
       switch (targetType.trim().toUpperCase()) {
-        'THREE_D_DESIGNER' || 'CAD_DESIGNER' => 'CAD Designer',
-        'SKETCHER' || 'RAW_DESIGNER' => 'Raw Designer',
-        'ALL_ARTISANS' || 'BENCH_ARTISAN' => 'Workshop Artisan',
+        'THREE_D_DESIGNER' || 'CAD_DESIGNER' || 'CAD' => 'CAD Designer',
+        'SKETCHER' || 'SKETCH' || 'RAW_DESIGNER' || 'SKETCH_DESIGNER' => 'Raw Designer',
+        'ALL_ARTISANS' || 'BENCH_ARTISAN' || 'ARTISAN' || 'ARTISANS' => 'Workshop Artisan',
         'PROCESS_MANAGER' || 'PRODUCTION_MANAGER' => 'Product Manager',
-        'FRONT_OFFICE' => 'Front Office',
+        'FRONT_OFFICE' || 'SALES' => 'Front Office',
         'ALL' || 'ALL_TEAMS' => DirectiveRecipients.allTeams,
         _ => targetType.replaceAll('_', ' '),
       };
@@ -256,7 +260,6 @@ class DemoStore extends ChangeNotifier {
     return (_stages.toList()
           ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber)))
         .map((stage) {
-          final domainStage = ApiDomainMapper.stage(stage.name);
           final stageLots = lotsForStage(stage);
           final lotCount = stageLots.length;
           final pieceCount = stageLots.fold<int>(
@@ -1175,29 +1178,11 @@ class DemoStore extends ChangeNotifier {
   void setLots(List<WorkshopLot> lots) {
     final uniqueLots = <WorkshopLot>[];
     final seenIds = <String>{};
-    for (var lot in lots) {
+    for (final lot in lots) {
       final lotKey = lot.id.isNotEmpty
           ? lot.id
           : '${lot.orderId}_${lot.designCode}';
       if (lotKey.isEmpty || seenIds.add(lotKey)) {
-        // Preserve locally assigned worker if backend API omits assignment details in pending response
-        if (lot.assignedEmployee.isEmpty ||
-            lot.assignedEmployee.toLowerCase() == 'unassigned') {
-          final existing = _lots
-              .where(
-                (l) =>
-                    (lot.id.isNotEmpty && l.id == lot.id) ||
-                    (l.orderId.isNotEmpty &&
-                        l.orderId == lot.orderId &&
-                        l.designCode == lot.designCode),
-              )
-              .firstOrNull;
-          if (existing != null &&
-              existing.assignedEmployee.isNotEmpty &&
-              existing.assignedEmployee != 'Unassigned') {
-            lot = lot.copyWith(assignedEmployee: existing.assignedEmployee);
-          }
-        }
         uniqueLots.add(lot);
       }
     }

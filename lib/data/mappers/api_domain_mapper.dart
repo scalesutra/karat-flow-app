@@ -65,7 +65,9 @@ abstract final class ApiDomainMapper {
             ),
           )
           .toList(growable: false),
-      currentWorkshopStage: firstPart?.currentStage ?? '',
+      currentWorkshopStage: (firstPart?.currentStage.trim().isNotEmpty == true)
+          ? firstPart!.currentStage.trim()
+          : 'Unassigned',
       responsibleManager: '',
       isBlocked: isBlocked,
       blockedReason: blockReason,
@@ -146,14 +148,24 @@ abstract final class ApiDomainMapper {
 
   static JewelleryDesign sketch(ApiSketch value) => JewelleryDesign(
     id: value.id,
-    name: value.title,
-    code: value.designNumber,
-    category: parseCategory(value.category),
-    purity: '',
+    name: value.title.isNotEmpty ? value.title : 'Custom Sketch',
+    code: value.designNumber.isNotEmpty
+        ? value.designNumber
+        : 'DSG-${value.id.substring(0, value.id.length > 6 ? 6 : value.id.length)}',
+    category: parseCategory(
+      value.category != null && value.category!.isNotEmpty
+          ? value.category
+          : value.title,
+    ),
+    purity: '22KT',
     grossWeightGrams: 0,
     estimatedPrice: parsePrice(value.price, value.adminInstructions),
     imageUrl: value.sketchUrl,
-    description: _cleanText(value.adminInstructions),
+    description: _cleanText(value.adminInstructions).isNotEmpty
+        ? _cleanText(value.adminInstructions)
+        : (value.status == 'APPROVED'
+              ? 'Approved 2D Sketch'
+              : 'New Design Sketch'),
     isPopular: value.status == 'APPROVED',
   );
 
@@ -161,20 +173,35 @@ abstract final class ApiDomainMapper {
     id: value.id,
     name: value.sketch?.title.isNotEmpty == true
         ? value.sketch!.title
-        : value.sketchId,
-    code: value.id,
-    category: parseCategory(value.category ?? value.sketch?.category),
-    purity: '',
+        : (value.sizeDimensions.isNotEmpty
+              ? value.sizeDimensions
+              : '3D CAD Design'),
+    code: value.sketch?.designNumber.isNotEmpty == true
+        ? value.sketch!.designNumber
+        : (value.id.length > 8
+              ? value.id.substring(0, 8).toUpperCase()
+              : value.id),
+    category: parseCategory(
+      value.category ?? value.sketch?.category ?? value.sketch?.title,
+    ),
+    purity: '22KT',
     grossWeightGrams: value.totalWeight,
     estimatedPrice: parsePrice(
       value.price ?? value.sketch?.price,
       value.adminInstructions ?? value.sketch?.adminInstructions,
     ),
-    imageUrl: value.xtlFileUrl ?? value.sketch?.sketchUrl ?? '',
+    imageUrl: (value.sketch?.sketchUrl.isNotEmpty == true)
+        ? value.sketch!.sketchUrl
+        : (value.xtlFileUrl?.isNotEmpty == true
+              ? value.xtlFileUrl!
+              : (value.bomFileUrl ?? '')),
     description: _cleanText(value.adminInstructions).isNotEmpty
         ? _cleanText(value.adminInstructions)
         : value.sizeDimensions,
-    isPopular: value.status == 'APPROVED',
+    isPopular: value.status == 'APPROVED' || value.totalWeight > 0,
+    sizeDimensions: value.sizeDimensions.isNotEmpty
+        ? value.sizeDimensions
+        : null,
   );
 
   static CadDesignTask cadTask(ApiThreeDDesign value) {
@@ -200,10 +227,18 @@ abstract final class ApiDomainMapper {
       notes: '3D Wax STL Modeling Completed',
       estimatedWeightGrams: value.totalWeight,
       status: switch (value.status.toUpperCase()) {
-        'APPROVED' => CadTaskStatus.completed,
-        'REVISION' || 'REJECTED' => CadTaskStatus.revision,
-        'IN_PROGRESS' => CadTaskStatus.inProgress,
-        _ => CadTaskStatus.newTask,
+        'APPROVED' || 'COMPLETED' || 'READY' => CadTaskStatus.completed,
+        'REVISION' ||
+        'REJECTED' ||
+        'CHANGES_REQUESTED' => CadTaskStatus.revision,
+        'IN_PROGRESS' =>
+          (value.xtlFileUrl?.isNotEmpty == true)
+              ? CadTaskStatus.completed
+              : CadTaskStatus.inProgress,
+        _ =>
+          (value.xtlFileUrl?.isNotEmpty == true)
+              ? CadTaskStatus.completed
+              : CadTaskStatus.newTask,
       },
       hasSketchImage: value.sketch?.sketchUrl.isNotEmpty ?? true,
       hasStlFile: value.xtlFileUrl?.isNotEmpty ?? false,
@@ -309,7 +344,9 @@ abstract final class ApiDomainMapper {
     if (empName.isEmpty || empName.trim().isEmpty) {
       if (value.instructions.contains('Assigned to ')) {
         final idx = value.instructions.indexOf('Assigned to ');
-        final rest = value.instructions.substring(idx + 'Assigned to '.length).trim();
+        final rest = value.instructions
+            .substring(idx + 'Assigned to '.length)
+            .trim();
         final cleanName = rest.contains(':')
             ? rest.substring(0, rest.indexOf(':')).trim()
             : (rest.contains('\n')
@@ -355,6 +392,8 @@ abstract final class ApiDomainMapper {
         part['orderNumber'] as String? ??
         value['orderId'] as String? ??
         value['orderNumber'] as String? ??
+        value['_orderId'] as String? ??
+        value['_orderNumber'] as String? ??
         '';
     final designNumber =
         part['designNumber'] as String? ??
@@ -364,8 +403,12 @@ abstract final class ApiDomainMapper {
         (part['grossWeight'] as num?)?.toDouble() ??
         (value['grossWeight'] as num?)?.toDouble() ??
         0;
-    final assignments = part['workerAssignments'] is List
+    final assignments = part['assignments'] is List
+        ? part['assignments'] as List
+        : part['workerAssignments'] is List
         ? part['workerAssignments'] as List
+        : value['assignments'] is List
+        ? value['assignments'] as List
         : value['workerAssignments'] is List
         ? value['workerAssignments'] as List
         : const [];
@@ -495,27 +538,6 @@ abstract final class ApiDomainMapper {
       }
     }
 
-    // Preserve previously assigned worker from local store if API omits employee details
-    final targetLotId = part['id'] as String? ?? value['id'] as String? ?? '';
-    if (employeeName.isEmpty ||
-        employeeName.trim().isEmpty ||
-        employeeName.toLowerCase() == 'unassigned') {
-      final existingLot = DemoStore.instance.lots
-          .where(
-            (l) =>
-                l.id == targetLotId ||
-                (l.orderId.isNotEmpty &&
-                    l.orderId == orderId &&
-                    l.designCode == designNumber),
-          )
-          .firstOrNull;
-      if (existingLot != null &&
-          existingLot.assignedEmployee.isNotEmpty &&
-          existingLot.assignedEmployee != 'Unassigned') {
-        employeeName = existingLot.assignedEmployee;
-      }
-    }
-
     if (employeeName.isEmpty || employeeName.trim().isEmpty) {
       employeeName = 'Unassigned';
     }
@@ -536,7 +558,7 @@ abstract final class ApiDomainMapper {
         statusStr == 'ON_HOLD';
 
     return WorkshopLot(
-      id: part['id'] as String? ?? value['id'] as String? ?? '',
+      id: lotId,
       orderId: orderId,
       designCode: designNumber,
       productTitle: designNumber.isNotEmpty ? designNumber : 'Order Part',
@@ -662,18 +684,24 @@ abstract final class ApiDomainMapper {
         : active.isNotEmpty
         ? active
         : candidates;
-    pool.sort((a, b) {
-      final aTime = DateTime.tryParse(
-        a['updatedAt'] as String? ?? a['createdAt'] as String? ?? '',
-      );
-      final bTime = DateTime.tryParse(
-        b['updatedAt'] as String? ?? b['createdAt'] as String? ?? '',
-      );
-      return (aTime ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
-        bTime ?? DateTime.fromMillisecondsSinceEpoch(0),
-      );
-    });
-    return pool.last;
+    // The orders contract places the latest assignment at index 0. Prefer
+    // timestamps when present, otherwise retain that documented ordering.
+    final dated = pool
+        .map(
+          (assignment) => (
+            assignment: assignment,
+            time: DateTime.tryParse(
+              assignment['updatedAt'] as String? ??
+                  assignment['createdAt'] as String? ??
+                  '',
+            ),
+          ),
+        )
+        .where((entry) => entry.time != null)
+        .toList();
+    if (dated.isEmpty) return pool.first;
+    dated.sort((a, b) => a.time!.compareTo(b.time!));
+    return dated.last.assignment;
   }
 
   static Instruction directive(ApiDirective value) {

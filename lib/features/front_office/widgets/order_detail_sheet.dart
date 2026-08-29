@@ -91,10 +91,14 @@ class OrderDetailSheet extends StatelessWidget {
           const SizedBox(height: 18),
           const CommonText.titleMedium('Workshop Progress'),
           const SizedBox(height: 8),
-          if (order.currentWorkshopStage.isEmpty)
-            const Text('No current stage returned by the backend.')
-          else
-            _stageStep('•', order.currentWorkshopStage, true),
+          _stageStep(
+            '•',
+            order.currentWorkshopStage.isNotEmpty
+                ? order.currentWorkshopStage
+                : 'Unassigned',
+            order.currentWorkshopStage.isNotEmpty &&
+                order.currentWorkshopStage.toLowerCase() != 'unassigned',
+          ),
           const SizedBox(height: 20),
           Row(
             children: [
@@ -110,8 +114,24 @@ class OrderDetailSheet extends StatelessWidget {
                   label: 'View Stages',
                   onPressed: () {
                     Navigator.pop(context);
+                    final designRows = order.designs
+                        .map(
+                          (design) => <String, Object?>{
+                            'partId': design.partId,
+                            'designNumber': design.designNumber,
+                            'quantity': design.quantity,
+                            'stage': design.currentStage.isNotEmpty
+                                ? design.currentStage
+                                : design.status,
+                            'isBlocked': design.isBlocked,
+                            'blockReason': design.blockReason,
+                          },
+                        )
+                        .toList(growable: false);
                     final Map<String, dynamic> orderMap = {
                       'id': order.id,
+                      'apiId': order.apiId,
+                      'orderNumber': order.id,
                       'title': order.itemsSummary,
                       'client': '${order.clientFirmName} · ${order.clientCity}',
                       'stage': order.currentWorkshopStage,
@@ -119,6 +139,7 @@ class OrderDetailSheet extends StatelessWidget {
                           '${order.totalGrossGrams}g · Due ${order.promiseDate}',
                       'pieces': order.itemsCount,
                       'artisan': order.responsibleManager,
+                      'designs': designRows,
                       'allowStageChange': false,
                     };
                     Navigator.pushNamed(

@@ -43,13 +43,13 @@ class SketchBloc extends Bloc<SketchEvent, SketchState> {
       final upload = await _api.uploadFile(
         fileName: event.fileName,
         fileType: _contentType(event.fileName),
-        folder: 'sketches',
+        category: 'sketches',
         bytes: event.bytes,
       );
       await _api.uploadSketch(
         designNumber: event.designNumber,
         title: event.title,
-        sketchUrl: upload.fileUrl,
+        sketchUrl: upload.fileKey,
       );
       emit(const SketchActionSuccess('Sketch uploaded successfully.'));
       add(const FetchSketchesEvent());
@@ -67,13 +67,13 @@ class SketchBloc extends Bloc<SketchEvent, SketchState> {
       final upload = await _api.uploadFile(
         fileName: event.fileName,
         fileType: _contentType(event.fileName),
-        folder: 'sketches',
+        category: 'sketches',
         bytes: event.bytes,
       );
       await _api.reuploadSketch(
         id: event.sketchId,
         title: event.title,
-        sketchUrl: upload.fileUrl,
+        sketchUrl: upload.fileKey,
       );
       emit(const SketchActionSuccess('Sketch revision uploaded successfully.'));
       add(const FetchSketchesEvent());

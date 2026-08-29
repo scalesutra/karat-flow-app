@@ -319,6 +319,7 @@ class JewelleryDesign {
     this.imageUrl = '',
     required this.description,
     this.isPopular = false,
+    this.sizeDimensions,
   }) : grossWeightGrams = grossWeightGrams ?? defaultGrossWeightGrams ?? 0.0,
        defaultGrossWeightGrams =
            defaultGrossWeightGrams ?? grossWeightGrams ?? 0.0,
@@ -339,6 +340,7 @@ class JewelleryDesign {
   final String imageUrl;
   final String description;
   final bool isPopular;
+  final String? sizeDimensions;
 
   bool get hasBackendPrice => _estimatedPrice != null && _estimatedPrice > 0;
 
@@ -360,6 +362,7 @@ class JewelleryDesign {
     String? imageUrl,
     String? description,
     bool? isPopular,
+    String? sizeDimensions,
   }) {
     return JewelleryDesign(
       id: id ?? this.id,
@@ -378,6 +381,7 @@ class JewelleryDesign {
       imageUrl: imageUrl ?? this.imageUrl,
       description: description ?? this.description,
       isPopular: isPopular ?? this.isPopular,
+      sizeDimensions: sizeDimensions ?? this.sizeDimensions,
     );
   }
 }
