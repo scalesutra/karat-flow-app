@@ -208,21 +208,32 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       );
     }
 
-    final currentStageMatches = stages
+    final sortedStages = List<ApiStage>.from(stages)
+      ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+
+    final firstStage = sortedStages.isNotEmpty ? sortedStages.first : null;
+
+    final currentStageMatches = sortedStages
         .where((stage) => _domainStage(stage) == part.stage)
         .toList();
-    final targetStage = currentStageMatches.isNotEmpty
-        ? currentStageMatches.first
-        : (stages
-                  .where(
-                    (stage) => _domainStage(stage).index >= part.stage.index,
-                  )
-                  .firstOrNull ??
-              stages.firstOrNull);
+
+    final targetStage =
+        (part.stage == WorkshopStage.inQueue && firstStage != null)
+        ? firstStage
+        : (currentStageMatches.isNotEmpty
+              ? currentStageMatches.first
+              : (sortedStages
+                        .where(
+                          (stage) =>
+                              _domainStage(stage).index >= part.stage.index,
+                        )
+                        .firstOrNull ??
+                    firstStage));
 
     final String stageId = targetStage != null
         ? targetStage.id
-        : 'b467cd15-4845-4ba3-a30e-cbcc42809b76'; // Default stage ID if unpopulated
+        : (sortedStages.firstOrNull?.id ??
+              'b467cd15-4845-4ba3-a30e-cbcc42809b76');
 
     context.read<WorkshopBloc>().add(
       AllocateLotArtisanEvent(
@@ -251,15 +262,18 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     BuildContext context,
     JewelleryPart part, {
     int? quantity,
+    String? nextWorkerName,
   }) {
     final nextIdx = part.stage.index + 1;
     final movingWholePart = quantity == null || quantity >= part.pieces;
-    if (movingWholePart && nextIdx < WorkshopStage.values.length) {
-      final nextStage = WorkshopStage.values[nextIdx];
-      widget.orderData['currentStageName'] = nextStage.label;
-      widget.orderData['stage'] = nextStage.label;
-      if (nextStage == WorkshopStage.readyForDispatch) {
+    if (movingWholePart) {
+      if (nextIdx < WorkshopStage.values.length) {
+        final nextStage = WorkshopStage.values[nextIdx];
+        widget.orderData['currentStageName'] = nextStage.label;
+        widget.orderData['stage'] = nextStage.label;
+      } else {
         widget.orderData['status'] = 'complete';
+        widget.orderData['currentStageName'] = 'Completed';
         DemoStore.instance.updateOrderStatus(_orderId, OrderStatus.ready);
       }
     }
@@ -276,6 +290,37 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     context.read<WorkshopBloc>().add(
       AdvanceLotStageEvent(partId, quantity: quantity),
     );
+
+    if (nextWorkerName != null &&
+        nextWorkerName.isNotEmpty &&
+        nextWorkerName.toLowerCase() != 'unassigned') {
+      final selectedMember = DemoStore.instance.team
+          .where(
+            (m) =>
+                m.name.toLowerCase() == nextWorkerName.toLowerCase() ||
+                m.id == nextWorkerName,
+          )
+          .firstOrNull;
+      final workerId = selectedMember?.id ?? nextWorkerName;
+      final workerDisplayName = selectedMember?.name ?? nextWorkerName;
+
+      final stages =
+          DemoStore.instance.stages.where((stage) => stage.isActive).toList()
+            ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+      final nextStageIndex = (part.stage.index + 1).clamp(0, stages.length - 1);
+      final targetStage = stages.isNotEmpty ? stages[nextStageIndex] : null;
+
+      if (targetStage != null) {
+        context.read<WorkshopBloc>().add(
+          AllocateLotArtisanEvent(
+            lotId: partId,
+            artisanName: workerDisplayName,
+            artisanId: workerId,
+            stageId: targetStage.id,
+          ),
+        );
+      }
+    }
   }
 
   void _rollbackLivePart(
@@ -314,13 +359,14 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   List<ParentJewelleryItem> _getParentItems() {
     final List<ParentJewelleryItem> items = [];
 
-    final String statusStr = widget.orderData['status'] as String? ?? '';
-    final String stageStr = widget.orderData['stage'] as String? ?? '';
+    final String statusStr = (widget.orderData['status'] as String? ?? '')
+        .toLowerCase();
+    final String stageStr = (widget.orderData['stage'] as String? ?? '')
+        .toLowerCase();
     final bool isCompletedOrder =
-        statusStr.toLowerCase() == 'complete' ||
-        statusStr.toLowerCase() == 'delivered' ||
-        stageStr.toLowerCase() == 'ready for dispatch' ||
-        stageStr.toLowerCase() == 'delivered';
+        statusStr == 'complete' ||
+        statusStr == 'completed' ||
+        statusStr == 'delivered';
 
     final rawId = widget.orderData['id'] as String? ?? '';
     final orderNum =
@@ -357,20 +403,45 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
     if (storeLots.isNotEmpty) {
       final parts = storeLots.map((lot) {
+        final matchedDesign = DemoStore.instance.designs
+            .where(
+              (d) =>
+                  (lot.designCode.isNotEmpty &&
+                      d.code.toLowerCase() == lot.designCode.toLowerCase()) ||
+                  (d.id.isNotEmpty && d.id == lot.id) ||
+                  (lot.productTitle.isNotEmpty &&
+                      d.name.toLowerCase() == lot.productTitle.toLowerCase()),
+            )
+            .firstOrNull;
+
+        final designTitle = (matchedDesign?.name.isNotEmpty == true)
+            ? matchedDesign!.name
+            : (lot.productTitle.isNotEmpty ? lot.productTitle : lot.designCode);
+
+        final apiStageName = DemoStore.instance.stages
+            .where((s) => _domainStage(s) == lot.stage)
+            .firstOrNull
+            ?.name;
+
+        final isLotComplete =
+            isCompletedOrder ||
+            (lot.stage == WorkshopStage.readyForDispatch && isCompletedOrder);
+
         return JewelleryPart(
-          name: lot.productTitle,
-          code: lot.designCode,
+          name: designTitle,
+          code: lot.designCode.isNotEmpty ? lot.designCode : lot.id,
           pieces: lot.pieces,
           passedPieces: lot.pieces,
-          stage: isCompletedOrder ? WorkshopStage.readyForDispatch : lot.stage,
-          assignedEmployee: isCompletedOrder
-              ? (_artisan.isNotEmpty ? _artisan : 'Completed')
-              : ((lot.assignedEmployee.isEmpty ||
-                        lot.assignedEmployee == 'Unassigned')
-                    ? _extractWorkerName(widget.orderData)
-                    : lot.assignedEmployee),
+          stage: lot.stage,
+          stageName: apiStageName ?? lot.stage.label,
+          assignedEmployee:
+              ((lot.assignedEmployee.isEmpty ||
+                  lot.assignedEmployee == 'Unassigned')
+              ? _extractWorkerName(widget.orderData)
+              : lot.assignedEmployee),
           blockerReason: lot.blockerReason,
           weight: lot.issueWeightGrams,
+          isCompleted: isLotComplete,
         );
       }).toList();
 
@@ -386,6 +457,124 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       );
       return items;
     }
+
+    if (designRows.isNotEmpty) {
+      final parts = designRows.map((row) {
+        final dNumber = row['designNumber'] as String? ?? 'Jewellery Part';
+        final pId = row['partId'] as String? ?? '';
+        final rawTitle = row['title'] as String? ?? row['name'] as String?;
+        final matchedDesign = DemoStore.instance.designs
+            .where(
+              (d) =>
+                  (dNumber.isNotEmpty &&
+                      d.code.toLowerCase() == dNumber.toLowerCase()) ||
+                  (pId.isNotEmpty && d.id == pId),
+            )
+            .firstOrNull;
+        final designTitle =
+            rawTitle ??
+            matchedDesign?.name ??
+            (dNumber.isNotEmpty ? dNumber : 'Jewellery Item');
+
+        final qty = (row['quantity'] as num?)?.toInt() ?? 1;
+        final rawStg = row['stage'] as String? ?? '';
+        final stg = rawStg.isNotEmpty
+            ? ApiDomainMapper.stage(rawStg)
+            : WorkshopStage.inQueue;
+        final apiStageName = rawStg.isNotEmpty
+            ? rawStg
+            : DemoStore.instance.stages
+                  .where((s) => _domainStage(s) == stg)
+                  .firstOrNull
+                  ?.name;
+        final workerName = (row['artisan'] as String? ?? '').trim();
+        final rowStatus = (row['status'] as String? ?? '').toUpperCase();
+        final isRowComplete =
+            rowStatus == 'COMPLETED' ||
+            rawStg.toUpperCase() == 'ALL_STAGES_COMPLETED' ||
+            (stg == WorkshopStage.readyForDispatch &&
+                (widget.orderData['status'] == 'complete' ||
+                    widget.orderData['status'] == 'COMPLETED'));
+
+        return JewelleryPart(
+          name: designTitle,
+          code: dNumber.isNotEmpty ? dNumber : (pId.isNotEmpty ? pId : 'Part'),
+          pieces: qty,
+          passedPieces: qty,
+          stage: stg,
+          stageName: apiStageName ?? stg.label,
+          assignedEmployee: workerName.isNotEmpty
+              ? workerName
+              : _extractWorkerName(widget.orderData),
+          blockerReason: row['blockReason'] as String?,
+          weight: 0.0,
+          isCompleted: isRowComplete,
+        );
+      }).toList();
+
+      items.add(
+        ParentJewelleryItem(
+          name: _title.isNotEmpty
+              ? _title
+              : (designNum.isNotEmpty ? designNum : 'Jewellery Order'),
+          code: _orderId,
+          category: _title.contains('Ring') ? 'Rings' : 'Necklace',
+          parts: parts,
+        ),
+      );
+      return items;
+    }
+
+    final totalQty =
+        (widget.orderData['itemsCount'] as num?)?.toInt() ??
+        (widget.orderData['quantity'] as num?)?.toInt() ??
+        (widget.orderData['pieces'] as num?)?.toInt() ??
+        1;
+    final rawStg =
+        widget.orderData['currentStageName'] as String? ??
+        widget.orderData['stage'] as String? ??
+        '';
+    final stg = rawStg.isNotEmpty
+        ? ApiDomainMapper.stage(rawStg)
+        : WorkshopStage.inQueue;
+    final apiStageName = rawStg.isNotEmpty
+        ? rawStg
+        : DemoStore.instance.stages
+              .where((s) => _domainStage(s) == stg)
+              .firstOrNull
+              ?.name;
+
+    final isOrderComplete =
+        (widget.orderData['status'] as String? ?? '').toLowerCase() ==
+            'complete' ||
+        (widget.orderData['status'] as String? ?? '').toLowerCase() ==
+            'delivered';
+
+    final singlePart = JewelleryPart(
+      name: _title.isNotEmpty ? _title : 'Jewellery Item',
+      code: designNum.isNotEmpty
+          ? designNum
+          : (_orderId.isNotEmpty ? _orderId : 'Part-1'),
+      pieces: totalQty,
+      passedPieces: totalQty,
+      stage: stg,
+      stageName: apiStageName ?? stg.label,
+      assignedEmployee: _extractWorkerName(widget.orderData),
+      blockerReason:
+          widget.orderData['blockReason'] as String? ??
+          widget.orderData['blockedReason'] as String?,
+      weight: (widget.orderData['grossWeight'] as num?)?.toDouble() ?? 0.0,
+      isCompleted: isOrderComplete,
+    );
+
+    items.add(
+      ParentJewelleryItem(
+        name: _title.isNotEmpty ? _title : 'Jewellery Order',
+        code: _orderId,
+        category: _title.contains('Ring') ? 'Rings' : 'Necklace',
+        parts: [singlePart],
+      ),
+    );
 
     return items;
   }
@@ -435,6 +624,96 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     return 'Unassigned';
   }
 
+  bool _isWorkerSkillMatch(TeamMember member, String stageName) {
+    final stageLower = stageName.trim().toLowerCase();
+    final craftLower = member.craft.toLowerCase();
+    final roleLower = member.shift.toLowerCase();
+
+    if (stageLower.contains('wax') &&
+        (craftLower.contains('wax') || roleLower.contains('wax'))) {
+      return true;
+    }
+    if (stageLower.contains('filing') &&
+        (craftLower.contains('fil') ||
+            roleLower.contains('fil') ||
+            craftLower.contains('gold'))) {
+      return true;
+    }
+    if (stageLower.contains('cast') &&
+        (craftLower.contains('cast') || roleLower.contains('cast'))) {
+      return true;
+    }
+    if (stageLower.contains('polish') &&
+        (craftLower.contains('polish') ||
+            roleLower.contains('polish') ||
+            craftLower.contains('buff'))) {
+      return true;
+    }
+    if ((stageLower.contains('qc') || stageLower.contains('quality')) &&
+        (craftLower.contains('qual') ||
+            craftLower.contains('qc') ||
+            roleLower.contains('qual') ||
+            roleLower.contains('qc'))) {
+      return true;
+    }
+    if (stageLower.contains('pack') &&
+        (craftLower.contains('pack') ||
+            roleLower.contains('pack') ||
+            craftLower.contains('dispatch'))) {
+      return true;
+    }
+    if (stageLower.contains('set') &&
+        (craftLower.contains('set') ||
+            roleLower.contains('set') ||
+            craftLower.contains('stone') ||
+            craftLower.contains('diamond'))) {
+      return true;
+    }
+    return false;
+  }
+
+  List<TeamMember> _getCraftWorkersForStage(String stageName) {
+    final all = DemoStore.instance.team;
+
+    // 1. Filter: workshop craftsmen only (exclude non-craftsman management roles)
+    final craftsmen = all.where((m) {
+      final roleUpper = m.shift.toUpperCase();
+      final craftLower = m.craft.toLowerCase();
+
+      final isNonWorkshop =
+          roleUpper == 'ADMIN' ||
+          roleUpper == 'PRODUCTION_MANAGER' ||
+          roleUpper == 'PROCESS_MANAGER' ||
+          roleUpper == 'FRONTIER' ||
+          roleUpper == 'FRONT_OFFICE' ||
+          roleUpper == 'THREE_D_DESIGNER' ||
+          roleUpper == 'RAW_SKETCHER' ||
+          craftLower.contains('manager') ||
+          craftLower.contains('admin') ||
+          craftLower.contains('sales') ||
+          craftLower.contains('sketcher') ||
+          craftLower.contains('cad');
+
+      return !isNonWorkshop;
+    }).toList();
+
+    final pool = craftsmen.isNotEmpty ? craftsmen : all;
+
+    // 2. Sort by skill match for stage
+    final matchingSkill = <TeamMember>[];
+    final otherCraftsmen = <TeamMember>[];
+
+    for (final m in pool) {
+      if (_isWorkerSkillMatch(m, stageName)) {
+        matchingSkill.add(m);
+      } else {
+        otherCraftsmen.add(m);
+      }
+    }
+
+    return [...matchingSkill, ...otherCraftsmen];
+  }
+
   Future<void> _showAssignArtisanModal(
     BuildContext context,
     JewelleryPart part,
@@ -480,7 +759,25 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       );
       return;
     }
-    String selectedWorker = workers.first.name;
+
+    final stages = DemoStore.instance.stages.where((s) => s.isActive).toList()
+      ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+    final currentStageName =
+        (part.stage == WorkshopStage.inQueue && stages.isNotEmpty)
+        ? stages.first.name
+        : part.stage.label;
+
+    final craftWorkers = _getCraftWorkersForStage(currentStageName);
+    if (craftWorkers.isNotEmpty) {
+      workers = craftWorkers;
+    }
+
+    String selectedWorker =
+        (part.assignedEmployee != null &&
+            part.assignedEmployee!.isNotEmpty &&
+            part.assignedEmployee != 'Unassigned')
+        ? part.assignedEmployee!
+        : workers.first.name;
     int selectedQuantity = part.pieces;
     final TextEditingController quantityController = TextEditingController(
       text: '$selectedQuantity',
@@ -730,14 +1027,18 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   ),
                   const SizedBox(height: 8),
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 180),
+                    constraints: const BoxConstraints(maxHeight: 200),
                     child: ListView.separated(
                       shrinkWrap: true,
-                      itemCount: DemoStore.instance.team.length,
+                      itemCount: workers.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
-                        final member = DemoStore.instance.team[index];
+                        final member = workers[index];
                         final isSelected = member.name == selectedWorker;
+                        final isSkillMatch = _isWorkerSkillMatch(
+                          member,
+                          currentStageName,
+                        );
                         return InkWell(
                           onTap: () =>
                               setModalState(() => selectedWorker = member.name),
@@ -745,7 +1046,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
-                              vertical: 8,
+                              vertical: 9,
                             ),
                             decoration: BoxDecoration(
                               color: isSelected
@@ -762,13 +1063,19 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                               children: [
                                 CircleAvatar(
                                   radius: 14,
-                                  backgroundColor: AppColors.emerald.withValues(
-                                    alpha: 0.15,
-                                  ),
+                                  backgroundColor: isSelected
+                                      ? AppColors.emerald
+                                      : AppColors.emerald.withValues(
+                                          alpha: 0.15,
+                                        ),
                                   child: Text(
-                                    member.name[0],
-                                    style: const TextStyle(
-                                      color: AppColors.emerald,
+                                    member.name.isNotEmpty
+                                        ? member.name[0].toUpperCase()
+                                        : 'A',
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? AppColors.pureWhite
+                                          : AppColors.emerald,
                                       fontWeight: FontWeight.w800,
                                       fontSize: 12,
                                     ),
@@ -776,14 +1083,60 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
-                                  child: Text(
-                                    '${member.name} (${member.craft})',
-                                    style: TextStyle(
-                                      fontWeight: isSelected
-                                          ? FontWeight.w800
-                                          : FontWeight.w600,
-                                      fontSize: 12,
-                                    ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            member.name,
+                                            style: TextStyle(
+                                              fontWeight: isSelected
+                                                  ? FontWeight.w800
+                                                  : FontWeight.w700,
+                                              fontSize: 12,
+                                              color: isSelected
+                                                  ? AppColors.emeraldDark
+                                                  : AppColors.ink,
+                                            ),
+                                          ),
+                                          if (isSkillMatch) ...[
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 5,
+                                                    vertical: 1,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.emerald,
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: const Text(
+                                                'SKILL MATCH',
+                                                style: TextStyle(
+                                                  color: AppColors.pureWhite,
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 9,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        member.craft.isNotEmpty
+                                            ? member.craft
+                                            : 'Workshop Craftsman',
+                                        style: const TextStyle(
+                                          color: AppColors.muted,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                                 if (isSelected)
@@ -821,6 +1174,23 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     int passedPcs = part.passedPieces > 0 ? part.passedPieces : totalPcs;
     int defectivePcs = totalPcs - passedPcs;
     final passedController = TextEditingController(text: '$passedPcs');
+
+    final values = WorkshopStage.values;
+    final currentIdx = values.indexOf(part.stage);
+    final nextStageLabel = (currentIdx < values.length - 1)
+        ? values[currentIdx + 1].label
+        : '';
+    final nextCraftWorkers = _getCraftWorkersForStage(nextStageLabel);
+    final workers = nextCraftWorkers.isNotEmpty
+        ? nextCraftWorkers
+        : DemoStore.instance.team;
+
+    String selectedNextWorker =
+        (part.assignedEmployee != null &&
+            part.assignedEmployee!.isNotEmpty &&
+            part.assignedEmployee != 'Unassigned')
+        ? part.assignedEmployee!
+        : (workers.isNotEmpty ? workers.first.name : '');
 
     showModalBottomSheet<void>(
       context: context,
@@ -1068,7 +1438,182 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  // Next Stage Artisan Selector
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Assign Next Stage To (Artisan):',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      if (DemoStore.instance.activeRole == AppRole.admin)
+                        InkWell(
+                          onTap: () async {
+                            final newMember = await AddArtisanSheet.show(
+                              context,
+                              DemoStore.instance,
+                            );
+                            if (newMember != null) {
+                              setModalState(() {
+                                selectedNextWorker = newMember.name;
+                              });
+                            }
+                          },
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.add,
+                                size: 14,
+                                color: AppColors.emeraldDark,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Add Artisan',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.emeraldDark,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 160),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: workers.length,
+                      itemBuilder: (ctx, i) {
+                        final member = workers[i];
+                        final isSelected = member.name == selectedNextWorker;
+                        final isSkillMatch = _isWorkerSkillMatch(
+                          member,
+                          nextStageLabel,
+                        );
+                        return InkWell(
+                          onTap: () {
+                            setModalState(() {
+                              selectedNextWorker = member.name;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.emerald.withValues(alpha: 0.08)
+                                  : AppColors.canvas,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.emerald
+                                    : AppColors.outline,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 12,
+                                  backgroundColor: isSelected
+                                      ? AppColors.emerald
+                                      : AppColors.outline,
+                                  child: Text(
+                                    member.name.isNotEmpty
+                                        ? member.name[0].toUpperCase()
+                                        : 'A',
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? AppColors.pureWhite
+                                          : AppColors.ink,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            member.name,
+                                            style: TextStyle(
+                                              fontWeight: isSelected
+                                                  ? FontWeight.w800
+                                                  : FontWeight.w600,
+                                              color: isSelected
+                                                  ? AppColors.emeraldDark
+                                                  : AppColors.ink,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          if (isSkillMatch) ...[
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 4,
+                                                    vertical: 1,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.emerald,
+                                                borderRadius:
+                                                    BorderRadius.circular(3),
+                                              ),
+                                              child: const Text(
+                                                'SKILL MATCH',
+                                                style: TextStyle(
+                                                  color: AppColors.pureWhite,
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 8,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                      const SizedBox(height: 1),
+                                      Text(
+                                        member.craft.isNotEmpty
+                                            ? member.craft
+                                            : 'Workshop Craftsman',
+                                        style: const TextStyle(
+                                          color: AppColors.muted,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (isSelected)
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: AppColors.emerald,
+                                    size: 18,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 18),
 
                   Builder(
                     builder: (context) {
@@ -1096,6 +1641,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                       context,
                                       part,
                                       quantity: passedPcs,
+                                      nextWorkerName: selectedNextWorker,
                                     );
                                   }
                                   if (passedPcs >= totalPcs &&
@@ -1120,8 +1666,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                     behavior: SnackBarBehavior.floating,
                                     content: Text(
                                       defectivePcs > 0
-                                          ? 'Moved $passedPcs pcs → ${nextStage.label}. $defectivePcs pcs remaining in ${part.stage.label}!'
-                                          : 'Moved $passedPcs pcs → ${nextStage.label}!',
+                                          ? 'Moved $passedPcs pcs → ${nextStage.label} (Assigned to $selectedNextWorker). $defectivePcs pcs remaining in ${part.stage.label}!'
+                                          : 'Moved $passedPcs pcs → ${nextStage.label} (Assigned to $selectedNextWorker)!',
                                     ),
                                     backgroundColor: AppColors.emerald,
                                   ),
@@ -1768,7 +2314,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     int count = 0;
     for (var item in _parentItems) {
       for (var part in item.parts) {
-        if (part.stage == stage) {
+        if (part.stage == stage && !part.isCompleted) {
           count += part.pieces;
         }
       }
@@ -1813,7 +2359,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         showBrand: false,
         showBackButton: true,
         title: 'Stage Overview',
-        subtitle: 'Order $_orderId · $_client',
+        subtitle:
+            'Order ${ApiDomainMapper.formatOrderNumber(_orderId)} · $_client',
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -1944,11 +2491,31 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   Widget _buildOrderInfoCard() {
     final String statusStr = widget.orderData['status'] as String? ?? '';
     final String stageStr = widget.orderData['stage'] as String? ?? '';
+    final bool hasUnfinishedParts = _parentItems.any(
+      (item) => item.parts.any(
+        (p) =>
+            p.stage != WorkshopStage.readyForDispatch &&
+            !p.stage.label.toLowerCase().contains('pack') &&
+            !p.stage.label.toLowerCase().contains('dispatch'),
+      ),
+    );
+
+    final bool allPartsInPacking =
+        _parentItems.isNotEmpty &&
+        _parentItems.every(
+          (item) => item.parts.every(
+            (p) =>
+                p.stage == WorkshopStage.readyForDispatch ||
+                p.stage.label.toLowerCase().contains('pack') ||
+                p.stage.label.toLowerCase().contains('dispatch'),
+          ),
+        );
+
     final bool isCompleted =
-        statusStr.toLowerCase() == 'complete' ||
-        statusStr.toLowerCase() == 'delivered' ||
-        stageStr.toLowerCase() == 'ready for dispatch' ||
-        stageStr.toLowerCase() == 'delivered';
+        !hasUnfinishedParts &&
+        (statusStr.toLowerCase() == 'complete' ||
+            statusStr.toLowerCase() == 'delivered' ||
+            allPartsInPacking);
 
     final hasBlockedPart = _parentItems.any(
       (item) => item.parts.any((p) => p.blockerReason != null),
@@ -2291,7 +2858,14 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   }
 
   Widget _buildStagesList() {
-    final apiStages = DemoStore.instance.stages;
+    final seen = <WorkshopStage>{};
+    final apiStages = <ApiStage>[];
+    for (final s in DemoStore.instance.stages) {
+      final domain = _domainStage(s);
+      if (seen.add(domain)) {
+        apiStages.add(s);
+      }
+    }
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -2308,7 +2882,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         final stageParts = <JewelleryPart>[];
         for (final parent in _parentItems) {
           for (final part in parent.parts) {
-            if (part.stage == stage) {
+            if (part.stage == stage && !part.isCompleted) {
               stageParts.add(part);
             }
           }
@@ -2708,8 +3282,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                               child: Container(
                                                 padding:
                                                     const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 5,
+                                                      horizontal: 9,
+                                                      vertical: 4.5,
                                                     ),
                                                 decoration: BoxDecoration(
                                                   color: AppColors.emerald,
@@ -2724,17 +3298,17 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                                       Icons.play_arrow_rounded,
                                                       color:
                                                           AppColors.pureWhite,
-                                                      size: 14,
+                                                      size: 13,
                                                     ),
-                                                    SizedBox(width: 3),
+                                                    SizedBox(width: 2),
                                                     Text(
-                                                      'Resume Stage',
+                                                      'Resume',
                                                       style: TextStyle(
                                                         color:
                                                             AppColors.pureWhite,
                                                         fontWeight:
                                                             FontWeight.w800,
-                                                        fontSize: 11,
+                                                        fontSize: 10.5,
                                                       ),
                                                     ),
                                                   ],
@@ -2752,7 +3326,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                               child: Container(
                                                 padding:
                                                     const EdgeInsets.symmetric(
-                                                      horizontal: 8,
+                                                      horizontal: 7,
                                                       vertical: 4,
                                                     ),
                                                 decoration: BoxDecoration(
@@ -2771,16 +3345,16 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                                     Icon(
                                                       Icons.pause,
                                                       color: AppColors.danger,
-                                                      size: 12,
+                                                      size: 11,
                                                     ),
-                                                    SizedBox(width: 3),
+                                                    SizedBox(width: 2),
                                                     Text(
-                                                      'Block / Hold',
+                                                      'Hold',
                                                       style: TextStyle(
                                                         color: AppColors.danger,
                                                         fontWeight:
                                                             FontWeight.w800,
-                                                        fontSize: 11,
+                                                        fontSize: 10.5,
                                                       ),
                                                     ),
                                                   ],
@@ -2791,7 +3365,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                                   part.stage,
                                                 ) >
                                                 0) ...[
-                                              const SizedBox(width: 6),
+                                              const SizedBox(width: 5),
                                               InkWell(
                                                 onTap: () => _movePartBackStage(
                                                   context,
@@ -2800,7 +3374,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                                 child: Container(
                                                   padding:
                                                       const EdgeInsets.symmetric(
-                                                        horizontal: 8,
+                                                        horizontal: 7,
                                                         vertical: 4,
                                                       ),
                                                   decoration: BoxDecoration(
@@ -2829,15 +3403,15 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                                             AppColors.warning,
                                                         size: 11,
                                                       ),
-                                                      SizedBox(width: 3),
+                                                      SizedBox(width: 2),
                                                       Text(
-                                                        'Back Stage',
+                                                        'Back',
                                                         style: TextStyle(
                                                           color:
                                                               AppColors.warning,
                                                           fontWeight:
                                                               FontWeight.w800,
-                                                          fontSize: 11,
+                                                          fontSize: 10.5,
                                                         ),
                                                       ),
                                                     ],
@@ -2848,7 +3422,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                             if (part.stage !=
                                                 WorkshopStage
                                                     .readyForDispatch) ...[
-                                              const SizedBox(width: 6),
+                                              const SizedBox(width: 5),
                                               InkWell(
                                                 onTap: () =>
                                                     _showStageCompletionModal(
@@ -2858,8 +3432,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                                 child: Container(
                                                   padding:
                                                       const EdgeInsets.symmetric(
-                                                        horizontal: 10,
-                                                        vertical: 5,
+                                                        horizontal: 8,
+                                                        vertical: 4,
                                                       ),
                                                   decoration: BoxDecoration(
                                                     color: AppColors.ink,
@@ -2879,15 +3453,61 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                                               .pureWhite,
                                                           fontWeight:
                                                               FontWeight.w800,
-                                                          fontSize: 11,
+                                                          fontSize: 10.5,
                                                         ),
                                                       ),
-                                                      SizedBox(width: 3),
+                                                      SizedBox(width: 2),
                                                       Icon(
                                                         Icons.arrow_forward,
                                                         color:
                                                             AppColors.pureWhite,
+                                                        size: 10,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ] else ...[
+                                              const SizedBox(width: 5),
+                                              InkWell(
+                                                onTap: () => _advanceLivePart(
+                                                  context,
+                                                  part,
+                                                ),
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.emerald,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
+                                                  ),
+                                                  child: const Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        Icons
+                                                            .check_circle_outline,
+                                                        color:
+                                                            AppColors.pureWhite,
                                                         size: 11,
+                                                      ),
+                                                      SizedBox(width: 3),
+                                                      Text(
+                                                        'Complete Stage',
+                                                        style: TextStyle(
+                                                          color: AppColors
+                                                              .pureWhite,
+                                                          fontWeight:
+                                                              FontWeight.w800,
+                                                          fontSize: 10.5,
+                                                        ),
                                                       ),
                                                     ],
                                                   ),
@@ -3075,24 +3695,66 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: CommonText.bodyMedium(
-                  part.name,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.ink,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CommonText.bodyMedium(
+                      part.name,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.ink,
+                    ),
+                    if (part.code.isNotEmpty &&
+                        part.code.toLowerCase() != part.name.toLowerCase()) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.paper,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: AppColors.outline),
+                            ),
+                            child: Text(
+                              'Design #${part.code}',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.muted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: stageColor.withValues(alpha: 0.1),
+                  color: part.isCompleted
+                      ? AppColors.emerald.withValues(alpha: 0.12)
+                      : stageColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-                  border: Border.all(color: stageColor.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: part.isCompleted
+                        ? AppColors.emerald.withValues(alpha: 0.4)
+                        : stageColor.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: CommonText.bodySmall(
-                  part.stage.label,
+                  part.isCompleted
+                      ? 'Completed'
+                      : ((part.stageName != null && part.stageName!.isNotEmpty)
+                          ? part.stageName!
+                          : part.stage.label),
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  color: stageColor,
+                  color: part.isCompleted ? AppColors.emeraldDark : stageColor,
                 ),
               ),
             ],
@@ -3187,45 +3849,88 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                       ],
                     ),
                   ),
-                  if (_allowStageChange) ...[
-                    const SizedBox(width: 8),
-                    InkWell(
-                      onTap: () => _unblockPart(context, part),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.emerald,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.play_arrow_rounded,
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => _unblockPart(context, part),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.emerald,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.play_arrow_rounded,
+                            color: AppColors.pureWhite,
+                            size: 12,
+                          ),
+                          SizedBox(width: 2),
+                          Text(
+                            'Resume',
+                            style: TextStyle(
                               color: AppColors.pureWhite,
-                              size: 12,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 10,
                             ),
-                            SizedBox(width: 2),
-                            Text(
-                              'Resume',
-                              style: TextStyle(
-                                color: AppColors.pureWhite,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
           ],
+          const SizedBox(height: 10),
+          Builder(
+            builder: (ctx) {
+              final stages =
+                  DemoStore.instance.stages.where((s) => s.isActive).toList()
+                    ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+              final firstStageName = stages.isNotEmpty
+                  ? stages.first.name
+                  : 'Stage 1';
+              final isUnassigned =
+                  !part.isCompleted &&
+                  (part.assignedEmployee == null ||
+                      part.assignedEmployee!.trim().isEmpty ||
+                      part.assignedEmployee!.toLowerCase() == 'unassigned' ||
+                      part.stage == WorkshopStage.inQueue);
+
+              if (isUnassigned) {
+                return SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.emeraldDark,
+                      foregroundColor: AppColors.pureWhite,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      elevation: 0,
+                    ),
+                    onPressed: () => _showAssignArtisanModal(context, part),
+                    icon: const Icon(Icons.person_add_alt_1, size: 16),
+                    label: Text(
+                      'Assign Artisan & Start $firstStageName',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return const SizedBox.shrink();
+            },
+          ),
         ],
       ),
     );
@@ -3240,9 +3945,11 @@ class JewelleryPart {
   final int passedPieces;
   final int defectivePieces;
   final WorkshopStage stage;
+  final String? stageName;
   final String? assignedEmployee;
   final String? blockerReason;
   final double? weight;
+  final bool isCompleted;
 
   JewelleryPart({
     required this.name,
@@ -3251,9 +3958,11 @@ class JewelleryPart {
     required this.passedPieces,
     this.defectivePieces = 0,
     required this.stage,
+    this.stageName,
     this.assignedEmployee,
     this.blockerReason,
     this.weight,
+    this.isCompleted = false,
   });
 
   JewelleryPart copyWith({
@@ -3263,10 +3972,12 @@ class JewelleryPart {
     int? passedPieces,
     int? defectivePieces,
     WorkshopStage? stage,
+    String? stageName,
     String? assignedEmployee,
     String? blockerReason,
     bool clearBlocker = false,
     double? weight,
+    bool? isCompleted,
   }) {
     return JewelleryPart(
       name: name ?? this.name,
@@ -3275,11 +3986,13 @@ class JewelleryPart {
       passedPieces: passedPieces ?? this.passedPieces,
       defectivePieces: defectivePieces ?? this.defectivePieces,
       stage: stage ?? this.stage,
+      stageName: stageName ?? this.stageName,
       assignedEmployee: assignedEmployee ?? this.assignedEmployee,
       blockerReason: clearBlocker
           ? null
           : (blockerReason ?? this.blockerReason),
       weight: weight ?? this.weight,
+      isCompleted: isCompleted ?? this.isCompleted,
     );
   }
 }

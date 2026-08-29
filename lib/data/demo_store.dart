@@ -475,7 +475,10 @@ class DemoStore extends ChangeNotifier {
       totalGrossGrams: double.parse(cartTotalGrossWeight.toStringAsFixed(2)),
       estimatedTotalAmount: cartTotalEstimatedPrice,
       status: OrderStatus.pending,
-      promiseDate: promiseDate,
+      promiseDate: ApiDomainMapper.formatDisplayDate(
+        promiseDate,
+        fallbackDate: DateTime.now(),
+      ),
       createdAt: DateTime.now(),
       itemsSummary: itemsDesc.isEmpty ? 'Custom jewellery lot' : itemsDesc,
     );
@@ -589,7 +592,10 @@ class DemoStore extends ChangeNotifier {
       totalGrossGrams: double.parse(totalWeight.toStringAsFixed(2)),
       estimatedTotalAmount: totalAmount,
       status: OrderStatus.pending,
-      promiseDate: dueDate,
+      promiseDate: ApiDomainMapper.formatDisplayDate(
+        dueDate,
+        fallbackDate: DateTime.now(),
+      ),
       createdAt: DateTime.now(),
       itemsSummary: summaryParts.isEmpty
           ? 'Wholesale order'
@@ -1193,10 +1199,20 @@ class DemoStore extends ChangeNotifier {
   }
 
   void setStages(List<ApiStage> stages) {
+    final seenIds = <String>{};
+    final seenNames = <String>{};
+    final uniqueStages = <ApiStage>[];
+    for (final s in stages) {
+      if (!s.isActive) continue;
+      final nameKey = s.name.trim().toLowerCase();
+      if (seenIds.add(s.id) && seenNames.add(nameKey)) {
+        uniqueStages.add(s);
+      }
+    }
+    uniqueStages.sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
     _stages
       ..clear()
-      ..addAll(stages.where((stage) => stage.isActive));
-    _stages.sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+      ..addAll(uniqueStages);
     notifyListeners();
   }
 

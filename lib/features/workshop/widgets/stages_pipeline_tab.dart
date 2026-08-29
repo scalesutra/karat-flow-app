@@ -28,10 +28,13 @@ class StagesPipelineTab extends StatelessWidget {
         }
 
         final allLots = store.lots;
-        final stageGroups = store.stages.map((apiStage) {
+        final seen = <WorkshopStage>{};
+        final stageGroups = <Map<String, dynamic>>[];
+        for (final apiStage in store.stages) {
           final st = _domainStage(apiStage);
+          if (!seen.add(st)) continue;
           final stageLots = allLots.where((l) => l.stage == st).toList();
-          return {
+          stageGroups.add({
             'stageEnum': st,
             'stageId': apiStage.id,
             'name': apiStage.name,
@@ -47,8 +50,8 @@ class StagesPipelineTab extends StatelessWidget {
               WorkshopStage.readyForDispatch => AppColors.emerald,
             },
             'lots': stageLots,
-          };
-        }).toList();
+          });
+        }
 
         return CommonRefreshIndicator(
       theme: IndicatorTheme.workshop,

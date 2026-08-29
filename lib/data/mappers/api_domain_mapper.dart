@@ -3,6 +3,58 @@ import '../models/api_models.dart';
 import '../../domain/models.dart';
 
 abstract final class ApiDomainMapper {
+  static String formatDisplayDate(String? raw, {DateTime? fallbackDate}) {
+    if (raw != null && raw.trim().isNotEmpty) {
+      final text = raw.trim();
+      // Handle compact YYYYMMDD e.g. 20260829
+      if (text.length == 8 && int.tryParse(text) != null) {
+        final year = text.substring(0, 4);
+        final month = text.substring(4, 6);
+        final day = text.substring(6, 8);
+        return '$day/$month/$year';
+      }
+      // Handle compact YYYYMMDD with suffix
+      if (text.length > 8 && int.tryParse(text.substring(0, 8)) != null) {
+        final year = text.substring(0, 4);
+        final month = text.substring(4, 6);
+        final day = text.substring(6, 8);
+        return '$day/$month/$year';
+      }
+      // Try DateTime.tryParse (handles ISO strings e.g. 2026-08-29 or 2026-08-29T12:00:00.000Z)
+      final parsed = DateTime.tryParse(text);
+      if (parsed != null) {
+        final day = parsed.day.toString().padLeft(2, '0');
+        final month = parsed.month.toString().padLeft(2, '0');
+        final year = parsed.year.toString();
+        return '$day/$month/$year';
+      }
+      if (text.contains('/') || text.contains('-')) {
+        return text;
+      }
+    }
+
+    if (fallbackDate != null && fallbackDate.year > 2000) {
+      final day = fallbackDate.day.toString().padLeft(2, '0');
+      final month = fallbackDate.month.toString().padLeft(2, '0');
+      final year = fallbackDate.year.toString();
+      return '$day/$month/$year';
+    }
+
+    return '';
+  }
+
+  static String formatOrderNumber(String rawId) {
+    if (rawId.isEmpty) return '';
+    final text = rawId.trim();
+    final regex = RegExp(r'^ORD.*?-(\d+)$', caseSensitive: false);
+    final match = regex.firstMatch(text);
+    if (match != null) {
+      final seq = match.group(1);
+      return 'ORD-$seq';
+    }
+    return text;
+  }
+
   static ClientInfo customer(ApiCustomer value) => ClientInfo(
     id: value.id,
     firmName: value.name,
@@ -19,9 +71,13 @@ abstract final class ApiDomainMapper {
     final blockedPart = value.parts.where((p) => p.isBlocked).firstOrNull;
     final isBlocked = blockedPart != null;
     final blockReason = blockedPart?.blockReason;
+    final rawOrderNum = value.orderNumber.isNotEmpty
+        ? value.orderNumber
+        : value.id;
+    final formattedOrderNum = formatOrderNumber(rawOrderNum);
 
     return CustomerOrder(
-      id: value.orderNumber.isNotEmpty ? value.orderNumber : value.id,
+      id: formattedOrderNum.isNotEmpty ? formattedOrderNum : rawOrderNum,
       apiId: value.id,
       clientFirmName: value.customerName.isNotEmpty
           ? value.customerName
@@ -42,7 +98,10 @@ abstract final class ApiDomainMapper {
         'CANCELLED' || 'CANCELED' => OrderStatus.cancelled,
         _ => OrderStatus.inWorkshop,
       },
-      promiseDate: value.dueDate,
+      promiseDate: formatDisplayDate(
+        value.dueDate,
+        fallbackDate: value.createdAt,
+      ),
       createdAt:
           value.createdAt ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
@@ -307,21 +366,33 @@ abstract final class ApiDomainMapper {
   }
 
   static TeamMember employee(ApiEmployee value) {
-    final readableRole = switch (value.role.toUpperCase()) {
-      'THREE_D_DESIGNER' => '3D CAD Modeler',
-      'RAW_SKETCHER' => '2D Raw Concept Sketcher',
-      'GOLDSMITH' => 'Goldsmith Artisan',
-      'PRODUCTION_MANAGER' => 'Production Manager',
-      'ADMIN' => 'System Administrator',
-      'FRONTIER' => 'Frontier Sales Manager',
-      _ => value.role.replaceAll('_', ' '),
-    };
+    final rawRole = value.role.toUpperCase();
+    final specialty = value.specialty.trim();
+    final readableRole = specialty.isNotEmpty
+        ? specialty
+        : switch (rawRole) {
+            'THREE_D_DESIGNER' => '3D CAD Modeler',
+            'RAW_SKETCHER' => '2D Raw Concept Sketcher',
+            'GOLDSMITH' => 'Goldsmith Artisan',
+            'WORKSHOP_ARTISAN' => 'Workshop Craftsman',
+            'ARTISAN' => 'Workshop Craftsman',
+            'WAXING' => 'Waxing Specialist',
+            'FILING' => 'Filing Artisan',
+            'CASTING' => 'Casting Specialist',
+            'SETTER' => 'Stone Setter',
+            'POLISHER' => 'Polishing Artisan',
+            'QUALITY_CHECK' => 'Quality Inspector',
+            'PRODUCTION_MANAGER' => 'Production Manager',
+            'ADMIN' => 'System Administrator',
+            'FRONTIER' => 'Frontier Sales Manager',
+            _ => value.role.replaceAll('_', ' '),
+          };
 
     return TeamMember(
       id: value.id,
       name: value.name,
       craft: readableRole,
-      shift: '',
+      shift: rawRole,
       activeLotsCount: value.workerAssignmentsCount,
       status: value.isActive
           ? EmployeeStatus.available
@@ -398,6 +469,18 @@ abstract final class ApiDomainMapper {
     final designNumber =
         part['designNumber'] as String? ??
         value['designNumber'] as String? ??
+        '';
+    final rawDesign =
+        part['design'] ?? value['design'] ?? part['sketch'] ?? value['sketch'];
+    final designMap = rawDesign is Map ? rawDesign : const <String, dynamic>{};
+    final designTitle =
+        designMap['title'] as String? ??
+        designMap['name'] as String? ??
+        part['title'] as String? ??
+        part['name'] as String? ??
+        part['productName'] as String? ??
+        value['title'] as String? ??
+        value['name'] as String? ??
         '';
     final grossWeight =
         (part['grossWeight'] as num?)?.toDouble() ??
@@ -561,7 +644,9 @@ abstract final class ApiDomainMapper {
       id: lotId,
       orderId: orderId,
       designCode: designNumber,
-      productTitle: designNumber.isNotEmpty ? designNumber : 'Order Part',
+      productTitle: designTitle.isNotEmpty
+          ? designTitle
+          : (designNumber.isNotEmpty ? designNumber : 'Order Part'),
       stage: stageName.isEmpty
           ? (stageId.isNotEmpty ? stage(stageId) : WorkshopStage.inQueue)
           : stage(stageName),
@@ -607,12 +692,11 @@ abstract final class ApiDomainMapper {
       return WorkshopStage.stoneSetting;
     }
     if (lookup.contains('polish')) return WorkshopStage.polishing;
-    if (lookup.contains('quality') ||
-        lookup.contains('qc') ||
-        lookup.contains('pack')) {
+    if (lookup.contains('quality') || lookup.contains('qc')) {
       return WorkshopStage.qualityCheck;
     }
-    if (lookup.contains('ready') ||
+    if (lookup.contains('pack') ||
+        lookup.contains('ready') ||
         lookup.contains('dispatch') ||
         lookup.contains('completed') ||
         lookup.contains('complete') ||

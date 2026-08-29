@@ -6,6 +6,7 @@ import 'package:jewellery_ops_mobile/core/widgets/common_empty_state.dart';
 import 'package:jewellery_ops_mobile/core/widgets/common_progress_indicator.dart';
 import 'package:jewellery_ops_mobile/core/widgets/common_snackbar.dart';
 import 'package:jewellery_ops_mobile/data/demo_store.dart';
+import 'package:jewellery_ops_mobile/data/mappers/api_domain_mapper.dart';
 import 'package:jewellery_ops_mobile/domain/models.dart';
 import 'package:jewellery_ops_mobile/routes/app_routes.dart';
 import '../../front_office/bloc/orders_bloc.dart';
@@ -67,15 +68,6 @@ class LiveOrdersTab extends StatelessWidget {
               final blockedReason =
                   o.blockedReason ?? blockedLot?.blockerReason;
 
-              final isComplete =
-                  o.status == OrderStatus.ready ||
-                  o.status == OrderStatus.dispatched ||
-                  o.status == OrderStatus.delivered ||
-                  o.currentWorkshopStage.toLowerCase().contains('complete') ||
-                  o.currentWorkshopStage.toLowerCase().contains('dispatch');
-              final isInProgress =
-                  !isComplete && o.status == OrderStatus.inWorkshop;
-
               final designRows = o.designs
                   .map((design) {
                     final matchedLot =
@@ -111,6 +103,42 @@ class LiveOrdersTab extends StatelessWidget {
                     };
                   })
                   .toList(growable: false);
+
+              final allDesignsFinished = designRows.isNotEmpty &&
+                  designRows.every((r) {
+                    final stg = (r['stage'] as String).toLowerCase();
+                    return stg.contains('pack') ||
+                        stg.contains('dispatch') ||
+                        stg.contains('ready') ||
+                        stg.contains('complete');
+                  });
+
+              final hasUnfinishedDesigns = designRows.isNotEmpty &&
+                  designRows.any((r) {
+                    final stg = (r['stage'] as String).toLowerCase();
+                    return !stg.contains('pack') &&
+                        !stg.contains('dispatch') &&
+                        !stg.contains('ready') &&
+                        !stg.contains('complete');
+                  });
+
+              final isComplete = !hasUnfinishedDesigns &&
+                  (o.status == OrderStatus.ready ||
+                      o.status == OrderStatus.dispatched ||
+                      o.status == OrderStatus.delivered ||
+                      allDesignsFinished ||
+                      (designRows.isEmpty &&
+                          (o.currentWorkshopStage
+                                  .toLowerCase()
+                                  .contains('complete') ||
+                              o.currentWorkshopStage
+                                  .toLowerCase()
+                                  .contains('dispatch') ||
+                              o.currentWorkshopStage
+                                  .toLowerCase()
+                                  .contains('pack'))));
+              final isInProgress =
+                  !isComplete && o.status == OrderStatus.inWorkshop;
               final activeStages = designRows
                   .map((row) => row['stage'] as String)
                   .where((stage) => stage.isNotEmpty)
@@ -261,7 +289,7 @@ class LiveOrdersTab extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  '${order['id']} - ${order['title']}',
+                                  '${ApiDomainMapper.formatOrderNumber(order['id'] as String? ?? '')} - ${order['title']}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(

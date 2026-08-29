@@ -85,25 +85,18 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
           if (lot.id.isNotEmpty) lotMap[lot.id] = lot;
         }
 
-        // Merge in assigned lots from orders (parts with assignments).
+        // Merge in all order parts (both unassigned in queue and assigned to artisans)
         for (final partMap in allOrderParts) {
           final partId = partMap['id'] as String? ?? '';
           if (partId.isEmpty) continue;
-          final assignments =
-              partMap['assignments'] as List? ??
-              partMap['workerAssignments'] as List? ??
-              [];
-          if (assignments.isEmpty && !isFrontier) continue;
           final mappedLot = ApiDomainMapper.pendingPart(partMap);
-          final employeeName = mappedLot.assignedEmployee;
-          if (!isFrontier &&
-              (employeeName.isEmpty || employeeName == 'Unassigned')) {
-            continue;
-          }
           if (lotMap.containsKey(partId)) {
-            lotMap[partId] = mappedLot;
+            final existing = lotMap[partId]!;
+            if (existing.assignedEmployee == 'Unassigned' &&
+                mappedLot.assignedEmployee != 'Unassigned') {
+              lotMap[partId] = mappedLot;
+            }
           } else {
-            // Assigned part not in pending — add it from order data
             lotMap[partId] = mappedLot;
           }
         }

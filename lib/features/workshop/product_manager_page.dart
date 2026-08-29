@@ -37,17 +37,70 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
         final pendingCount = widget.store.orders
             .where((o) => o.status == OrderStatus.pending)
             .length;
-        final inProgressCount = widget.store.orders
-            .where((o) => o.status == OrderStatus.inWorkshop)
-            .length;
-        final completeCount = widget.store.orders
-            .where(
-              (o) =>
-                  o.status == OrderStatus.ready ||
-                  o.status == OrderStatus.dispatched ||
-                  o.status == OrderStatus.delivered,
-            )
-            .length;
+        final completeCount = widget.store.orders.where((o) {
+          final hasUnfinished = o.designs.isNotEmpty &&
+              o.designs.any((d) {
+                final stg = d.currentStage.toLowerCase();
+                return !stg.contains('pack') &&
+                    !stg.contains('dispatch') &&
+                    !stg.contains('ready') &&
+                    !stg.contains('complete');
+              });
+          if (hasUnfinished) return false;
+
+          final allFinished = o.designs.isNotEmpty &&
+              o.designs.every((d) {
+                final stg = d.currentStage.toLowerCase();
+                return stg.contains('pack') ||
+                    stg.contains('dispatch') ||
+                    stg.contains('ready') ||
+                    stg.contains('complete');
+              });
+
+          return o.status == OrderStatus.ready ||
+              o.status == OrderStatus.dispatched ||
+              o.status == OrderStatus.delivered ||
+              allFinished ||
+              (o.designs.isEmpty &&
+                  (o.currentWorkshopStage.toLowerCase().contains('complete') ||
+                      o.currentWorkshopStage
+                          .toLowerCase()
+                          .contains('dispatch') ||
+                      o.currentWorkshopStage.toLowerCase().contains('pack')));
+        }).length;
+
+        final inProgressCount = widget.store.orders.where((o) {
+          final hasUnfinished = o.designs.isNotEmpty &&
+              o.designs.any((d) {
+                final stg = d.currentStage.toLowerCase();
+                return !stg.contains('pack') &&
+                    !stg.contains('dispatch') &&
+                    !stg.contains('ready') &&
+                    !stg.contains('complete');
+              });
+          if (hasUnfinished) return true;
+
+          final allFinished = o.designs.isNotEmpty &&
+              o.designs.every((d) {
+                final stg = d.currentStage.toLowerCase();
+                return stg.contains('pack') ||
+                    stg.contains('dispatch') ||
+                    stg.contains('ready') ||
+                    stg.contains('complete');
+              });
+
+          final isFinished = o.status == OrderStatus.ready ||
+              o.status == OrderStatus.dispatched ||
+              o.status == OrderStatus.delivered ||
+              allFinished ||
+              (o.designs.isEmpty &&
+                  (o.currentWorkshopStage.toLowerCase().contains('complete') ||
+                      o.currentWorkshopStage
+                          .toLowerCase()
+                          .contains('dispatch') ||
+                      o.currentWorkshopStage.toLowerCase().contains('pack')));
+          return !isFinished && o.status == OrderStatus.inWorkshop;
+        }).length;
 
         return SafeArea(
           top: false,
