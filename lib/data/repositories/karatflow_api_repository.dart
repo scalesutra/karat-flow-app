@@ -346,7 +346,8 @@ class KaratFlowApiRepository {
     required int gemQuantity,
     required double goldQuantity,
     required double totalWeight,
-    required double volumeMm3,
+    double otherMetalsQuantity = 0.0,
+    double volumeMm3 = 0.0,
     required String sizeDimensions,
   }) async {
     final response = await _api.post(
@@ -358,7 +359,8 @@ class KaratFlowApiRepository {
         'gemQuantity': gemQuantity,
         'goldQuantity': goldQuantity,
         'totalWeight': totalWeight,
-        'volumeMm3': volumeMm3,
+        'otherMetalsQuantity': otherMetalsQuantity,
+        if (volumeMm3 > 0) 'volumeMm3': volumeMm3,
         'sizeDimensions': sizeDimensions,
       },
     );
@@ -637,8 +639,8 @@ class KaratFlowApiRepository {
     required String category,
   }) async {
     final response = await _api.post(
-      ApiEndpoints.storageUploadUrl,
-      data: {'fileName': fileName, 'fileType': fileType, 'category': category},
+      ApiEndpoints.storagePresignedUrl,
+      data: {'filename': fileName, 'fileType': fileType, 'folder': category},
     );
     final data = response.data['data'] as Map<String, dynamic>;
     return ApiPresignedUrl.fromJson(data);
@@ -655,7 +657,7 @@ class KaratFlowApiRepository {
       fileType: fileType,
       category: category,
     );
-    if (signedUrl.uploadUrl.isEmpty || signedUrl.fileKey.isEmpty) {
+    if (signedUrl.uploadUrl.isEmpty) {
       throw const FormatException(
         'Storage API returned an invalid upload URL.',
       );
@@ -666,6 +668,21 @@ class KaratFlowApiRepository {
       contentType: fileType,
     );
     return signedUrl;
+  }
+
+  // ── SECTION 10B: PaddleOCR Spec Extraction (/ocr) ───────────────
+  Future<CadOcrExtractedData> extractCadOcr({
+    required String imageUrl,
+    bool asyncMode = false,
+  }) async {
+    final response = await _api.post(
+      ApiEndpoints.ocrExtractCad,
+      data: {'imageUrl': imageUrl, 'asyncMode': asyncMode},
+    );
+    final dataMap = _dataMap(response.data);
+    final extractedMap =
+        dataMap['extractedData'] as Map<String, dynamic>? ?? dataMap;
+    return CadOcrExtractedData.fromJson(extractedMap);
   }
 
   Future<ApiPresignedDownloadUrl> getPresignedDownloadUrl(

@@ -66,3 +66,40 @@ final class FilterCadTasksEvent extends CadEvent {
 
   final CadTaskStatus? status;
 }
+
+/// Step 2: Extract technical specs via PaddleOCR
+final class ExtractCadOcrEvent extends CadEvent {
+  const ExtractCadOcrEvent({
+    required this.imageUrl,
+    this.asyncMode = false,
+  });
+
+  final String imageUrl;
+  final bool asyncMode;
+}
+
+/// Step 3: Final 3D Design Submission
+final class Submit3DDesignEvent extends CadEvent {
+  const Submit3DDesignEvent({
+    required this.sketchId,
+    required this.xtlFileUrl,
+    required this.bomFileUrl,
+    required this.goldQuantity,
+    required this.gemQuantity,
+    required this.totalWeight,
+    this.otherMetalsQuantity = 0.0,
+    required this.sizeDimensions,
+    this.isRevision = false,
+  });
+
+  final String sketchId;
+  final String xtlFileUrl;
+  final String bomFileUrl;
+  final double goldQuantity;
+  final int gemQuantity;
+  final double totalWeight;
+  final double otherMetalsQuantity;
+  final String sizeDimensions;
+  final bool isRevision;
+}
+

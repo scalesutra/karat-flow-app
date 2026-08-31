@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as dev;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'api_endpoints.dart';
@@ -35,6 +36,22 @@ class ApiClient {
   final List<Completer<String?>> _refreshQueue = [];
 
   Dio get rawDio => _dio;
+
+  void _logLongString(String label, String message) {
+    dev.log('$label $message', name: 'API_CLIENT');
+    const int chunkSize = 800;
+    if (message.length <= chunkSize) {
+      debugPrint('$label $message');
+    } else {
+      debugPrint('$label (Length: ${message.length} chars):');
+      for (int i = 0; i < message.length; i += chunkSize) {
+        final end = (i + chunkSize < message.length)
+            ? i + chunkSize
+            : message.length;
+        debugPrint(message.substring(i, end));
+      }
+    }
+  }
 
   Future<String?> _performSilentTokenRefresh() async {
     if (_isRefreshing) {
@@ -121,7 +138,7 @@ class ApiClient {
               final bodyStr = options.data is Map || options.data is List
                   ? jsonEncode(options.data)
                   : options.data.toString();
-              debugPrint('📦 [API REQ BODY] $bodyStr');
+              _logLongString('📦 [API REQ BODY]', bodyStr);
             } catch (_) {
               debugPrint('📦 [API REQ BODY] ${options.data}');
             }
@@ -137,11 +154,7 @@ class ApiClient {
               final resStr = response.data is Map || response.data is List
                   ? jsonEncode(response.data)
                   : response.data.toString();
-              // Print up to 1000 chars to avoid console truncation
-              final preview = resStr.length > 1000
-                  ? '${resStr.substring(0, 1000)}... (truncated)'
-                  : resStr;
-              debugPrint('📄 [API RES DATA] $preview');
+              _logLongString('📄 [API RES DATA]', resStr);
             } catch (_) {
               debugPrint('📄 [API RES DATA] ${response.data}');
             }

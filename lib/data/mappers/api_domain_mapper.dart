@@ -285,13 +285,16 @@ abstract final class ApiDomainMapper {
         ? value.sketch!.designNumber
         : 'CAD-${value.id.substring(0, value.id.length > 6 ? 6 : value.id.length)}';
 
+    final specsStr =
+        'Gold: ${value.goldQuantity}g · Gems: ${value.gemQuantity} Pcs (${value.gemWeightTw} Tw) · Total: ${value.totalWeight}g';
+
     return CadDesignTask(
       id: value.id,
       orderId: code,
       designCode: code,
       productTitle: sketchTitle,
-      clientName: value.sketch?.designer?.name ?? 'Client Design',
-      specs: 'Weight: ${value.totalWeight}g · Volume: ${value.volumeMm3}mm³',
+      clientName: value.designer?.name ?? value.sketch?.designer?.name ?? 'Client Design',
+      specs: specsStr,
       notes: '3D Wax STL Modeling Completed',
       estimatedWeightGrams: value.totalWeight,
       status: switch (value.status.toUpperCase()) {
@@ -311,11 +314,20 @@ abstract final class ApiDomainMapper {
       hasSketchImage: value.sketch?.sketchUrl.isNotEmpty ?? true,
       hasStlFile: value.xtlFileUrl?.isNotEmpty ?? false,
       modelFileUrl: value.xtlFileUrl ?? value.sketch?.sketchUrl,
-      assignedTo: 'CAD Designer',
+      bomFileUrl: value.bomFileUrl,
+      assignedTo: value.designer?.name ?? 'CAD Designer',
       receivedAt:
           DateTime.tryParse(value.sketch?.createdAt ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       volumeCubicMm: value.volumeMm3,
+      goldQuantity: value.goldQuantity,
+      gemQuantity: value.gemQuantity,
+      gemWeightTw: value.gemWeightTw,
+      makingCode: value.makingCode,
+      sizeDimensions: value.sizeDimensions,
+      gemBreakdown: value.gemBreakdown,
+      calculatedPrice: value.calculatedPrice ?? value.price,
+      priceBreakdown: value.priceBreakdown,
     );
   }
 

@@ -20,6 +20,8 @@ class CadBloc extends Bloc<CadEvent, CadState> {
       super(const CadInitial()) {
     on<FetchCadTasksEvent>(_onFetchTasks);
     on<UploadCadFilesEvent>(_onUploadFiles);
+    on<ExtractCadOcrEvent>(_onExtractCadOcr);
+    on<Submit3DDesignEvent>(_onSubmit3DDesign);
     on<ApproveCadTaskEvent>(_onApproveTask);
     on<DownloadCadFileEvent>(_onDownloadFile);
     on<FilterCadTasksEvent>(_onFilterTasks);
@@ -220,6 +222,76 @@ class CadBloc extends Bloc<CadEvent, CadState> {
     } catch (error) {
       debugPrint('🚨 [CAD BLoC] Upload process error: $error');
       emit(CadError('Failed to upload CAD files: $error'));
+    }
+  }
+
+  Future<void> _onExtractCadOcr(
+    ExtractCadOcrEvent event,
+    Emitter<CadState> emit,
+  ) async {
+    emit(const CadOcrExtracting());
+    try {
+      debugPrint(
+        '🔍 [CAD BLoC] Running PaddleOCR on screenshot URL: ${event.imageUrl}...',
+      );
+      final extractedData = await _api.extractCadOcr(
+        imageUrl: event.imageUrl,
+        asyncMode: event.asyncMode,
+      );
+      debugPrint(
+        '✅ [CAD BLoC] PaddleOCR completed: design=${extractedData.designNumber}, weight=${extractedData.metalWeightGrams}g, gems=${extractedData.gemSummary.totalCount}',
+      );
+      emit(
+        CadOcrExtracted(
+          extractedData: extractedData,
+          screenshotUrl: event.imageUrl,
+        ),
+      );
+    } catch (error) {
+      debugPrint('🚨 [CAD BLoC] PaddleOCR extraction error: $error');
+      emit(CadError('Failed to extract CAD specs via PaddleOCR: $error'));
+    }
+  }
+
+  Future<void> _onSubmit3DDesign(
+    Submit3DDesignEvent event,
+    Emitter<CadState> emit,
+  ) async {
+    emit(const CadLoading());
+    try {
+      debugPrint(
+        '🌐 [CAD BLoC] Submitting 3D design to POST /three-d-designs/upload...',
+      );
+      if (event.isRevision) {
+        await _api.reuploadThreeDDesign(
+          id: event.sketchId,
+          xtlFileUrl: event.xtlFileUrl,
+          bomFileUrl: event.bomFileUrl,
+          totalWeight: event.totalWeight,
+        );
+      } else {
+        await _api.uploadThreeDDesign(
+          sketchId: event.sketchId,
+          xtlFileUrl: event.xtlFileUrl,
+          bomFileUrl: event.bomFileUrl,
+          goldQuantity: event.goldQuantity,
+          gemQuantity: event.gemQuantity,
+          totalWeight: event.totalWeight,
+          otherMetalsQuantity: event.otherMetalsQuantity,
+          sizeDimensions: event.sizeDimensions,
+        );
+      }
+      debugPrint('🎉 [CAD BLoC] 3D CAD design submitted successfully!');
+      _store.uploadStlFile(
+        event.sketchId,
+        1200.0,
+        '3D Design Finalized · ${event.sizeDimensions} (${event.totalWeight}g)',
+      );
+      emit(const CadOperationSuccess('3D CAD design submitted successfully!'));
+      add(const FetchCadTasksEvent());
+    } catch (error) {
+      debugPrint('🚨 [CAD BLoC] Submission error: $error');
+      emit(CadError('Failed to submit 3D design: $error'));
     }
   }
 

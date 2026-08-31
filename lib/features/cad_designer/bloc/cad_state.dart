@@ -50,3 +50,20 @@ final class CadError extends CadState {
 
   final String message;
 }
+
+/// PaddleOCR Spec extraction in progress
+final class CadOcrExtracting extends CadState {
+  const CadOcrExtracting();
+}
+
+/// PaddleOCR Spec extraction completed
+final class CadOcrExtracted extends CadState {
+  const CadOcrExtracted({
+    required this.extractedData,
+    required this.screenshotUrl,
+  });
+
+  final CadOcrExtractedData extractedData;
+  final String screenshotUrl;
+}
+

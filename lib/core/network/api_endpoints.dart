@@ -69,7 +69,11 @@ abstract final class ApiEndpoints {
 
   // ── SECTION 10: AWS S3 Cloud Storage (/storage) ──────────────────
   static const String storageUploadUrl = '/storage/upload-url';
+  static const String storagePresignedUrl = '/storage/presigned-url';
   static const String storageDownloadUrl = '/storage/download-url';
+
+  // ── SECTION 10B: PaddleOCR Spec Extraction (/ocr) ───────────────
+  static const String ocrExtractCad = '/ocr/extract-cad';
 
   // ── SECTION 11: Master Raw Materials & Pricing (/materials) ─────
   static const String materials = '/materials';

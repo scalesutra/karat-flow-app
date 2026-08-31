@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/models/api_models.dart';
 
 enum HealthTone { healthy, warning, critical }
 
@@ -724,6 +725,15 @@ class CadDesignTask {
     this.hasRevisionVoice = false,
     this.volumeCubicMm,
     this.modelFileUrl,
+    this.bomFileUrl,
+    this.goldQuantity = 0.0,
+    this.gemQuantity = 0,
+    this.gemWeightTw = 0.0,
+    this.makingCode = '',
+    this.sizeDimensions = '',
+    this.gemBreakdown = const [],
+    this.calculatedPrice,
+    this.priceBreakdown,
   });
 
   final String id;
@@ -745,6 +755,15 @@ class CadDesignTask {
   bool hasRevisionVoice;
   double? volumeCubicMm;
   final String? modelFileUrl;
+  final String? bomFileUrl;
+  final double goldQuantity;
+  final int gemQuantity;
+  final double gemWeightTw;
+  final String makingCode;
+  final String sizeDimensions;
+  final List<GemBreakdownItem> gemBreakdown;
+  final double? calculatedPrice;
+  final ApiPriceBreakdown? priceBreakdown;
 
   CadDesignTask copyWith({
     CadTaskStatus? status,
@@ -757,6 +776,15 @@ class CadDesignTask {
     double? volumeCubicMm,
     String? specs,
     String? modelFileUrl,
+    String? bomFileUrl,
+    double? goldQuantity,
+    int? gemQuantity,
+    double? gemWeightTw,
+    String? makingCode,
+    String? sizeDimensions,
+    List<GemBreakdownItem>? gemBreakdown,
+    double? calculatedPrice,
+    ApiPriceBreakdown? priceBreakdown,
   }) {
     return CadDesignTask(
       id: id,
@@ -778,6 +806,15 @@ class CadDesignTask {
       hasRevisionVoice: hasRevisionVoice ?? this.hasRevisionVoice,
       volumeCubicMm: volumeCubicMm ?? this.volumeCubicMm,
       modelFileUrl: modelFileUrl ?? this.modelFileUrl,
+      bomFileUrl: bomFileUrl ?? this.bomFileUrl,
+      goldQuantity: goldQuantity ?? this.goldQuantity,
+      gemQuantity: gemQuantity ?? this.gemQuantity,
+      gemWeightTw: gemWeightTw ?? this.gemWeightTw,
+      makingCode: makingCode ?? this.makingCode,
+      sizeDimensions: sizeDimensions ?? this.sizeDimensions,
+      gemBreakdown: gemBreakdown ?? this.gemBreakdown,
+      calculatedPrice: calculatedPrice ?? this.calculatedPrice,
+      priceBreakdown: priceBreakdown ?? this.priceBreakdown,
     );
   }
 }

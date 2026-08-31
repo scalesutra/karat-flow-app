@@ -227,6 +227,54 @@ class ApiSketch {
 }
 
 // ── 6. 3D CAD Models ────────────────────────────────────────────────
+class ApiPriceBreakdown {
+  const ApiPriceBreakdown({
+    this.purity = '',
+    this.goldRatePerGram = 0.0,
+    this.netGoldWeight = 0.0,
+    this.grossWeight = 0.0,
+    this.totalGoldCost = 0.0,
+    this.gemQuantity = 0,
+    this.gemRate = 0.0,
+    this.totalGemCost = 0.0,
+    this.subtotal = 0.0,
+    this.gstPercent = 0.0,
+    this.gstAmount = 0.0,
+    this.finalPrice = 0.0,
+  });
+
+  factory ApiPriceBreakdown.fromJson(Map<String, dynamic> json) {
+    return ApiPriceBreakdown(
+      purity: json['purity'] as String? ?? '',
+      goldRatePerGram: (json['goldRatePerGram'] as num?)?.toDouble() ?? 0.0,
+      netGoldWeight: (json['netGoldWeight'] as num?)?.toDouble() ?? 0.0,
+      grossWeight: (json['grossWeight'] as num?)?.toDouble() ?? 0.0,
+      totalGoldCost: (json['totalGoldCost'] as num?)?.toDouble() ?? 0.0,
+      gemQuantity: (json['gemQuantity'] as num?)?.toInt() ?? 0,
+      gemRate: (json['gemRate'] as num?)?.toDouble() ?? 0.0,
+      totalGemCost: (json['totalGemCost'] as num?)?.toDouble() ?? 0.0,
+      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
+      gstPercent: (json['gstPercent'] as num?)?.toDouble() ?? 0.0,
+      gstAmount: (json['gstAmount'] as num?)?.toDouble() ?? 0.0,
+      finalPrice: (json['finalPrice'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  final String purity;
+  final double goldRatePerGram;
+  final double netGoldWeight;
+  final double grossWeight;
+  final double totalGoldCost;
+  final int gemQuantity;
+  final double gemRate;
+  final double totalGemCost;
+  final double subtotal;
+  final double gstPercent;
+  final double gstAmount;
+  final double finalPrice;
+}
+
+// ── 6. 3D CAD Models ────────────────────────────────────────────────
 class ApiThreeDDesign {
   const ApiThreeDDesign({
     required this.id,
@@ -238,20 +286,29 @@ class ApiThreeDDesign {
     this.bomFileUrl,
     this.gemQuantity = 0,
     this.goldQuantity = 0.0,
+    this.otherMetalsQuantity = 0.0,
     this.volumeMm3 = 0.0,
     this.sizeDimensions = '',
+    this.makingCode = '',
+    this.gemWeightTw = 0.0,
+    this.gemBreakdown = const [],
     this.adminInstructions,
     this.feedbackAudioUrl,
     this.feedbackImageUrl,
     this.sketch,
+    this.designer,
     this.category,
     this.stock,
     this.stockStatus,
     this.price,
+    this.calculatedPrice,
+    this.priceBreakdown,
     this.description,
   });
 
   factory ApiThreeDDesign.fromJson(Map<String, dynamic> json) {
+    final gemBreakdownList = json['gemBreakdown'] as List? ?? const [];
+
     return ApiThreeDDesign(
       id: json['id'] as String? ?? '',
       sketchId: json['sketchId'] as String? ?? '',
@@ -262,18 +319,36 @@ class ApiThreeDDesign {
       bomFileUrl: json['bomFileUrl'] as String?,
       gemQuantity: json['gemQuantity'] as int? ?? 0,
       goldQuantity: (json['goldQuantity'] as num?)?.toDouble() ?? 0.0,
+      otherMetalsQuantity:
+          (json['otherMetalsQuantity'] as num?)?.toDouble() ?? 0.0,
       volumeMm3: (json['volumeMm3'] as num?)?.toDouble() ?? 0.0,
       sizeDimensions: json['sizeDimensions'] as String? ?? '',
+      makingCode: json['makingCode'] as String? ?? '',
+      gemWeightTw: (json['gemWeightTw'] as num?)?.toDouble() ?? 0.0,
+      gemBreakdown: gemBreakdownList
+          .map((e) => GemBreakdownItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
       adminInstructions: json['adminInstructions'] as String?,
       feedbackAudioUrl: json['feedbackAudioUrl'] as String?,
       feedbackImageUrl: json['feedbackImageUrl'] as String?,
       sketch: json['sketch'] != null
           ? ApiSketch.fromJson(json['sketch'] as Map<String, dynamic>)
           : null,
+      designer: json['designer'] is Map
+          ? ApiUser.fromJson(json['designer'] as Map<String, dynamic>)
+          : null,
       category: json['category'] as String?,
       stock: json['stock'] as int?,
       stockStatus: json['stockStatus'] as String?,
       price: (json['price'] as num?)?.toDouble(),
+      calculatedPrice:
+          (json['calculatedPrice'] as num?)?.toDouble() ??
+          (json['price'] as num?)?.toDouble(),
+      priceBreakdown: json['priceBreakdown'] is Map
+          ? ApiPriceBreakdown.fromJson(
+              json['priceBreakdown'] as Map<String, dynamic>,
+            )
+          : null,
       description: json['description'] as String?,
     );
   }
@@ -287,16 +362,23 @@ class ApiThreeDDesign {
   final String? bomFileUrl;
   final int gemQuantity;
   final double goldQuantity;
+  final double otherMetalsQuantity;
   final double volumeMm3;
   final String sizeDimensions;
+  final String makingCode;
+  final double gemWeightTw;
+  final List<GemBreakdownItem> gemBreakdown;
   final String? adminInstructions;
   final String? feedbackAudioUrl;
   final String? feedbackImageUrl;
   final ApiSketch? sketch;
+  final ApiUser? designer;
   final String? category;
   final int? stock;
   final String? stockStatus;
   final double? price;
+  final double? calculatedPrice;
+  final ApiPriceBreakdown? priceBreakdown;
   final String? description;
 }
 
@@ -495,14 +577,16 @@ class ApiPresignedUrl {
   });
 
   factory ApiPresignedUrl.fromJson(Map<String, dynamic> json) {
+    final pUrl =
+        json['publicUrl'] as String? ??
+        json['viewUrl'] as String? ??
+        json['fileUrl'] as String? ??
+        json['fileKey'] as String? ??
+        '';
     return ApiPresignedUrl(
       uploadUrl: json['uploadUrl'] as String? ?? '',
-      fileKey: json['fileKey'] as String? ?? '',
-      fileUrl:
-          json['viewUrl'] as String? ??
-          json['fileUrl'] as String? ??
-          json['fileKey'] as String? ??
-          '',
+      fileKey: json['fileKey'] as String? ?? pUrl,
+      fileUrl: pUrl,
       expiresInSeconds: json['expiresInSeconds'] as int? ?? 3600,
     );
   }
@@ -808,3 +892,92 @@ class ApiDirective {
   final String status; // ACTIVE | ACKNOWLEDGED
   final String? createdAt;
 }
+
+// ── 15. CAD PaddleOCR Spec Extraction Models ─────────────────────────
+class GemSummaryData {
+  const GemSummaryData({
+    required this.totalCount,
+    required this.totalWeightTw,
+    required this.densitySpg,
+    required this.materialType,
+  });
+
+  factory GemSummaryData.fromJson(Map<String, dynamic> json) {
+    return GemSummaryData(
+      totalCount: (json['totalCount'] as num?)?.toInt() ?? 0,
+      totalWeightTw: (json['totalWeightTw'] as num?)?.toDouble() ?? 0.0,
+      densitySpg: (json['densitySpg'] as num?)?.toDouble() ?? 0.0,
+      materialType: json['materialType'] as String? ?? '',
+    );
+  }
+
+  final int totalCount;
+  final double totalWeightTw;
+  final double densitySpg;
+  final String materialType;
+}
+
+class GemBreakdownItem {
+  const GemBreakdownItem({
+    required this.shape,
+    required this.dimensions,
+    required this.count,
+    required this.weightTw,
+  });
+
+  factory GemBreakdownItem.fromJson(Map<String, dynamic> json) {
+    return GemBreakdownItem(
+      shape: json['shape'] as String? ?? '',
+      dimensions: json['dimensions'] as String? ?? '',
+      count: (json['count'] as num?)?.toInt() ?? 0,
+      weightTw: (json['weightTw'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  final String shape;
+  final String dimensions;
+  final int count;
+  final double weightTw;
+}
+
+class CadOcrExtractedData {
+  const CadOcrExtractedData({
+    required this.designNumber,
+    required this.metalWeightGrams,
+    required this.makingCode,
+    required this.gemSummary,
+    required this.gemBreakdown,
+    required this.confidenceScore,
+  });
+
+  factory CadOcrExtractedData.fromJson(Map<String, dynamic> json) {
+    final gemSummaryMap = json['gemSummary'] as Map<String, dynamic>?;
+    final gemBreakdownList = json['gemBreakdown'] as List? ?? const [];
+
+    return CadOcrExtractedData(
+      designNumber: json['designNumber'] as String? ?? '',
+      metalWeightGrams: (json['metalWeightGrams'] as num?)?.toDouble() ?? 0.0,
+      makingCode: json['makingCode'] as String? ?? '',
+      gemSummary: gemSummaryMap != null
+          ? GemSummaryData.fromJson(gemSummaryMap)
+          : const GemSummaryData(
+              totalCount: 0,
+              totalWeightTw: 0.0,
+              densitySpg: 0.0,
+              materialType: '',
+            ),
+      gemBreakdown: gemBreakdownList
+          .map((e) => GemBreakdownItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      confidenceScore: (json['confidenceScore'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  final String designNumber;
+  final double metalWeightGrams;
+  final String makingCode;
+  final GemSummaryData gemSummary;
+  final List<GemBreakdownItem> gemBreakdown;
+  final double confidenceScore;
+}
+

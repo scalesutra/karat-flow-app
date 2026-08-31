@@ -246,7 +246,7 @@ class _AdminStockPageState extends State<AdminStockPage> {
                       child: CommonTextField(
                         controller: stockController,
                         label: 'Stock Quantity',
-                        hintText: 'e.g. 5',
+                        hintText: 'Enter quantity',
                         keyboardType: TextInputType.number,
                       ),
                     ),
@@ -255,7 +255,7 @@ class _AdminStockPageState extends State<AdminStockPage> {
                       child: CommonTextField(
                         controller: priceController,
                         label: 'Price (₹)',
-                        hintText: 'e.g. 52000',
+                        hintText: 'Enter price in ₹',
                         keyboardType: TextInputType.number,
                       ),
                     ),

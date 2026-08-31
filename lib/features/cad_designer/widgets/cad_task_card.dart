@@ -193,7 +193,7 @@ class CadTaskCard extends StatelessWidget {
 
               const SizedBox(height: 10),
 
-              // 2. Block Material (.3dm) File Picker Card
+              // 2. CAD Render / Gem Reporter Screenshot (bomFileUrl for PaddleOCR)
               CommonCard(
                 padding: const EdgeInsets.all(14),
                 child: Row(
@@ -207,7 +207,7 @@ class CadTaskCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
-                        Icons.folder_zip_outlined,
+                        Icons.image_outlined,
                         color: blockFileName != null
                             ? AppColors.emerald
                             : AppColors.muted,
@@ -220,7 +220,7 @@ class CadTaskCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            '2. Matrix3D Block Material (.3DM)',
+                            '2. CAD Render & Gem Reporter Image',
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 13,
@@ -229,7 +229,7 @@ class CadTaskCard extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             blockFileName ??
-                                'Required for wax block milling machine',
+                                'MatrixGold Gem Reporter screenshot (.png/.jpg) for PaddleOCR',
                             style: TextStyle(
                               color: blockFileName != null
                                   ? AppColors.emeraldDark
@@ -246,11 +246,10 @@ class CadTaskCard extends StatelessWidget {
                     CommonButton.outlined(
                       isFullWidth: false,
                       height: 32,
-                      label: blockFileName != null ? 'Change' : 'Pick 3DM',
+                      label: blockFileName != null ? 'Change' : 'Pick Image',
                       onPressed: () async {
                         try {
                           final result = await FilePicker.platform.pickFiles(
-                            // .3dm has no reliable Android MIME mapping.
                             type: FileType.any,
                             withData: true,
                           );
@@ -265,7 +264,7 @@ class CadTaskCard extends StatelessWidget {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Could not select 3DM: $error'),
+                                content: Text('Could not select Image: $error'),
                               ),
                             );
                           }
