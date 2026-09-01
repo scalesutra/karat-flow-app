@@ -577,14 +577,12 @@ class _AdminStockPageState extends State<AdminStockPage>
 
   void _openAddInventorySheet(BuildContext context) {
     final nameCtrl = TextEditingController();
-    final purityCtrl = TextEditingController(text: '999.9');
-    final totalStockCtrl = TextEditingController(text: '100');
-    final reservedCtrl = TextEditingController(text: '0');
-    final freeBalanceCtrl = TextEditingController(text: '100');
+    final purityCtrl = TextEditingController();
+    final totalStockCtrl = TextEditingController();
+    final reservedCtrl = TextEditingController();
+    final freeBalanceCtrl = TextEditingController();
     final unitCtrl = TextEditingController(text: 'g');
-    final locationCtrl = TextEditingController(
-      text: 'Main Atelier Vault • Safe #1',
-    );
+    final locationCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
     String selectedCat = 'RAW_GOLD';
 
@@ -919,11 +917,11 @@ class _AdminStockPageState extends State<AdminStockPage>
   // ═════════════════════════════════════════════════════════════════════
 
   void _openAddMaterialSheet(BuildContext context) {
-    final codeCtrl = TextEditingController(text: 'GOLD_18K_ROSE');
-    final nameCtrl = TextEditingController(text: '18K Rose Gold Alloy');
-    final specCtrl = TextEditingController(text: '75.0% Au + 22.25% Cu');
+    final codeCtrl = TextEditingController();
+    final nameCtrl = TextEditingController();
+    final specCtrl = TextEditingController();
     final unitCtrl = TextEditingController(text: 'g');
-    final priceCtrl = TextEditingController(text: '5850.0');
+    final priceCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     String selectedCat = 'METAL';
 

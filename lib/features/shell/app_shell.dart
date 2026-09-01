@@ -229,9 +229,9 @@ class _Destination {
 }
 
 List<_Destination> _destinations(AppRole role, DemoStore store) {
-  final tasksBadge = store.actionableInstructionCount > 0
-      ? store.actionableInstructionCount
-      : null;
+  final adminPendingCount =
+      store.actionableInstructionCount + store.pendingCadApprovalsCount;
+  final tasksBadge = adminPendingCount > 0 ? adminPendingCount : null;
   final cartBadge = store.cartItemsCount > 0 ? store.cartItemsCount : null;
 
   final cadNewBadge = store.cadNewCount > 0 ? store.cadNewCount : null;

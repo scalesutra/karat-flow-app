@@ -1095,7 +1095,7 @@ class _InstructionListState extends State<_InstructionList> {
                                   ),
                                   child: Center(
                                     child: Text(
-                                      'CAD 3D Approvals (${cadFiltered.length})',
+                                      'CAD 3D Approvals (${widget.store.pendingCadApprovalsCount > 0 ? '${widget.store.pendingCadApprovalsCount} Pending' : '${cadFiltered.length} Approved'})',
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: _adminActiveTab == 1

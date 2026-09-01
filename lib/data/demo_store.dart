@@ -322,6 +322,15 @@ class DemoStore extends ChangeNotifier {
       .where((item) => item.status != InstructionStatus.resolved)
       .length;
 
+  int get pendingCadApprovalsCount => _cadTasks
+      .where(
+        (task) =>
+            task.hasStlFile &&
+            task.status != CadTaskStatus.completed &&
+            !task.specs.contains('(Approved)'),
+      )
+      .length;
+
   Instruction addInstruction({
     required WorkItem target,
     required String message,

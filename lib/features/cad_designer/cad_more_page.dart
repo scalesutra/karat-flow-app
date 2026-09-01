@@ -16,10 +16,6 @@ class CadMorePage extends StatefulWidget {
 }
 
 class _CadMorePageState extends State<CadMorePage> {
-  bool _matrixGoldConnected = true;
-  bool _rhinoGoldConnected = false;
-  bool _printerConnected = true;
-
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -37,27 +33,20 @@ class _CadMorePageState extends State<CadMorePage> {
               const CommonText.headlineLarge('CAD Studio'),
               const SizedBox(height: 1),
               CommonText.bodySmall(
-                'Profile, software sync & settings',
+                'Profile, directives & performance',
                 color: AppColors.muted,
               ),
               const SizedBox(height: 14),
 
-              // ═══════════════════════════════════════════════════
               // 1. PROFILE CARD
-              // ═══════════════════════════════════════════════════
               const AuthenticatedProfileCard(),
-
               const SizedBox(height: 14),
 
-              // ═══════════════════════════════════════════════════
               // 2. ADMIN DIRECTIVES & GUIDELINES
-              // ═══════════════════════════════════════════════════
               const SketchDirectivesSection(),
               const SizedBox(height: 14),
 
-              // ═══════════════════════════════════════════════════
-              // 2. TODAY'S STATS
-              // ═══════════════════════════════════════════════════
+              // 3. TODAY'S PERFORMANCE STATS
               CommonCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,126 +106,62 @@ class _CadMorePageState extends State<CadMorePage> {
 
               const SizedBox(height: 14),
 
-              // ═══════════════════════════════════════════════════
-              // 3. CAD SOFTWARE SYNC
-              // ═══════════════════════════════════════════════════
+              const CommonText.titleMedium('Preferences & Settings'),
+              const SizedBox(height: 8),
+
+              // 4. LANGUAGE PICKER
               CommonCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                onTap: () => CommonLanguagePicker.show(context),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                child: Row(
                   children: [
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.sync_alt,
-                          color: AppColors.emerald,
-                          size: 18,
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.emeraldLight,
+                        borderRadius: BorderRadius.circular(
+                          AppDimensions.radiusSmall,
                         ),
-                        SizedBox(width: 8),
-                        Text(
-                          'CAD Software Sync',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                            color: AppColors.ink,
+                      ),
+                      child: const Icon(
+                        Icons.translate_rounded,
+                        color: AppColors.emerald,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Language / भाषा / ભાષા',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
                           ),
-                        ),
-                      ],
+                          SizedBox(height: 1),
+                          Text(
+                            'Switch between English, हिंदी and ગુજરાતી',
+                            style: TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    _SyncToggleRow(
-                      title: 'MatrixGold CAD',
-                      subtitle: 'Auto-import STL from MatrixGold',
-                      icon: Icons.view_in_ar,
-                      isConnected: _matrixGoldConnected,
-                      onToggle: (v) => setState(() => _matrixGoldConnected = v),
-                    ),
-                    const Divider(height: 20),
-                    _SyncToggleRow(
-                      title: 'RhinoGold / Rhino 3D',
-                      subtitle: 'Sync .3dm files to KaratFlow',
-                      icon: Icons.hub_outlined,
-                      isConnected: _rhinoGoldConnected,
-                      onToggle: (v) => setState(() => _rhinoGoldConnected = v),
+                    const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.muted,
+                      size: 18,
                     ),
                   ],
                 ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // ═══════════════════════════════════════════════════
-              // 4. PRINTER
-              // ═══════════════════════════════════════════════════
-              CommonCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.print_outlined,
-                          color: AppColors.emerald,
-                          size: 18,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'Label Printer',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                            color: AppColors.ink,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _SyncToggleRow(
-                      title: 'Zebra ZD421',
-                      subtitle: '38×25mm CAD pouch labels',
-                      icon: Icons.print,
-                      isConnected: _printerConnected,
-                      onToggle: (v) => setState(() => _printerConnected = v),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // ═══════════════════════════════════════════════════
-              // 5. QUICK ACTIONS
-              // ═══════════════════════════════════════════════════
-              CommonButton.outlined(
-                height: 44,
-                icon: Icons.print_outlined,
-                label: '+ Print Barcode Tag',
-                onPressed: () {
-                  CommonSnackbar.info(
-                    context,
-                    title: 'Zebra Label Printed',
-                    message: 'Sent 38×25mm CAD pouch label to Zebra ZD421.',
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-              CommonButton.outlined(
-                height: 44,
-                icon: Icons.help_outline,
-                label: 'Help & Support',
-                onPressed: () {
-                  CommonSnackbar.info(
-                    context,
-                    title: 'Support',
-                    message: 'Contact IT: ext. 204 · support@karatflow.in',
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-              CommonButton.outlined(
-                height: 44,
-                icon: Icons.translate_rounded,
-                label: 'Language / भाषा / ભાષા',
-                onPressed: () => CommonLanguagePicker.show(context),
               ),
             ],
           ),
@@ -289,77 +214,6 @@ class _StatTile extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SyncToggleRow extends StatelessWidget {
-  const _SyncToggleRow({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.isConnected,
-    required this.onToggle,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final bool isConnected;
-  final ValueChanged<bool> onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: isConnected ? AppColors.emeraldLight : AppColors.canvas,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            icon,
-            size: 18,
-            color: isConnected ? AppColors.emerald : AppColors.muted,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: AppColors.ink,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: const TextStyle(color: AppColors.muted, fontSize: 11),
-              ),
-            ],
-          ),
-        ),
-        Switch.adaptive(
-          value: isConnected,
-          onChanged: (v) {
-            onToggle(v);
-            CommonSnackbar.info(
-              context,
-              title: v ? '$title Connected' : '$title Disconnected',
-              message: v
-                  ? 'Sync enabled for $title.'
-                  : 'Sync paused for $title.',
-            );
-          },
-          activeTrackColor: AppColors.emerald,
-        ),
-      ],
     );
   }
 }
