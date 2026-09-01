@@ -718,6 +718,8 @@ class ApiMaterial {
     required this.presetPricePerUnit,
     this.description = '',
     this.isActive = true,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory ApiMaterial.fromJson(Map<String, dynamic> json) {
@@ -732,6 +734,8 @@ class ApiMaterial {
           (json['presetPricePerUnit'] as num?)?.toDouble() ?? 0.0,
       description: json['description'] as String? ?? '',
       isActive: json['isActive'] as bool? ?? true,
+      createdAt: json['createdAt'] as String?,
+      updatedAt: json['updatedAt'] as String?,
     );
   }
 
@@ -754,6 +758,8 @@ class ApiMaterial {
   final double presetPricePerUnit;
   final String description;
   final bool isActive;
+  final String? createdAt;
+  final String? updatedAt;
 }
 
 // ── 13. Vault & Safe Inventory Stock Models ──────────────────────────
@@ -768,6 +774,11 @@ class ApiInventoryItem {
     required this.freeBalance,
     required this.unit,
     required this.location,
+    this.notes,
+    this.createdAt,
+    this.updatedAt,
+    this.createdById,
+    this.createdBy,
   });
 
   factory ApiInventoryItem.fromJson(Map<String, dynamic> json) {
@@ -781,6 +792,13 @@ class ApiInventoryItem {
       freeBalance: (json['freeBalance'] as num?)?.toDouble() ?? 0.0,
       unit: json['unit'] as String? ?? 'g',
       location: json['location'] as String? ?? '',
+      notes: json['notes'] as String?,
+      createdAt: json['createdAt'] as String?,
+      updatedAt: json['updatedAt'] as String?,
+      createdById: json['createdById'] as String?,
+      createdBy: json['createdBy'] != null && json['createdBy'] is Map
+          ? ApiUser.fromJson(json['createdBy'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -793,6 +811,7 @@ class ApiInventoryItem {
     'freeBalance': freeBalance,
     'unit': unit,
     'location': location,
+    if (notes != null) 'notes': notes,
   };
 
   final String id;
@@ -804,6 +823,11 @@ class ApiInventoryItem {
   final double freeBalance;
   final String unit;
   final String location;
+  final String? notes;
+  final String? createdAt;
+  final String? updatedAt;
+  final String? createdById;
+  final ApiUser? createdBy;
 }
 
 class ApiInventorySummary {

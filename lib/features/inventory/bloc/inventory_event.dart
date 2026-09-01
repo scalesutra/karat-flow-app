@@ -21,6 +21,7 @@ final class AddInventoryItemEvent extends InventoryEvent {
     required this.freeBalance,
     required this.unit,
     required this.location,
+    this.notes,
   });
 
   final String name;
@@ -31,4 +32,33 @@ final class AddInventoryItemEvent extends InventoryEvent {
   final double freeBalance;
   final String unit;
   final String location;
+  final String? notes;
+}
+
+final class GetInventoryByIdEvent extends InventoryEvent {
+  const GetInventoryByIdEvent({required this.id});
+  final String id;
+}
+
+final class UpdateInventoryItemEvent extends InventoryEvent {
+  const UpdateInventoryItemEvent({
+    required this.id,
+    this.totalStock,
+    this.reservedWip,
+    this.freeBalance,
+    this.location,
+    this.notes,
+  });
+
+  final String id;
+  final double? totalStock;
+  final double? reservedWip;
+  final double? freeBalance;
+  final String? location;
+  final String? notes;
+}
+
+final class DeleteInventoryItemEvent extends InventoryEvent {
+  const DeleteInventoryItemEvent({required this.id});
+  final String id;
 }

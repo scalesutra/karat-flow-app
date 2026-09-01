@@ -766,6 +766,12 @@ class KaratFlowApiRepository {
         .toList();
   }
 
+  Future<ApiMaterial> getMaterialById(String id) async {
+    final response = await _api.get(ApiEndpoints.materialDetails(id));
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiMaterial.fromJson(data);
+  }
+
   Future<ApiMaterial> updateMaterialRate(
     String id,
     double presetPricePerUnit,
@@ -803,6 +809,10 @@ class KaratFlowApiRepository {
     return ApiMaterial.fromJson(data);
   }
 
+  Future<void> deleteMaterial(String id) async {
+    await _api.delete(ApiEndpoints.materialDetails(id));
+  }
+
   // ── SECTION 12: Vault & Safe Inventory Stock ──────────────────────
   Future<ApiInventoryResponse> getInventory({
     String? category,
@@ -819,6 +829,12 @@ class KaratFlowApiRepository {
     return ApiInventoryResponse.fromJson(data);
   }
 
+  Future<ApiInventoryItem> getInventoryById(String id) async {
+    final response = await _api.get(ApiEndpoints.inventoryDetails(id));
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiInventoryItem.fromJson(data);
+  }
+
   Future<ApiInventoryItem> addInventoryItem({
     required String name,
     required String category,
@@ -828,6 +844,7 @@ class KaratFlowApiRepository {
     required double freeBalance,
     required String unit,
     required String location,
+    String? notes,
   }) async {
     final response = await _api.post(
       ApiEndpoints.inventory,
@@ -840,10 +857,37 @@ class KaratFlowApiRepository {
         'freeBalance': freeBalance,
         'unit': unit,
         'location': location,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
       },
     );
     final data = response.data['data'] as Map<String, dynamic>;
     return ApiInventoryItem.fromJson(data);
+  }
+
+  Future<ApiInventoryItem> updateInventoryItem(
+    String id, {
+    double? totalStock,
+    double? reservedWip,
+    double? freeBalance,
+    String? location,
+    String? notes,
+  }) async {
+    final response = await _api.patch(
+      ApiEndpoints.inventoryDetails(id),
+      data: {
+        'totalStock': ?totalStock,
+        'reservedWip': ?reservedWip,
+        'freeBalance': ?freeBalance,
+        if (location != null && location.isNotEmpty) 'location': location,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiInventoryItem.fromJson(data);
+  }
+
+  Future<void> deleteInventoryItem(String id) async {
+    await _api.delete(ApiEndpoints.inventoryDetails(id));
   }
 
   // ── SECTION 13: Floor Directives & Voice Notes ────────────────────

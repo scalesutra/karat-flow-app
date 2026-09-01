@@ -568,9 +568,7 @@ class AdminReviewCadSheet extends StatelessWidget {
                                       ],
                                     ),
                                   ),
-                                const SizedBox(height: 12),
-
-                                // 4. Action Buttons
+                                                               // 4. Action Buttons
                                 Row(
                                   children: [
                                     Expanded(
@@ -612,19 +610,10 @@ class AdminReviewCadSheet extends StatelessWidget {
                                           height: 34,
                                           backgroundColor: AppColors.goldDark,
                                           icon: Icons.edit_note_outlined,
-                                          label: 'Edit Stock',
+                                          label: 'Edit Product Stock',
                                           onPressed: () => _openUpdateStockModal(context, task),
                                         ),
                                       ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: CommonButton.outlined(
-                                        height: 34,
-                                        icon: Icons.edit_note_outlined,
-                                        label: 'Stock Edit',
-                                        onPressed: () => _openUpdateStockModal(context, task),
-                                      ),
-                                    ),
                                   ],
                                 ),
                               ],

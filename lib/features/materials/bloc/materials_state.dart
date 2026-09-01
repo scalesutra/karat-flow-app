@@ -19,6 +19,11 @@ final class MaterialsLoaded extends MaterialsState {
   final List<ApiMaterial> materials;
 }
 
+final class MaterialDetailLoaded extends MaterialsState {
+  const MaterialDetailLoaded({required this.material});
+  final ApiMaterial material;
+}
+
 final class MaterialsOperationSuccess extends MaterialsState {
   const MaterialsOperationSuccess(this.message);
   final String message;

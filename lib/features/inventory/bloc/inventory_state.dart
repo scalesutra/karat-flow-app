@@ -19,6 +19,11 @@ final class InventoryLoaded extends InventoryState {
   final ApiInventoryResponse response;
 }
 
+final class InventoryDetailLoaded extends InventoryState {
+  const InventoryDetailLoaded({required this.item});
+  final ApiInventoryItem item;
+}
+
 final class InventoryOperationSuccess extends InventoryState {
   const InventoryOperationSuccess(this.message);
   final String message;

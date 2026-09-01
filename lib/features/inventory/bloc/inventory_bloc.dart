@@ -12,7 +12,10 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     : _repository = repository ?? KaratFlowApiRepository(),
       super(const InventoryInitial()) {
     on<FetchInventoryEvent>(_onFetchInventory);
+    on<GetInventoryByIdEvent>(_onGetInventoryById);
     on<AddInventoryItemEvent>(_onAddItem);
+    on<UpdateInventoryItemEvent>(_onUpdateItem);
+    on<DeleteInventoryItemEvent>(_onDeleteItem);
   }
 
   final KaratFlowApiRepository _repository;
@@ -33,6 +36,19 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     }
   }
 
+  Future<void> _onGetInventoryById(
+    GetInventoryByIdEvent event,
+    Emitter<InventoryState> emit,
+  ) async {
+    emit(const InventoryLoading());
+    try {
+      final item = await _repository.getInventoryById(event.id);
+      emit(InventoryDetailLoaded(item: item));
+    } catch (error) {
+      emit(InventoryError('Failed to fetch inventory item details: $error'));
+    }
+  }
+
   Future<void> _onAddItem(
     AddInventoryItemEvent event,
     Emitter<InventoryState> emit,
@@ -47,6 +63,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
         freeBalance: event.freeBalance,
         unit: event.unit,
         location: event.location,
+        notes: event.notes,
       );
       emit(
         const InventoryOperationSuccess(
@@ -56,6 +73,47 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
       add(const FetchInventoryEvent());
     } catch (error) {
       emit(InventoryError('Failed to add vault item: $error'));
+    }
+  }
+
+  Future<void> _onUpdateItem(
+    UpdateInventoryItemEvent event,
+    Emitter<InventoryState> emit,
+  ) async {
+    try {
+      await _repository.updateInventoryItem(
+        event.id,
+        totalStock: event.totalStock,
+        reservedWip: event.reservedWip,
+        freeBalance: event.freeBalance,
+        location: event.location,
+        notes: event.notes,
+      );
+      emit(
+        const InventoryOperationSuccess(
+          'Vault inventory item updated successfully.',
+        ),
+      );
+      add(const FetchInventoryEvent());
+    } catch (error) {
+      emit(InventoryError('Failed to update vault item: $error'));
+    }
+  }
+
+  Future<void> _onDeleteItem(
+    DeleteInventoryItemEvent event,
+    Emitter<InventoryState> emit,
+  ) async {
+    try {
+      await _repository.deleteInventoryItem(event.id);
+      emit(
+        const InventoryOperationSuccess(
+          'Vault inventory item deleted successfully.',
+        ),
+      );
+      add(const FetchInventoryEvent());
+    } catch (error) {
+      emit(InventoryError('Failed to delete vault item: $error'));
     }
   }
 }

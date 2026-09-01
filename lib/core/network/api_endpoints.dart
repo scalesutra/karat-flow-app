@@ -77,10 +77,12 @@ abstract final class ApiEndpoints {
 
   // ── SECTION 11: Master Raw Materials & Pricing (/materials) ─────
   static const String materials = '/materials';
+  static String materialDetails(String id) => '/materials/$id';
   static String updateMaterialRate(String id) => '/materials/$id/rate';
 
   // ── SECTION 12: Vault & Safe Inventory Stock (/inventory) ─────────
   static const String inventory = '/inventory';
+  static String inventoryDetails(String id) => '/inventory/$id';
 
   // ── SECTION 13: Floor Directives & Voice Notes (/directives) ──────
   static const String directives = '/directives';

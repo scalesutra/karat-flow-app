@@ -38,3 +38,13 @@ final class CreateMaterialEvent extends MaterialsEvent {
   final double presetPricePerUnit;
   final String description;
 }
+
+final class GetMaterialByIdEvent extends MaterialsEvent {
+  const GetMaterialByIdEvent({required this.id});
+  final String id;
+}
+
+final class DeleteMaterialEvent extends MaterialsEvent {
+  const DeleteMaterialEvent({required this.id});
+  final String id;
+}
