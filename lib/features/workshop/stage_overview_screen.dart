@@ -2277,7 +2277,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
               const SizedBox(height: 12),
               CommonTextField(
                 controller: reasonController,
-                label: 'Custom Explanation / Karigar Note',
+                label: 'Custom Explanation / Artisan Note',
                 hintText: selectedReason,
                 maxLines: 2,
               ),
@@ -2623,7 +2623,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         : (hasBlockedPart ? AppColors.danger : AppColors.goldDark);
     final String badgeText = isCompleted
         ? 'Completed'
-        : (hasBlockedPart ? 'ON HOLD' : 'Active Pouch');
+        : (hasBlockedPart ? 'ON HOLD' : 'IN PRODUCTION');
 
     return SlideInFade(
       child: CommonCard(
@@ -2971,19 +2971,45 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                 .toUpperCase();
 
         final hasWorkerStageCompleted = DemoStore.instance.workerTasks.any((t) {
-          final matchesOrder =
-              t.orderPartId == _orderId ||
-              (t.orderPart?.orderId.isNotEmpty == true &&
-                  t.orderPart!.orderId == _orderId);
-          final tStageName = t.stage.name.toLowerCase();
-          final targetStageName = apiStage.name.toLowerCase();
-          final matchesStage =
-              tStageName.contains(targetStageName) ||
-              targetStageName.contains(tStageName);
           final isDone =
               t.status.toUpperCase() == 'STAGE_COMPLETED' ||
               t.status.toUpperCase() == 'COMPLETED';
-          return matchesOrder && matchesStage && isDone;
+          if (!isDone) return false;
+
+          final tStageName = t.stage.name.toLowerCase().trim();
+          final targetStageName = apiStage.name.toLowerCase().trim();
+          final matchesStage =
+              tStageName.contains(targetStageName) ||
+              targetStageName.contains(tStageName) ||
+              (tStageName.contains('wax') && targetStageName.contains('wax')) ||
+              (tStageName.contains('cast') &&
+                  targetStageName.contains('cast')) ||
+              (tStageName.contains('fil') && targetStageName.contains('fil')) ||
+              (tStageName.contains('set') && targetStageName.contains('set')) ||
+              (tStageName.contains('pol') && targetStageName.contains('pol'));
+          if (!matchesStage) return false;
+
+          final tPartId = t.orderPartId.trim().toUpperCase();
+          final tOrderId = t.orderId.trim().toUpperCase();
+          final tOrderNumber = t.orderPart.orderNumber.trim().toUpperCase();
+          final tDesign = t.designNumber.trim().toUpperCase();
+          final targetOrder = _orderId.trim().toUpperCase();
+
+          final matchesOrder =
+              targetOrder.isEmpty ||
+              tPartId == targetOrder ||
+              tOrderId == targetOrder ||
+              tOrderNumber == targetOrder ||
+              targetOrder.contains(tDesign) ||
+              tDesign.contains(targetOrder) ||
+              (tOrderNumber.isNotEmpty &&
+                  (tOrderNumber.endsWith(targetOrder) ||
+                      targetOrder.endsWith(tOrderNumber))) ||
+              (tOrderId.isNotEmpty &&
+                  (tOrderId.endsWith(targetOrder) ||
+                      targetOrder.endsWith(tOrderId)));
+
+          return matchesOrder;
         });
 
         final isStagePassed = _parentItems.any(
@@ -2992,14 +3018,18 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           ),
         );
 
-        final isCurrentStageCompleted = _parentItems.any(
-          (parent) => parent.parts.any(
-            (p) =>
-                p.stage == stage &&
-                (hasWorkerStageCompleted ||
-                    rawOrderPartStatus == 'STAGE_COMPLETED'),
-          ),
-        );
+        final isCurrentStageCompleted =
+            hasWorkerStageCompleted ||
+            rawOrderPartStatus == 'STAGE_COMPLETED' ||
+            _parentItems.any(
+              (parent) => parent.parts.any(
+                (p) =>
+                    p.stage == stage &&
+                    (hasWorkerStageCompleted ||
+                        rawOrderPartStatus == 'STAGE_COMPLETED' ||
+                        p.isCompleted),
+              ),
+            );
 
         final isStageDone = isStagePassed || isCurrentStageCompleted;
 
@@ -3321,9 +3351,15 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                                 builder: (context) {
                                                   final isWorkerDone =
                                                       part.isCompleted ||
+                                                      isStageDone ||
+                                                      hasWorkerStageCompleted ||
                                                       DemoStore.instance
                                                           .isWorkerTaskCompletedForPart(
                                                             part.code,
+                                                            designNumber:
+                                                                part.code,
+                                                            stageName:
+                                                                apiStage.name,
                                                             artisanName: part
                                                                 .assignedEmployee,
                                                           );

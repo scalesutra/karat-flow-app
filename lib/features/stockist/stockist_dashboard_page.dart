@@ -1295,16 +1295,6 @@ class _RequisitionCard extends StatelessWidget {
                                   spec.shape,
                                   Icons.category_outlined,
                                 ),
-                                _stoneAttributeTag(
-                                  'COLOUR',
-                                  spec.color,
-                                  Icons.palette_outlined,
-                                ),
-                                _stoneAttributeTag(
-                                  'CLARITY',
-                                  spec.clarity,
-                                  Icons.verified_outlined,
-                                ),
                               ],
                             ),
                           ],

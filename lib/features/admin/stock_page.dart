@@ -706,7 +706,7 @@ class _AdminStockPageState extends State<AdminStockPage>
                   ),
                   const SizedBox(height: 16),
                   const CommonText.headlineMedium(
-                    'Add Vault Stock Item (POST /inventory)',
+                    'Add Vault Stock Item',
                   ),
                   const SizedBox(height: 16),
                   CommonTextField(
@@ -939,7 +939,7 @@ class _AdminStockPageState extends State<AdminStockPage>
               ),
               const SizedBox(height: 20),
               CommonButton.primary(
-                label: 'Save Adjusted Vault Stock (PATCH)',
+                label: 'Save Adjusted Vault Stock',
                 onPressed: () {
                   final totalStock = double.tryParse(stockCtrl.text.trim());
                   final reservedWip = double.tryParse(reservedCtrl.text.trim());
@@ -1041,9 +1041,7 @@ class _AdminStockPageState extends State<AdminStockPage>
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const CommonText.headlineMedium(
-                    'Create Master Raw Material (POST /materials)',
-                  ),
+                  const CommonText.headlineMedium('Create Master Raw Material'),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -1211,7 +1209,7 @@ class _AdminStockPageState extends State<AdminStockPage>
             ),
             const SizedBox(height: 20),
             CommonButton.primary(
-              label: 'Update Daily Rate (PATCH /rate)',
+              label: 'Update Daily Rate',
               onPressed: () {
                 final rate = double.tryParse(rateCtrl.text.trim());
                 if (rate == null) return;
@@ -1665,7 +1663,7 @@ class _StockTabHeader extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            invCount > 0 ? '$invCount' : 'Live',
+                            '$invCount',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
@@ -1750,7 +1748,7 @@ class _StockTabHeader extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            matCount > 0 ? '$matCount' : 'Live',
+                            '$matCount',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,

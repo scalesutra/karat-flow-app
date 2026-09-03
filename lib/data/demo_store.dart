@@ -196,22 +196,48 @@ class DemoStore extends ChangeNotifier {
 
   bool isStockIssuedForTask(ApiWorkerTask task) {
     if (task.effectiveIsStockIssued) return true;
+    final taskDesign = task.designNumber.trim().toUpperCase();
+    final taskOrder = task.orderId.trim().toUpperCase();
+    final taskPart = task.orderPartId.trim().toUpperCase();
+    final taskStage = task.stageName.trim().toUpperCase();
+
     return _vaultRequisitions.any((r) {
       final isIssued = r.status.toUpperCase() == 'ISSUED';
-      final matchesId = r.id == task.orderPartId || r.id == task.id;
-      final matchesOrder = (r.orderId.isNotEmpty && r.orderId == task.orderId) ||
-          (r.designNumber.isNotEmpty && r.designNumber == task.designNumber);
-      return (matchesId || matchesOrder) && isIssued;
+      if (!isIssued) return false;
+
+      final rId = r.id.trim().toUpperCase();
+      final rDesign = r.designNumber.trim().toUpperCase();
+      final rOrder = r.orderId.trim().toUpperCase();
+      final rStage = r.stageName.trim().toUpperCase();
+
+      final matchesId = rId == taskPart || rId == task.id.toUpperCase();
+      final matchesDesign = rDesign.isNotEmpty && (rDesign == taskDesign || rDesign.endsWith(taskDesign) || taskDesign.endsWith(rDesign));
+      final matchesOrder = rOrder.isNotEmpty && (rOrder == taskOrder || rOrder.endsWith(taskOrder) || taskOrder.endsWith(rOrder));
+      final matchesStage = rStage.isNotEmpty && (rStage == taskStage || rStage.contains(taskStage) || taskStage.contains(rStage));
+
+      return matchesId || matchesDesign || matchesOrder || matchesStage;
     });
   }
 
-  bool isWorkerTaskCompletedForPart(String partId, {String? designNumber, String? artisanName}) {
+  bool isWorkerTaskCompletedForPart(String partId, {String? designNumber, String? stageName, String? artisanName}) {
+    final pId = partId.trim().toUpperCase();
+    final dNum = (designNumber ?? '').trim().toUpperCase();
+    final sName = (stageName ?? '').trim().toUpperCase();
+
     return _workerTasks.any((t) {
-      final matchesPart = t.id == partId || t.orderPartId == partId;
-      final matchesDesign = designNumber != null && designNumber.isNotEmpty && t.designNumber == designNumber;
-      final matchesArtisan = artisanName != null && artisanName.isNotEmpty && t.assignedEmployeeName.toLowerCase() == artisanName.toLowerCase();
       final isDone = t.status.toUpperCase() == 'COMPLETED' || t.status.toUpperCase() == 'STAGE_COMPLETED';
-      return (matchesPart || matchesDesign || matchesArtisan) && isDone;
+      if (!isDone) return false;
+
+      final tPart = t.orderPartId.trim().toUpperCase();
+      final tId = t.id.trim().toUpperCase();
+      final tDesign = t.designNumber.trim().toUpperCase();
+      final tStage = t.stageName.trim().toUpperCase();
+
+      final matchesPart = pId.isNotEmpty && (tPart == pId || tId == pId || pId.endsWith(tPart) || tPart.endsWith(pId));
+      final matchesDesign = dNum.isNotEmpty && (tDesign == dNum || dNum.contains(tDesign) || tDesign.contains(dNum));
+      final matchesStage = sName.isEmpty || (tStage.contains(sName) || sName.contains(tStage) || (tStage.contains('WAX') && sName.contains('WAX')));
+
+      return (matchesPart || matchesDesign) && matchesStage;
     });
   }
 
@@ -316,7 +342,12 @@ class DemoStore extends ChangeNotifier {
         'BENCH_ARTISAN' ||
         'ARTISAN' ||
         'ARTISANS' => 'Workshop Artisan',
-        'PROCESS_MANAGER' || 'PRODUCTION_MANAGER' => 'Product Manager',
+        'PROCESS_MANAGER' ||
+        'PRODUCT_MANAGER' ||
+        'PRODUCTION_MANAGER' ||
+        'WORKSHOP_MANAGER' ||
+        'WORKSHOP' ||
+        'PROCESS' => 'Process Manager',
         'FRONT_OFFICE' || 'SALES' => 'Front Office',
         'ALL' || 'ALL_TEAMS' => DirectiveRecipients.allTeams,
         _ => targetType.replaceAll('_', ' '),

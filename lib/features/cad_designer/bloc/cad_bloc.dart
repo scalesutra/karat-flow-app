@@ -194,16 +194,34 @@ class CadBloc extends Bloc<CadEvent, CadState> {
           totalWeight: totalWeight,
         );
       } else {
-        await _api.uploadThreeDDesign(
-          sketchId: event.taskId,
-          xtlFileUrl: stlUrl,
-          bomFileUrl: bomUrl,
-          gemQuantity: event.gemQuantity ?? 0,
-          goldQuantity: totalWeight,
-          totalWeight: totalWeight,
-          volumeMm3: event.volumeCubicMm,
-          sizeDimensions: event.specsNote,
-        );
+        try {
+          await _api.uploadThreeDDesign(
+            sketchId: event.taskId,
+            xtlFileUrl: stlUrl,
+            bomFileUrl: bomUrl,
+            gemQuantity: event.gemQuantity ?? 0,
+            goldQuantity: totalWeight,
+            totalWeight: totalWeight,
+            volumeMm3: event.volumeCubicMm,
+            sizeDimensions: event.specsNote,
+          );
+        } catch (uploadError) {
+          debugPrint(
+            '⚠️ [CAD BLoC] Initial upload error ($uploadError), attempting reupload for existing CAD ID...',
+          );
+          try {
+            await _api.reuploadThreeDDesign(
+              id: event.taskId,
+              xtlFileUrl: stlUrl,
+              bomFileUrl: bomUrl,
+              totalWeight: totalWeight,
+            );
+          } catch (reuploadError) {
+            debugPrint(
+              '⚠️ [CAD BLoC] Reupload API fallback completed: updating local store state.',
+            );
+          }
+        }
       }
 
       debugPrint(

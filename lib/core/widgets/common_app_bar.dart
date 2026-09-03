@@ -172,6 +172,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       AppRole.rawDesigner,
       AppRole.stockist,
       AppRole.workshopArtisan,
+      AppRole.worker,
     ];
 
     showModalBottomSheet<void>(
@@ -226,7 +227,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
                           ),
                         ),
                         Text(
-                          'Access department dashboards (Workers, Artisans & Frontliner excluded)',
+                          'Switch and inspect any department dashboard or worker bench',
                           style: TextStyle(
                             fontSize: 11,
                             color: AppColors.muted,

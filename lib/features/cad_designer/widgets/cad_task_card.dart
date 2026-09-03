@@ -3,14 +3,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:jewellery_ops_mobile/domain/models.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/widgets/common_3d_viewer.dart';
 import '../../../../core/widgets/common_button.dart';
 import '../../../../core/widgets/common_card.dart';
 import '../../../../data/demo_store.dart';
-import '../../../../domain/models.dart';
-import '../cad_weight_calculator.dart';
 import '../bloc/cad_bloc.dart';
 
 /// Modular CAD Designer Task Card
@@ -165,7 +164,8 @@ class CadTaskCard extends StatelessWidget {
                           if (result != null && result.files.isNotEmpty) {
                             final selected = result.files.first;
                             final lowerName = selected.name.toLowerCase();
-                            final isImage = lowerName.endsWith('.png') ||
+                            final isImage =
+                                lowerName.endsWith('.png') ||
                                 lowerName.endsWith('.jpg') ||
                                 lowerName.endsWith('.jpeg') ||
                                 lowerName.endsWith('.webp');
@@ -282,7 +282,7 @@ class CadTaskCard extends StatelessWidget {
                 child: CommonButton.primary(
                   height: 42,
                   icon: Icons.cloud_upload_outlined,
-                  label: 'Calculate Weight & Upload Files',
+                  label: 'Upload CAD Files & Submit Design',
                   onPressed: stlFile == null || blockFile == null
                       ? null
                       : () {
@@ -293,28 +293,21 @@ class CadTaskCard extends StatelessWidget {
                           final cadBloc = context.read<CadBloc>();
 
                           Navigator.pop(ctx);
-                          showModalBottomSheet<void>(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (calcCtx) => CadWeightCalculator(
-                              initialVolume: 1680.0,
-                              onCalculate: (vol, weight, metalType) {
-                                Navigator.pop(calcCtx);
-                                cadBloc.add(
-                                  UploadCadFilesEvent(
-                                    taskId: task.id,
-                                    volumeCubicMm: vol,
-                                    specsNote: metalType,
-                                    stlFileName: selectedStl.name,
-                                    stlBytes: stlBytes,
-                                    bomFileName: selectedBlock.name,
-                                    bomBytes: blockBytes,
-                                    isRevision: false,
-                                    goldQuantity: weight,
-                                  ),
-                                );
-                              },
+                          cadBloc.add(
+                            UploadCadFilesEvent(
+                              taskId: task.id,
+                              volumeCubicMm: 0.0,
+                              specsNote: task.specs.isNotEmpty
+                                  ? task.specs
+                                  : 'CAD 3D Mesh',
+                              stlFileName: selectedStl.name,
+                              stlBytes: stlBytes,
+                              bomFileName: selectedBlock.name,
+                              bomBytes: blockBytes,
+                              isRevision: false,
+                              goldQuantity: task.estimatedWeightGrams > 0
+                                  ? task.estimatedWeightGrams
+                                  : 0.0,
                             ),
                           );
                         },
@@ -542,7 +535,8 @@ class CadTaskCard extends StatelessWidget {
               ),
             ],
 
-            if (task.status == CadTaskStatus.inProgress && !task.hasStlFile) ...[
+            if (task.status == CadTaskStatus.inProgress &&
+                !task.hasStlFile) ...[
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,

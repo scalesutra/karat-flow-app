@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:jewellery_ops_mobile/core/services/live_data_bloc_coordinator.dart';
+import 'package:jewellery_ops_mobile/data/mappers/api_domain_mapper.dart';
 import 'package:jewellery_ops_mobile/domain/models.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -142,7 +143,7 @@ class _WorkerDashboardPageState extends State<WorkerDashboardPage> {
             .length;
 
         return CommonRefreshIndicator(
-          theme: IndicatorTheme.workshop,
+          theme: IndicatorTheme.artisan,
           onRefresh: () async => context.read<ArtisanBloc>().add(
             FetchArtisanTasksEvent(status: _selectedFilter),
           ),
@@ -183,7 +184,7 @@ class _WorkerDashboardPageState extends State<WorkerDashboardPage> {
                             ),
                             SizedBox(width: 8),
                             Text(
-                              'Goldsmith Bench Workspace',
+                              'Artisan Workspace',
                               style: TextStyle(
                                 color: AppColors.gold,
                                 fontWeight: FontWeight.w800,
@@ -259,14 +260,6 @@ class _WorkerDashboardPageState extends State<WorkerDashboardPage> {
               ),
 
               const SizedBox(height: 16),
-
-              // ── SEARCH & QUICK FILTER BAR ──────────────────────────────────
-              CommonSearchBar(
-                controller: _searchController,
-                hintText: 'Search bench task by design code, order #...',
-                onChanged: (v) => setState(() => _searchQuery = v),
-                onClear: () => setState(() => _searchQuery = ''),
-              ),
               const SizedBox(height: 10),
 
               SingleChildScrollView(
@@ -305,14 +298,19 @@ class _WorkerDashboardPageState extends State<WorkerDashboardPage> {
               const SizedBox(height: 16),
 
               // ── TASK CARDS OR ANIMATED EMPTY STATE ────────────────────────
-              if (filtered.isEmpty)
+              if (state is ArtisanLoading || state is ArtisanInitial)
+                const Padding(
+                  padding: EdgeInsets.only(top: 110, bottom: 80),
+                  child: CommonProgressIndicator.artisan(),
+                )
+              else if (filtered.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 30, bottom: 40),
                   child: AnimatedEmptyStateWidget(
                     icon: Icons.handyman_outlined,
                     title: 'No Bench Tasks Pending',
                     subtitle:
-                        'All assigned goldsmith & artisan tasks are complete and cleared.',
+                        'All assigned artisan tasks are complete and cleared.',
                     accentColor: AppColors.emerald,
                   ),
                 )
@@ -475,6 +473,7 @@ class _WorkerTaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isStockIssued = DemoStore.instance.isStockIssuedForTask(task);
     final statusColor = switch (task.status) {
       'IN_PROGRESS' => AppColors.warning,
       'COMPLETED' => AppColors.emerald,
@@ -516,7 +515,7 @@ class _WorkerTaskCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'DESIGN-${task.designNumber}',
+                  ApiDomainMapper.formatCleanDesignCode(task.designNumber),
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 13,
@@ -529,23 +528,18 @@ class _WorkerTaskCard extends StatelessWidget {
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color:
-                        !task.effectiveIsStockIssued &&
-                            task.status == 'ASSIGNED'
+                    color: !isStockIssued && task.status == 'ASSIGNED'
                         ? AppColors.warningLight
                         : statusBg,
                     borderRadius: BorderRadius.circular(10),
-                    border:
-                        !task.effectiveIsStockIssued &&
-                            task.status == 'ASSIGNED'
+                    border: !isStockIssued && task.status == 'ASSIGNED'
                         ? Border.all(color: AppColors.warning.withOpacity(0.4))
                         : null,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (!task.effectiveIsStockIssued &&
-                          task.status == 'ASSIGNED') ...[
+                      if (!isStockIssued && task.status == 'ASSIGNED') ...[
                         const Icon(
                           Icons.hourglass_top_rounded,
                           size: 11,
@@ -554,14 +548,11 @@ class _WorkerTaskCard extends StatelessWidget {
                         const SizedBox(width: 4),
                       ],
                       Text(
-                        !task.effectiveIsStockIssued &&
-                                task.status == 'ASSIGNED'
+                        !isStockIssued && task.status == 'ASSIGNED'
                             ? 'WAITING FOR STOCKIST'
                             : task.status.replaceAll('_', ' '),
                         style: TextStyle(
-                          color:
-                              !task.effectiveIsStockIssued &&
-                                  task.status == 'ASSIGNED'
+                          color: !isStockIssued && task.status == 'ASSIGNED'
                               ? AppColors.warning
                               : statusColor,
                           fontSize: 10,
@@ -639,12 +630,12 @@ class _WorkerTaskCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: task.effectiveIsStockIssued
+                color: isStockIssued
                     ? AppColors.emerald.withOpacity(0.06)
                     : AppColors.warningLight,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: task.effectiveIsStockIssued
+                  color: isStockIssued
                       ? AppColors.emerald.withOpacity(0.2)
                       : AppColors.warning.withOpacity(0.4),
                 ),
@@ -652,18 +643,18 @@ class _WorkerTaskCard extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    task.effectiveIsStockIssued
+                    isStockIssued
                         ? Icons.verified_outlined
                         : Icons.warning_amber_rounded,
                     size: 14,
-                    color: task.effectiveIsStockIssued
+                    color: isStockIssued
                         ? AppColors.emeraldDark
                         : AppColors.warning,
                   ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      task.effectiveIsStockIssued
+                      isStockIssued
                           ? (task.orderPart.gemQuantity > 0
                                 ? 'Allocated Specs: ${task.orderPart.gemQuantity} Gems · ${task.orderPart.goldQuantity.toStringAsFixed(1)}g Gold (Issued by Vault Stockist)'
                                 : 'Allocated Specs: Raw Casting Metal & Setting Package (Issued by Vault Stockist)')
@@ -671,7 +662,7 @@ class _WorkerTaskCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: task.effectiveIsStockIssued
+                        color: isStockIssued
                             ? AppColors.emeraldDark
                             : AppColors.warning,
                       ),
@@ -778,8 +769,8 @@ class _WorkerTaskCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   Builder(
                     builder: (context) {
-                      final isStockIssued =
-                          DemoStore.instance.isStockIssuedForTask(task);
+                      final isStockIssued = DemoStore.instance
+                          .isStockIssuedForTask(task);
                       if (task.status == 'ASSIGNED') {
                         return ElevatedButton.icon(
                           onPressed: () {

@@ -6,6 +6,7 @@ import 'package:jewellery_ops_mobile/core/widgets/common_button.dart';
 import 'package:jewellery_ops_mobile/core/widgets/common_snackbar.dart';
 import 'package:jewellery_ops_mobile/data/demo_store.dart';
 import 'package:jewellery_ops_mobile/domain/models.dart';
+import '../../../data/mappers/api_domain_mapper.dart';
 import '../bloc/workshop_bloc.dart';
 
 /// Modal bottom sheet displaying active lots in a specific workshop stage
@@ -100,7 +101,7 @@ class StageLotsModal extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Active Pouches on Bench:',
+                    'Active Lots on Bench:',
                     style: TextStyle(
                       color: AppColors.muted,
                       fontSize: 12,
@@ -194,9 +195,11 @@ class StageLotsModal extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  lot.id.length > 10
-                                      ? 'LOT-${lot.id.substring(0, 6).toUpperCase()}'
-                                      : lot.id,
+                                  ApiDomainMapper.formatCleanDesignCode(
+                                    lot.designCode.isNotEmpty
+                                        ? lot.designCode
+                                        : lot.id,
+                                  ),
                                   style: const TextStyle(
                                     color: AppColors.emeraldDark,
                                     fontWeight: FontWeight.w800,

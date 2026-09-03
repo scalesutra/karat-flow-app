@@ -782,11 +782,13 @@ class CadDesignTask {
     this.makingCode = '',
     this.sizeDimensions = '',
     this.gemBreakdown = const [],
+    this.sketchId = '',
     this.calculatedPrice,
     this.priceBreakdown,
   });
 
   final String id;
+  final String sketchId;
   final String orderId;
   final String designCode;
   final String productTitle;

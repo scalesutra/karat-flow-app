@@ -69,7 +69,7 @@ class _AdminManagePageState extends State<AdminManagePage> {
               items: [
                 ManageItemData(
                   icon: Icons.badge_outlined,
-                  title: 'Employees & Goldsmiths',
+                  title: 'Employees & Artisans',
                   subtitle:
                       '${store.team.length} active workshop artisans registered',
                   badge: '${store.team.length} Active',
@@ -166,7 +166,7 @@ class _AdminManagePageState extends State<AdminManagePage> {
   void _showEmployeesModal(BuildContext context) {
     _openSheet(
       context: context,
-      title: 'Employees & Goldsmiths',
+      title: 'Employees & Artisans',
       subtitle:
           'Registered workshop artisans, keycloak accounts and active roles',
       actionLabel: 'Add Employee',

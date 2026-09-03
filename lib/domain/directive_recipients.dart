@@ -5,12 +5,13 @@ abstract final class DirectiveRecipients {
 
   static const List<String> options = [
     allTeams,
-    'CAD Designer',
+    'Process Manager',
     'Product Manager',
+    'CAD Designer',
     'Front Office',
     'Raw Designer',
     'Workshop Artisan',
-    'Goldsmith (Artisans)',
+    'Karigar (Artisans)',
     'QC Team',
     'Store Keeper',
   ];
@@ -32,9 +33,13 @@ abstract final class DirectiveRecipients {
         'cad',
       ],
       AppRole.processManager => const [
-        'product manager',
         'process manager',
+        'product manager',
         'production manager',
+        'workshop manager',
+        'workshop',
+        'process',
+        'manager',
       ],
       AppRole.frontOffice => const ['front office', 'sales & orders', 'sales'],
       AppRole.rawDesigner => const [
@@ -67,6 +72,8 @@ abstract final class DirectiveRecipients {
         'stock manager',
       ],
     };
-    return aliases.any((alias) => normalized.contains(alias) || alias.contains(normalized));
+    return aliases.any(
+      (alias) => normalized.contains(alias) || alias.contains(normalized),
+    );
   }
 }

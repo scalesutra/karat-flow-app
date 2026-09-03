@@ -82,7 +82,7 @@ class CommonProgressIndicator extends StatefulWidget {
     this.theme = IndicatorTheme.artisan,
     this.primaryColor = const Color(0xFFD97706),
     this.secondaryColor = AppColors.emerald,
-    this.label = 'Syncing Live Karigar Bench Tasks & Materials...',
+    this.label = 'Syncing Live Artisan Bench Tasks & Materials...',
   });
 
   const CommonProgressIndicator.admin({
@@ -522,7 +522,7 @@ class _CommonProgressIndicatorState extends State<CommonProgressIndicator>
               Icon(Icons.flash_on, size: 12, color: Color(0xFFFFB300)),
               SizedBox(width: 4),
               Text(
-                'Live Benches & Karigar Stage Engine',
+                'Live Benches & Artisan Stage Engine',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
@@ -1086,7 +1086,7 @@ class _CommonProgressIndicatorState extends State<CommonProgressIndicator>
   }
 
   // =========================================================================
-  // 7. ARTISAN BENCH INDICATOR (3D Isometric Goldsmith Anvil, Molten Gold Sparkle & Karigar Bench Orbit)
+  // 7. ARTISAN BENCH INDICATOR (3D Isometric Goldsmith Anvil, Molten Gold Sparkle & Artisan Bench Orbit)
   // =========================================================================
   Widget _buildArtisanIndicator() {
     final amberBronze = widget.primaryColor ?? const Color(0xFFD97706);
@@ -1162,7 +1162,7 @@ class _CommonProgressIndicatorState extends State<CommonProgressIndicator>
                 ),
               ),
 
-              // 4. Center 3D Goldsmith Anvil / Karigar Bench Emblem
+              // 4. Center 3D Goldsmith Anvil / Artisan Bench Emblem
               if (widget.size >= 24)
                 Transform(
                   alignment: Alignment.center,
@@ -1225,7 +1225,7 @@ class _CommonProgressIndicatorState extends State<CommonProgressIndicator>
               Icon(Icons.handyman_outlined, size: 12, color: Color(0xFFD97706)),
               SizedBox(width: 4),
               Text(
-                'Goldsmith Bench & Karigar Task Engine',
+                'Artisan Bench Task Engine',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
@@ -1601,7 +1601,7 @@ class _CommonRefreshIndicatorState extends State<CommonRefreshIndicator> {
                       IndicatorTheme.rawDesigner =>
                         'Synchronizing 2D Concept Artworks & Sketches...',
                       IndicatorTheme.artisan =>
-                        'Synchronizing Karigar Bench Tasks & Materials...',
+                        'Synchronizing Artisan Bench Tasks & Materials...',
                       IndicatorTheme.universal =>
                         'Synchronizing KaratFlow Cloud & Factory ERP...',
                     },
@@ -1642,13 +1642,13 @@ class CommonLoadingState extends StatelessWidget {
           IndicatorTheme.rawDesigner =>
             'Rendering 2D Concept Artworks & Sketches...',
           IndicatorTheme.artisan =>
-            'Syncing Live Karigar Bench Tasks & Materials...',
+            'Syncing Live Artisan Bench Tasks & Materials...',
           IndicatorTheme.universal => 'Synchronizing KaratFlow Cloud Engine...',
         };
 
     final subtitle = switch (theme) {
       IndicatorTheme.workshop =>
-        '24K Molten Casting, CAD 3D & Bench Karigar Live Engine',
+        '24K Molten Casting, CAD 3D & Bench Artisan Live Engine',
       IndicatorTheme.frontOffice =>
         'Solitaire Diamonds, Real-time Pricing & Dispatch Tracker',
       IndicatorTheme.cad =>
@@ -1658,7 +1658,7 @@ class CommonLoadingState extends StatelessWidget {
       IndicatorTheme.rawDesigner =>
         '2D Artworks, Concept Sketches & Design Studio Engine',
       IndicatorTheme.artisan =>
-        'Goldsmith Bench, Filing, Setting & Polishing Engine',
+        'Artisan Bench, Filing, Setting & Polishing Engine',
       IndicatorTheme.universal =>
         'Real-time RFID, scale & bench synchronization',
     };

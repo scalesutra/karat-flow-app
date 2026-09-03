@@ -228,7 +228,7 @@ class _ArtisanDashboardPageState extends State<ArtisanDashboardPage> {
 
                       if (loading)
                         const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 80),
+                          padding: EdgeInsets.only(top: 110, bottom: 80),
                           child: CommonProgressIndicator.artisan(),
                         )
                       else if (state is ArtisanError)

@@ -78,18 +78,6 @@ abstract final class ApiDomainMapper {
     final text = raw.trim();
     if (text.isEmpty) return 'DSG-0001';
 
-    if (text.contains('-')) {
-      final parts = text.split('-');
-      if (parts.length == 2 &&
-          parts[0].length <= 4 &&
-          parts[1].length <= 5 &&
-          !RegExp(r'[a-f0-9]{8}').hasMatch(parts[1])) {
-        return text.toUpperCase();
-      }
-    }
-
-    // 1. Extract 3-letter category prefix in UPPERCASE
-    String prefix = 'DSG';
     String catString = category.trim();
 
     final matched = DemoStore.instance.designs
@@ -101,41 +89,68 @@ abstract final class ApiDomainMapper {
         )
         .firstOrNull;
 
-    if (matched != null) {
-      if (catString.isEmpty && matched.category.name.isNotEmpty) {
-        catString = matched.category.name;
-      }
-      if (matched.code.isNotEmpty &&
-          matched.code.contains('-') &&
-          matched.code.length <= 10) {
-        return matched.code.toUpperCase();
+    if (matched != null && catString.isEmpty) {
+      catString = matched.category.name;
+    }
+
+    // 1. Extract 3-letter category prefix in UPPERCASE (e.g. NEC, RIN, BAN, EAR, PEN)
+    String prefix = '';
+    if (catString.isNotEmpty) {
+      final cleanCat = catString
+          .replaceAll(RegExp(r'[^a-zA-Z]'), '')
+          .toUpperCase();
+      if (cleanCat.length >= 3) {
+        prefix = cleanCat.substring(0, 3);
+      } else if (cleanCat.isNotEmpty) {
+        prefix = cleanCat.padRight(3, 'X');
       }
     }
 
-    final cleanCat = catString.replaceAll(RegExp(r'[^a-zA-Z]'), '').toUpperCase();
-    if (cleanCat.length >= 3) {
-      prefix = cleanCat.substring(0, 3);
-    } else if (cleanCat.isNotEmpty) {
-      prefix = cleanCat.padRight(3, 'X');
+    if (prefix.isEmpty || prefix == 'DSG' || prefix == 'LOT' || prefix == 'ALL') {
+      final lowerText = text.toLowerCase();
+      if (lowerText.contains('neck') || lowerText.contains('haar')) {
+        prefix = 'NEC';
+      } else if (lowerText.contains('ring') || lowerText.contains('anguthi')) {
+        prefix = 'RIN';
+      } else if (lowerText.contains('bangle') || lowerText.contains('kangan')) {
+        prefix = 'BAN';
+      } else if (lowerText.contains('ear') || lowerText.contains('jhumka')) {
+        prefix = 'EAR';
+      } else if (lowerText.contains('pend')) {
+        prefix = 'PEN';
+      } else if (lowerText.contains('chain')) {
+        prefix = 'CHA';
+      } else if (lowerText.contains('mangal')) {
+        prefix = 'MAN';
+      } else if (lowerText.contains('brace')) {
+        prefix = 'BRA';
+      } else if (lowerText.contains('bridal')) {
+        prefix = 'BRI';
+      } else if (text.contains('-')) {
+        final p = text
+            .split('-')[0]
+            .replaceAll(RegExp(r'[^a-zA-Z]'), '')
+            .toUpperCase();
+        if (p.length >= 3 && p != 'LOT' && p != 'DESIGN' && p != 'PART') {
+          prefix = p.substring(0, 3);
+        }
+      }
     }
 
-    // 2. Extract design sequence number (4 digits)
+    if (prefix.isEmpty) {
+      prefix = 'DSG';
+    }
+
+    // 2. Extract design sequence number (padded to 4 digits)
     String numPart = '';
-    final digitsMatch = RegExp(r'(\d+)$').firstMatch(text);
+    final digitsMatch = RegExp(r'(\d+)').firstMatch(text);
     if (digitsMatch != null) {
       final digits = digitsMatch.group(1)!;
       numPart = digits.length >= 4 ? digits : digits.padLeft(4, '0');
       if (numPart.length > 5) numPart = numPart.substring(numPart.length - 4);
     } else {
-      final cleanDigits = text.replaceAll(RegExp(r'[^0-9]'), '');
-      if (cleanDigits.isNotEmpty) {
-        numPart = cleanDigits.length >= 4
-            ? cleanDigits.substring(cleanDigits.length - 4)
-            : cleanDigits.padLeft(4, '0');
-      } else {
-        final hash = (text.hashCode.abs() % 9000) + 1000;
-        numPart = hash.toString();
-      }
+      final hash = (text.hashCode.abs() % 9000) + 1000;
+      numPart = hash.toString();
     }
 
     return '$prefix-$numPart';
@@ -211,10 +226,10 @@ abstract final class ApiDomainMapper {
               grossWeight: part.grossWeight,
               currentStage:
                   (value.status.toUpperCase() == 'COMPLETED' ||
-                          value.status.toUpperCase() == 'COMPLETE' ||
-                          part.status.toUpperCase() == 'COMPLETED')
-                      ? 'Completed'
-                      : part.currentStage,
+                      value.status.toUpperCase() == 'COMPLETE' ||
+                      part.status.toUpperCase() == 'COMPLETED')
+                  ? 'Completed'
+                  : part.currentStage,
               status: part.status,
               isBlocked: part.isBlocked,
               blockReason: part.blockReason,
@@ -223,11 +238,11 @@ abstract final class ApiDomainMapper {
           .toList(growable: false),
       currentWorkshopStage:
           (value.status.toUpperCase() == 'COMPLETED' ||
-                  value.status.toUpperCase() == 'COMPLETE')
-              ? 'Completed'
-              : ((firstPart?.currentStage.trim().isNotEmpty == true)
-                    ? firstPart!.currentStage
-                    : 'Waxing'),
+              value.status.toUpperCase() == 'COMPLETE')
+          ? 'Completed'
+          : ((firstPart?.currentStage.trim().isNotEmpty == true)
+                ? firstPart!.currentStage
+                : 'Waxing'),
       responsibleManager: 'Arjun · PM',
       isBlocked: isBlocked,
       blockedReason: blockReason,
@@ -331,7 +346,8 @@ abstract final class ApiDomainMapper {
   }
 
   static JewelleryDesign threeDDesign(ApiThreeDDesign value) {
-    final catName = value.category ?? value.sketch?.category ?? value.sketch?.title ?? '';
+    final catName =
+        value.category ?? value.sketch?.category ?? value.sketch?.title ?? '';
     final categoryEnum = parseCategory(catName);
     final rawNum = value.sketch?.designNumber.isNotEmpty == true
         ? value.sketch!.designNumber
@@ -361,12 +377,20 @@ abstract final class ApiDomainMapper {
         ? value.sketch!.title
         : 'Jewellery Design';
 
+    final numPrice =
+        (value.calculatedPrice != null && value.calculatedPrice! > 0)
+        ? value.calculatedPrice
+        : ((value.price != null && value.price! > 0)
+              ? value.price
+              : ((value.priceBreakdown?.finalPrice != null &&
+                        value.priceBreakdown!.finalPrice > 0)
+                    ? value.priceBreakdown!.finalPrice
+                    : null));
+
     final calcPrice =
-        value.calculatedPrice ??
-        value.price ??
-        value.priceBreakdown?.finalPrice ??
+        numPrice ??
         parsePrice(
-          value.price ?? value.sketch?.price,
+          null,
           value.adminInstructions ?? value.sketch?.adminInstructions,
         );
 
@@ -418,6 +442,9 @@ abstract final class ApiDomainMapper {
 
     return CadDesignTask(
       id: value.id,
+      sketchId: value.sketchId.isNotEmpty
+          ? value.sketchId
+          : (value.sketch?.id ?? ''),
       orderId: code,
       designCode: code,
       productTitle: sketchTitle,
@@ -429,18 +456,14 @@ abstract final class ApiDomainMapper {
       notes: '3D Wax STL Modeling Completed',
       estimatedWeightGrams: value.totalWeight,
       status: switch (value.status.toUpperCase()) {
-        'APPROVED' || 'COMPLETED' || 'READY' => CadTaskStatus.completed,
+        'APPROVED' || 'COMPLETED' => CadTaskStatus.completed,
         'REVISION' ||
         'REJECTED' ||
         'CHANGES_REQUESTED' => CadTaskStatus.revision,
-        'IN_PROGRESS' =>
-          (value.xtlFileUrl?.isNotEmpty == true)
-              ? CadTaskStatus.completed
-              : CadTaskStatus.inProgress,
-        _ =>
-          (value.xtlFileUrl?.isNotEmpty == true)
-              ? CadTaskStatus.completed
-              : CadTaskStatus.newTask,
+        'IN_PROGRESS' ||
+        'SUBMITTED' ||
+        'PENDING_APPROVAL' => CadTaskStatus.inProgress,
+        _ => CadTaskStatus.newTask,
       },
       hasSketchImage: value.sketch?.sketchUrl.isNotEmpty ?? true,
       hasStlFile: value.xtlFileUrl?.isNotEmpty ?? false,

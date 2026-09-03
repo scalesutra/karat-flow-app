@@ -238,13 +238,14 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                         _selectedClient = matched;
                       } else {
                         _selectedClient = ClientInfo(
-                          id: matched?.id ??
+                          id:
+                              matched?.id ??
                               'CUSTOM-${DateTime.now().millisecondsSinceEpoch}',
                           firmName: val.trim().isNotEmpty
                               ? val.trim()
                               : (clients.isNotEmpty
-                                  ? clients.first.firmName
-                                  : 'Guest Client'),
+                                    ? clients.first.firmName
+                                    : 'Guest Client'),
                           city: matched?.city ?? '',
                           contactPerson: matched?.contactPerson ?? '',
                           phone: matched?.phone ?? '',
@@ -396,7 +397,6 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                     ),
                   ),
                 ...filteredDesigns.map((design) {
-
                   final qty = _selectedQuantities[design.code] ?? 0;
                   final isSelected = qty > 0;
 
@@ -573,7 +573,7 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                 // 4. NOTES
                 CommonTextField(
                   controller: _notesController,
-                  label: 'Special Instructions / Karigar Note (Optional)',
+                  label: 'Special Instructions / Artisan Note (Optional)',
                   hintText:
                       'e.g. Urgent bridal delivery, 22K antique polish...',
                   maxLines: 2,

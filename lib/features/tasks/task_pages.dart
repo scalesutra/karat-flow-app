@@ -180,7 +180,7 @@ class ProcessManagerHome extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                             const Text(
-                              'Floor Live',
+                              'Floor Status',
                               style: TextStyle(
                                 color: AppColors.emeraldDark,
                                 fontWeight: FontWeight.w800,
@@ -200,7 +200,7 @@ class ProcessManagerHome extends StatelessWidget {
                     height: 44,
                     onPressed: () => _openScanDialog(context),
                     icon: Icons.qr_code_scanner,
-                    label: 'Scan Lot Barcode / Pouch QR',
+                    label: 'Scan Lot / Job Barcode',
                   ),
 
                   const SizedBox(height: 14),
@@ -268,7 +268,7 @@ class ProcessManagerHome extends StatelessWidget {
 
                   // 4. FLOOR STAGE PULSE STRIP
                   const CommonText.titleMedium(
-                    'Workshop Stage Pulse (Live WIP Lots)',
+                    'Workshop Stage Pulse (WIP Lots)',
                   ),
                   const SizedBox(height: 8),
                   _buildStagePulseStrip(context),
@@ -462,7 +462,7 @@ class ProcessManagerHome extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    '${stages.length} Live Stages',
+                    '${stages.length} Active Stages',
                     style: TextStyle(
                       color: AppColors.danger,
                       fontSize: 10,
@@ -646,12 +646,12 @@ class ProcessManagerHome extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Scan Job Barcode / Pouch QR',
+              'Scan Job Barcode / Lot QR',
               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
             ),
             const SizedBox(height: 2),
             const Text(
-              'Position the camera over the physical lot pouch barcode',
+              'Position the camera over the physical lot barcode',
               style: TextStyle(color: AppColors.muted, fontSize: 11),
             ),
             const SizedBox(height: 16),

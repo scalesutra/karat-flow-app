@@ -60,7 +60,7 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
   static const List<Map<String, String>> _availableRoles = [
     {
       'value': 'CRAFTSMAN',
-      'label': 'Craftsman / Karigar',
+      'label': 'Craftsman / Artisan',
       'desc': 'Workshop artisan on production floor',
     },
     {
@@ -259,7 +259,7 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
                             ),
                           ),
                           Text(
-                            'Workshop Goldsmith & Karigar Registration',
+                            'Workshop Artisan & Artisan Registration',
                             style: TextStyle(
                               color: AppColors.muted,
                               fontSize: 12,

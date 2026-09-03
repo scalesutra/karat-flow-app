@@ -61,11 +61,12 @@ class AdminReviewCadSheet extends StatelessWidget {
   void _openUpdateStockModal(BuildContext context, CadDesignTask task) {
     final titleController = TextEditingController(text: task.productTitle);
     final stockController = TextEditingController(text: '1');
-    final priceController = TextEditingController(
-      text: task.calculatedPrice != null && task.calculatedPrice! > 0
-          ? '${task.calculatedPrice!.toInt()}'
-          : '0',
-    );
+    final initialPrice = (task.calculatedPrice != null && task.calculatedPrice! > 0)
+        ? '${task.calculatedPrice!.toInt()}'
+        : ((task.priceBreakdown?.finalPrice != null && task.priceBreakdown!.finalPrice > 0)
+            ? '${task.priceBreakdown!.finalPrice.toInt()}'
+            : '');
+    final priceController = TextEditingController(text: initialPrice);
     final goldQtyController = TextEditingController(
       text: '${task.goldQuantity}',
     );
@@ -344,6 +345,9 @@ class AdminReviewCadSheet extends StatelessWidget {
                               task.status == CadTaskStatus.completed ||
                               task.specs.contains('(Approved)');
                           final pb = task.priceBreakdown;
+                          final calculatedPriceVal = (task.calculatedPrice != null && task.calculatedPrice! > 0)
+                              ? task.calculatedPrice
+                              : (pb?.finalPrice != null && pb!.finalPrice > 0 ? pb.finalPrice : null);
 
                           return CommonCard(
                             padding: const EdgeInsets.all(14),
@@ -537,7 +541,7 @@ class AdminReviewCadSheet extends StatelessWidget {
                                 const SizedBox(height: 8),
 
                                 // 3. Calculated Price & Price Breakdown Card
-                                if (task.calculatedPrice != null && task.calculatedPrice! > 0)
+                                if (calculatedPriceVal != null || pb != null)
                                   Container(
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
@@ -560,7 +564,7 @@ class AdminReviewCadSheet extends StatelessWidget {
                                               ),
                                             ),
                                             Text(
-                                              '₹${task.calculatedPrice!.toInt()}',
+                                              '₹${(calculatedPriceVal ?? 0).toInt()}',
                                               style: const TextStyle(
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w800,

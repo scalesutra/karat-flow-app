@@ -572,10 +572,10 @@ class ApiWorkerTaskStage {
       return const ApiWorkerTaskStage(id: '', name: 'Bench Operation');
     }
     return ApiWorkerTaskStage(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? 'Bench Stage',
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Bench Stage',
       stageNumber: (json['stageNumber'] as num?)?.toInt() ?? 0,
-      description: json['description'] as String? ?? '',
+      description: json['description']?.toString() ?? '',
     );
   }
 }
@@ -611,9 +611,9 @@ class ApiWorkerTaskOrderPart {
 
   factory ApiWorkerTaskOrderPart.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const ApiWorkerTaskOrderPart(id: '');
-    final orderMap = json['order'] as Map<String, dynamic>?;
-    final sketchMap = json['sketch'] as Map<String, dynamic>?;
-    final cadMap = json['threeDDesign'] as Map<String, dynamic>?;
+    final orderMap = json['order'] is Map ? Map<String, dynamic>.from(json['order']) : null;
+    final sketchMap = json['sketch'] is Map ? Map<String, dynamic>.from(json['sketch']) : null;
+    final cadMap = json['threeDDesign'] is Map ? Map<String, dynamic>.from(json['threeDDesign']) : null;
 
     final isStockIssuedVal =
         json['isStockIssued'] as bool? ??
@@ -621,16 +621,16 @@ class ApiWorkerTaskOrderPart {
         (json['issuance'] != null);
 
     return ApiWorkerTaskOrderPart(
-      id: json['id'] as String? ?? '',
-      orderId: json['orderId'] as String? ?? '',
-      designNumber: json['designNumber'] as String? ?? 'D01',
+      id: json['id']?.toString() ?? '',
+      orderId: json['orderId']?.toString() ?? '',
+      designNumber: json['designNumber']?.toString() ?? 'D01',
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
       grossWeight: (json['grossWeight'] as num?)?.toDouble() ?? 0.0,
-      status: json['status'] as String? ?? 'ASSIGNED',
+      status: json['status']?.toString() ?? 'ASSIGNED',
       isBlocked: json['isBlocked'] as bool? ?? false,
       isStockIssued: isStockIssuedVal,
-      orderNumber: orderMap?['orderNumber'] as String? ?? '',
-      sketchUrl: sketchMap?['imageUrl'] as String? ?? '',
+      orderNumber: orderMap?['orderNumber']?.toString() ?? json['orderNumber']?.toString() ?? '',
+      sketchUrl: sketchMap?['imageUrl']?.toString() ?? sketchMap?['url']?.toString() ?? '',
       gemQuantity: (cadMap?['gemQuantity'] as num?)?.toInt() ?? 0,
       goldQuantity: (cadMap?['goldQuantity'] as num?)?.toDouble() ?? 0.0,
     );
@@ -651,6 +651,11 @@ class ApiWorkerTask {
     this.failureReason,
     this.createdAt = '',
     this.isStockIssued = false,
+    this.issuanceStatus = '',
+    this.totalWeightIssued = 0.0,
+    this.totalPcsIssued = 0,
+    this.itemsIssued = const [],
+    this.latestIssuance,
     this.stage = const ApiWorkerTaskStage(id: '', name: 'Bench Operation'),
     this.orderPart = const ApiWorkerTaskOrderPart(id: ''),
     this.assignedByManagerName = '',
@@ -668,6 +673,11 @@ class ApiWorkerTask {
   final String? failureReason;
   final String createdAt;
   final bool isStockIssued;
+  final String issuanceStatus;
+  final double totalWeightIssued;
+  final int totalPcsIssued;
+  final List<Map<String, dynamic>> itemsIssued;
+  final Map<String, dynamic>? latestIssuance;
   final ApiWorkerTaskStage stage;
   final ApiWorkerTaskOrderPart orderPart;
   final String assignedByManagerName;
@@ -684,6 +694,9 @@ class ApiWorkerTask {
       : orderPart.goldQuantity;
   bool get effectiveIsStockIssued =>
       isStockIssued ||
+      issuanceStatus.toUpperCase() == 'ISSUED' ||
+      (latestIssuance != null &&
+          latestIssuance!['status']?.toString().toUpperCase() == 'ISSUED') ||
       orderPart.isStockIssued ||
       status.toUpperCase() == 'IN_PROGRESS' ||
       status.toUpperCase() == 'COMPLETED' ||
@@ -691,13 +704,13 @@ class ApiWorkerTask {
   String get assignedEmployeeName => assignedByManagerName;
 
   factory ApiWorkerTask.fromJson(Map<String, dynamic> json) {
-    final stageMap = json['stage'] as Map<String, dynamic>?;
-    final partMap = json['orderPart'] as Map<String, dynamic>?;
-    final managerMap = json['assignedByManager'] as Map<String, dynamic>?;
+    final stageMap = json['stage'] is Map ? Map<String, dynamic>.from(json['stage']) : null;
+    final partMap = json['orderPart'] is Map ? Map<String, dynamic>.from(json['orderPart']) : null;
+    final managerMap = json['assignedByManager'] is Map ? Map<String, dynamic>.from(json['assignedByManager']) : null;
 
     String dNum =
-        partMap?['designNumber'] as String? ??
-        json['designNumber'] as String? ??
+        partMap?['designNumber']?.toString() ??
+        json['designNumber']?.toString() ??
         'D01';
     int qty =
         (partMap?['quantity'] as num?)?.toInt() ??
@@ -710,55 +723,72 @@ class ApiWorkerTask {
     String oId = '';
     if (partMap?['order'] is Map) {
       oId =
-          partMap!['order']['orderNumber'] as String? ??
-          partMap['order']['id'] as String? ??
+          partMap!['order']['orderNumber']?.toString() ??
+          partMap['order']['id']?.toString() ??
           '';
     }
     if (oId.isEmpty) {
       oId =
-          partMap?['orderNumber'] as String? ??
-          json['orderId'] as String? ??
+          partMap?['orderNumber']?.toString() ??
+          json['orderId']?.toString() ??
           '';
     }
 
     String sName =
-        stageMap?['name'] as String? ??
-        json['stageName'] as String? ??
+        stageMap?['name']?.toString() ??
+        json['stageName']?.toString() ??
         'Bench Operation';
     String mgrName =
-        managerMap?['name'] as String? ??
-        json['assignedEmployeeName'] as String? ??
+        managerMap?['name']?.toString() ??
+        json['assignedEmployeeName']?.toString() ??
         '';
 
     final parsedOrderPart = partMap != null
         ? ApiWorkerTaskOrderPart.fromJson(partMap)
         : ApiWorkerTaskOrderPart(
-            id: json['orderPartId'] as String? ?? '',
+            id: json['orderPartId']?.toString() ?? '',
             designNumber: dNum,
             quantity: qty,
             grossWeight: gWt,
             orderNumber: oId,
           );
 
+    final issStatus = json['issuanceStatus']?.toString() ?? '';
+    final latestIss = json['latestIssuance'] is Map ? Map<String, dynamic>.from(json['latestIssuance']) : null;
+    final itemsList = (json['itemsIssued'] as List?)
+            ?.map((e) => e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{})
+            .toList() ??
+        const <Map<String, dynamic>>[];
+
     final isIssued =
         json['isStockIssued'] as bool? ??
         json['isIssued'] as bool? ??
-        (json['issuance'] != null) || parsedOrderPart.isStockIssued;
+        (issStatus.toUpperCase() == 'ISSUED') ||
+        (latestIss != null &&
+            latestIss['status']?.toString().toUpperCase() == 'ISSUED') ||
+        (json['issuance'] != null) ||
+        parsedOrderPart.isStockIssued;
 
     return ApiWorkerTask(
-      id: json['id'] as String? ?? '',
-      orderPartId: json['orderPartId'] as String? ?? '',
-      stageId: json['stageId'] as String? ?? '',
-      assignedEmployeeId: json['assignedEmployeeId'] as String? ?? '',
-      assignedByManagerId: json['assignedByManagerId'] as String? ?? '',
-      instructions: json['instructions'] as String? ?? '',
-      status: json['status'] as String? ?? 'ASSIGNED',
-      startedAt: json['startedAt'] as String?,
-      completedAt: json['completedAt'] as String?,
+      id: json['id']?.toString() ?? '',
+      orderPartId: json['orderPartId']?.toString() ?? '',
+      stageId: json['stageId']?.toString() ?? '',
+      assignedEmployeeId: json['assignedEmployeeId']?.toString() ?? '',
+      assignedByManagerId: json['assignedByManagerId']?.toString() ?? '',
+      instructions: json['instructions']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'ASSIGNED',
+      startedAt: json['startedAt']?.toString(),
+      completedAt: json['completedAt']?.toString(),
       failureReason:
-          json['failureReason'] as String? ?? json['reason'] as String?,
-      createdAt: json['createdAt'] as String? ?? '',
+          json['failureReason']?.toString() ?? json['reason']?.toString(),
+      createdAt: json['createdAt']?.toString() ?? '',
       isStockIssued: isIssued,
+      issuanceStatus: issStatus,
+      totalWeightIssued:
+          (json['totalWeightIssued'] as num?)?.toDouble() ?? 0.0,
+      totalPcsIssued: (json['totalPcsIssued'] as num?)?.toInt() ?? 0,
+      itemsIssued: itemsList,
+      latestIssuance: latestIss,
       stage: stageMap != null
           ? ApiWorkerTaskStage.fromJson(stageMap)
           : ApiWorkerTaskStage(id: '', name: sName),
