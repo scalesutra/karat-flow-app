@@ -124,6 +124,7 @@ class CommonButton extends StatelessWidget {
           Icon(icon, size: 18, color: effectiveTextColor),
           const SizedBox(width: 6),
         ],
+
         Flexible(
           child: Text(
             label,

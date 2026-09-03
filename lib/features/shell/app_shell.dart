@@ -27,6 +27,8 @@ import '../workshop/product_manager_page.dart';
 import '../workshop/team_page.dart';
 import '../workshop/workshop_more_page.dart';
 import '../workshop_artisan/artisan_dashboard_page.dart';
+import '../worker/worker_dashboard_page.dart';
+import '../stockist/stockist_dashboard_page.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({
@@ -189,12 +191,38 @@ class _AppShellState extends State<AppShell> {
       ),
     ],
     AppRole.workshopArtisan => [
-      const ArtisanDashboardPage(),
+      WorkerDashboardPage(store: widget.store),
       RoleProfilePage(
         title: 'Workshop Artisan Profile',
         description: 'Review your authenticated workshop identity and session.',
         store: widget.store,
         role: AppRole.workshopArtisan,
+      ),
+    ],
+    AppRole.worker => [
+      WorkerDashboardPage(store: widget.store),
+      RoleProfilePage(
+        title: 'Worker Bench Profile',
+        description: 'Review your authenticated worker bench identity and session.',
+        store: widget.store,
+        role: AppRole.worker,
+      ),
+    ],
+    AppRole.stockist => [
+      StockistDashboardPage(
+        store: widget.store,
+        initialTab: 'REQUISITIONS',
+      ),
+      StockistDashboardPage(
+        store: widget.store,
+        initialTab: 'ALL',
+      ),
+      RoleProfilePage(
+        title: 'Stockist Vault Profile',
+        description:
+            'Review your authenticated vault stockist identity and session.',
+        store: widget.store,
+        role: AppRole.stockist,
       ),
     ],
   };
@@ -208,6 +236,8 @@ class _AppShellState extends State<AppShell> {
     AppRole.cadDesigner => AppStrings.cadSubtitle.trClean,
     AppRole.rawDesigner => 'Raw Design Studio',
     AppRole.workshopArtisan => 'My Workshop Bench',
+    AppRole.worker => 'Worker Bench Operations',
+    AppRole.stockist => 'Vault Stockist Portal',
   };
 
   static IndicatorTheme _indicatorTheme(AppRole role) => switch (role) {
@@ -216,6 +246,8 @@ class _AppShellState extends State<AppShell> {
     AppRole.cadDesigner => IndicatorTheme.cad,
     AppRole.rawDesigner => IndicatorTheme.cad,
     AppRole.workshopArtisan => IndicatorTheme.workshop,
+    AppRole.worker => IndicatorTheme.workshop,
+    AppRole.stockist => IndicatorTheme.universal,
     AppRole.admin => IndicatorTheme.universal,
   };
 }
@@ -235,6 +267,9 @@ List<_Destination> _destinations(AppRole role, DemoStore store) {
   final cartBadge = store.cartItemsCount > 0 ? store.cartItemsCount : null;
 
   final cadNewBadge = store.cadNewCount > 0 ? store.cadNewCount : null;
+  final reqBadge = store.pendingRequisitionsCount > 0
+      ? store.pendingRequisitionsCount
+      : null;
 
   return switch (role) {
     AppRole.admin => [
@@ -288,6 +323,19 @@ List<_Destination> _destinations(AppRole role, DemoStore store) {
     ],
     AppRole.workshopArtisan => [
       _Destination('My Tasks', Icons.handyman_outlined),
+      _Destination('Profile', Icons.person_outline_rounded),
+    ],
+    AppRole.worker => [
+      _Destination('Bench Tasks', Icons.precision_manufacturing_outlined),
+      _Destination('Profile', Icons.person_outline_rounded),
+    ],
+    AppRole.stockist => [
+      _Destination(
+        'Requisitions',
+        Icons.move_to_inbox_rounded,
+        badge: reqBadge,
+      ),
+      _Destination('Vault Stock', Icons.inventory_2_outlined),
       _Destination('Profile', Icons.person_outline_rounded),
     ],
   };

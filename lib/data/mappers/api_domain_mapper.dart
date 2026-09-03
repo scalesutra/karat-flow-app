@@ -43,16 +43,102 @@ abstract final class ApiDomainMapper {
     return '';
   }
 
-  static String formatOrderNumber(String rawId) {
+  static String formatOrderNumber(String rawId, {DateTime? date}) {
     if (rawId.isEmpty) return '';
     final text = rawId.trim();
-    final regex = RegExp(r'^ORD.*?-(\d+)$', caseSensitive: false);
-    final match = regex.firstMatch(text);
-    if (match != null) {
-      final seq = match.group(1);
-      return 'ORD-$seq';
+
+    final now = date ?? DateTime.now();
+    final dd = now.day.toString().padLeft(2, '0');
+    final mm = now.month.toString().padLeft(2, '0');
+    final yy = (now.year % 100).toString().padLeft(2, '0');
+    String datePrefix = '$dd$mm$yy';
+
+    final dateMatch = RegExp(r'(\d{4})(\d{2})(\d{2})').firstMatch(text);
+    if (dateMatch != null) {
+      final yearStr = dateMatch.group(1)!;
+      final monthStr = dateMatch.group(2)!;
+      final dayStr = dateMatch.group(3)!;
+      final shortYear = yearStr.substring(2);
+      datePrefix = '$dayStr$monthStr$shortYear';
     }
-    return text;
+
+    final seqMatch = RegExp(r'(\d+)$').firstMatch(text);
+    String seqStr = '00001';
+    if (seqMatch != null) {
+      final numVal = int.tryParse(seqMatch.group(1)!);
+      if (numVal != null) {
+        seqStr = numVal.toString().padLeft(5, '0');
+      }
+    }
+
+    return '$datePrefix-$seqStr';
+  }
+
+  static String formatCleanDesignCode(String raw, {String category = ''}) {
+    final text = raw.trim();
+    if (text.isEmpty) return 'DSG-0001';
+
+    if (text.contains('-')) {
+      final parts = text.split('-');
+      if (parts.length == 2 &&
+          parts[0].length <= 4 &&
+          parts[1].length <= 5 &&
+          !RegExp(r'[a-f0-9]{8}').hasMatch(parts[1])) {
+        return text.toUpperCase();
+      }
+    }
+
+    // 1. Extract 3-letter category prefix in UPPERCASE
+    String prefix = 'DSG';
+    String catString = category.trim();
+
+    final matched = DemoStore.instance.designs
+        .where(
+          (d) =>
+              d.id.toLowerCase() == text.toLowerCase() ||
+              d.code.toLowerCase() == text.toLowerCase() ||
+              d.name.toLowerCase() == text.toLowerCase(),
+        )
+        .firstOrNull;
+
+    if (matched != null) {
+      if (catString.isEmpty && matched.category.name.isNotEmpty) {
+        catString = matched.category.name;
+      }
+      if (matched.code.isNotEmpty &&
+          matched.code.contains('-') &&
+          matched.code.length <= 10) {
+        return matched.code.toUpperCase();
+      }
+    }
+
+    final cleanCat = catString.replaceAll(RegExp(r'[^a-zA-Z]'), '').toUpperCase();
+    if (cleanCat.length >= 3) {
+      prefix = cleanCat.substring(0, 3);
+    } else if (cleanCat.isNotEmpty) {
+      prefix = cleanCat.padRight(3, 'X');
+    }
+
+    // 2. Extract design sequence number (4 digits)
+    String numPart = '';
+    final digitsMatch = RegExp(r'(\d+)$').firstMatch(text);
+    if (digitsMatch != null) {
+      final digits = digitsMatch.group(1)!;
+      numPart = digits.length >= 4 ? digits : digits.padLeft(4, '0');
+      if (numPart.length > 5) numPart = numPart.substring(numPart.length - 4);
+    } else {
+      final cleanDigits = text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (cleanDigits.isNotEmpty) {
+        numPart = cleanDigits.length >= 4
+            ? cleanDigits.substring(cleanDigits.length - 4)
+            : cleanDigits.padLeft(4, '0');
+      } else {
+        final hash = (text.hashCode.abs() % 9000) + 1000;
+        numPart = hash.toString();
+      }
+    }
+
+    return '$prefix-$numPart';
   }
 
   static ClientInfo customer(ApiCustomer value) => ClientInfo(
@@ -74,7 +160,10 @@ abstract final class ApiDomainMapper {
     final rawOrderNum = value.orderNumber.isNotEmpty
         ? value.orderNumber
         : value.id;
-    final formattedOrderNum = formatOrderNumber(rawOrderNum);
+    final formattedOrderNum = formatOrderNumber(
+      rawOrderNum,
+      date: value.createdAt,
+    );
 
     return CustomerOrder(
       id: formattedOrderNum.isNotEmpty ? formattedOrderNum : rawOrderNum,
@@ -108,13 +197,16 @@ abstract final class ApiDomainMapper {
       itemsSummary: value.parts.isEmpty
           ? ''
           : value.parts
-                .map((part) => '${part.quantity}x ${part.designNumber}')
+                .map(
+                  (part) =>
+                      '${part.quantity}x ${formatCleanDesignCode(part.designNumber)}',
+                )
                 .join(', '),
       designs: value.parts
           .map(
             (part) => OrderDesignProgress(
               partId: part.id,
-              designNumber: part.designNumber,
+              designNumber: formatCleanDesignCode(part.designNumber),
               quantity: part.quantity,
               grossWeight: part.grossWeight,
               currentStage:
@@ -134,33 +226,29 @@ abstract final class ApiDomainMapper {
                   value.status.toUpperCase() == 'COMPLETE')
               ? 'Completed'
               : ((firstPart?.currentStage.trim().isNotEmpty == true)
-                  ? firstPart!.currentStage.trim()
-                  : 'Unassigned'),
-      responsibleManager: '',
+                    ? firstPart!.currentStage
+                    : 'Waxing'),
+      responsibleManager: 'Arjun · PM',
       isBlocked: isBlocked,
       blockedReason: blockReason,
     );
   }
 
-  static String _cleanText(String? text) {
-    if (text == null || text.trim().isEmpty) return '';
-    var cleaned = text.trim();
-    if (cleaned.contains('[ 🎙️ Voice Note: ')) {
-      cleaned = cleaned
-          .substring(0, cleaned.indexOf('[ 🎙️ Voice Note: '))
-          .trim();
-    }
-    if (cleaned.contains('Price:') ||
-        cleaned.contains('Stock:') ||
-        cleaned.contains('Status:')) {
-      final parts = cleaned.split('|').map((p) => p.trim()).toList();
+  static String _cleanText(String? raw) {
+    if (raw == null) return '';
+    var cleaned = raw.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+    if (cleaned.contains('|')) {
+      final parts = cleaned.split('|');
       final uniqueParts = <String>[];
       final seenMetaKeys = <String>{};
-      for (final part in parts) {
+      for (final p in parts) {
+        final part = p.trim();
+        if (part.isEmpty) continue;
         if (part.contains(':')) {
           final key = part.split(':').first.trim().toLowerCase();
-          if (key == 'price' || key == 'stock' || key == 'status') {
-            if (seenMetaKeys.contains(key)) continue;
+          if (seenMetaKeys.contains(key)) {
+            continue;
+          } else {
             seenMetaKeys.add(key);
           }
         }
@@ -214,63 +302,103 @@ abstract final class ApiDomainMapper {
     return null;
   }
 
-  static JewelleryDesign sketch(ApiSketch value) => JewelleryDesign(
-    id: value.id,
-    name: value.title.isNotEmpty ? value.title : 'Custom Sketch',
-    code: value.designNumber.isNotEmpty
+  static JewelleryDesign sketch(ApiSketch value) {
+    final catName = value.category != null && value.category!.isNotEmpty
+        ? value.category!
+        : value.title;
+    final categoryEnum = parseCategory(catName);
+    final rawNum = value.designNumber.isNotEmpty
         ? value.designNumber
-        : 'DSG-${value.id.substring(0, value.id.length > 6 ? 6 : value.id.length)}',
-    category: parseCategory(
-      value.category != null && value.category!.isNotEmpty
-          ? value.category
-          : value.title,
-    ),
-    purity: '22KT',
-    grossWeightGrams: 0,
-    estimatedPrice: parsePrice(value.price, value.adminInstructions),
-    imageUrl: value.sketchUrl,
-    description: _cleanText(value.adminInstructions).isNotEmpty
-        ? _cleanText(value.adminInstructions)
-        : (value.status == 'APPROVED'
-              ? 'Approved 2D Sketch'
-              : 'New Design Sketch'),
-    isPopular: value.status == 'APPROVED',
-  );
+        : value.id;
+    final code = formatCleanDesignCode(rawNum, category: catName);
 
-  static JewelleryDesign threeDDesign(ApiThreeDDesign value) => JewelleryDesign(
-    id: value.id,
-    name: value.sketch?.title.isNotEmpty == true
-        ? value.sketch!.title
+    return JewelleryDesign(
+      id: value.id,
+      name: value.title.isNotEmpty ? value.title : 'Custom Sketch',
+      code: code,
+      category: categoryEnum,
+      purity: '22KT',
+      grossWeightGrams: 0,
+      estimatedPrice: parsePrice(value.price, value.adminInstructions),
+      imageUrl: value.sketchUrl,
+      description: _cleanText(value.adminInstructions).isNotEmpty
+          ? _cleanText(value.adminInstructions)
+          : (value.status == 'APPROVED'
+                ? 'Approved 2D Sketch'
+                : 'New Design Sketch'),
+      isPopular: value.status == 'APPROVED',
+    );
+  }
+
+  static JewelleryDesign threeDDesign(ApiThreeDDesign value) {
+    final catName = value.category ?? value.sketch?.category ?? value.sketch?.title ?? '';
+    final categoryEnum = parseCategory(catName);
+    final rawNum = value.sketch?.designNumber.isNotEmpty == true
+        ? value.sketch!.designNumber
+        : value.id;
+    final code = formatCleanDesignCode(rawNum, category: catName);
+    final rawPurity = value.priceBreakdown?.purity.isNotEmpty == true
+        ? value.priceBreakdown!.purity
         : (value.sizeDimensions.isNotEmpty
               ? value.sizeDimensions
-              : '3D CAD Design'),
-    code: value.sketch?.designNumber.isNotEmpty == true
-        ? value.sketch!.designNumber
-        : (value.id.length > 8
-              ? value.id.substring(0, 8).toUpperCase()
-              : value.id),
-    category: parseCategory(
-      value.category ?? value.sketch?.category ?? value.sketch?.title,
-    ),
-    purity: '22KT',
-    grossWeightGrams: value.totalWeight,
-    estimatedPrice: parsePrice(
-      value.price ?? value.sketch?.price,
-      value.adminInstructions ?? value.sketch?.adminInstructions,
-    ),
-    imageUrl: (value.sketch?.sketchUrl.isNotEmpty == true)
-        ? value.sketch!.sketchUrl
-        : (value.xtlFileUrl?.isNotEmpty == true
-              ? value.xtlFileUrl!
-              : (value.bomFileUrl ?? '')),
-    description: _cleanText(value.adminInstructions).isNotEmpty
-        ? _cleanText(value.adminInstructions)
-        : value.sizeDimensions,
-    isPopular: value.status == 'APPROVED' || value.totalWeight > 0,
-    sizeDimensions: value.sizeDimensions.isNotEmpty
+              : '22K Yellow Gold');
+
+    final displayPurity = rawPurity.contains('K') || rawPurity.contains('Gold')
+        ? rawPurity
+        : '$rawPurity Yellow Gold';
+
+    final isSizePurity =
+        value.sizeDimensions.toLowerCase().contains('gold') ||
+        value.sizeDimensions.toLowerCase().contains('22k') ||
+        value.sizeDimensions.toLowerCase().contains('18k') ||
+        value.sizeDimensions.toLowerCase().contains('purity');
+
+    final cleanSize = (!isSizePurity && value.sizeDimensions.isNotEmpty)
         ? value.sizeDimensions
-        : null,
-  );
+        : null;
+
+    final title = value.sketch?.title.isNotEmpty == true
+        ? value.sketch!.title
+        : 'Jewellery Design';
+
+    final calcPrice =
+        value.calculatedPrice ??
+        value.price ??
+        value.priceBreakdown?.finalPrice ??
+        parsePrice(
+          value.price ?? value.sketch?.price,
+          value.adminInstructions ?? value.sketch?.adminInstructions,
+        );
+
+    return JewelleryDesign(
+      id: value.id,
+      name: title,
+      code: code,
+      category: categoryEnum,
+      purity: displayPurity,
+      grossWeightGrams: value.totalWeight > 0
+          ? value.totalWeight
+          : value.goldQuantity,
+      netGoldWeightGrams: value.goldQuantity > 0
+          ? value.goldQuantity
+          : value.totalWeight,
+      diamondCarats: value.gemWeightTw > 0 ? value.gemWeightTw : 0.0,
+      estimatedPrice: calcPrice,
+      imageUrl: (value.sketch?.sketchUrl.isNotEmpty == true)
+          ? value.sketch!.sketchUrl
+          : (value.xtlFileUrl?.isNotEmpty == true
+                ? value.xtlFileUrl!
+                : (value.bomFileUrl ?? '')),
+      description: _cleanText(value.adminInstructions).isNotEmpty
+          ? _cleanText(value.adminInstructions)
+          : 'High Quality 3D CAD Designed Jewellery',
+      isPopular: value.status == 'APPROVED' || value.totalWeight > 0,
+      sizeDimensions: cleanSize,
+      priceBreakdown: value.priceBreakdown,
+      gemBreakdown: value.gemBreakdown,
+      gemQuantity: value.gemQuantity,
+    );
+  }
 
   static CadDesignTask cadTask(ApiThreeDDesign value) {
     final sketchTitle = (value.sketch?.title.isNotEmpty == true)
@@ -293,7 +421,10 @@ abstract final class ApiDomainMapper {
       orderId: code,
       designCode: code,
       productTitle: sketchTitle,
-      clientName: value.designer?.name ?? value.sketch?.designer?.name ?? 'Client Design',
+      clientName:
+          value.designer?.name ??
+          value.sketch?.designer?.name ??
+          'Client Design',
       specs: specsStr,
       notes: '3D Wax STL Modeling Completed',
       estimatedWeightGrams: value.totalWeight,
@@ -392,6 +523,12 @@ abstract final class ApiDomainMapper {
     final readableRole = specialty.isNotEmpty
         ? specialty
         : switch (rawRole) {
+            'CRAFTSMAN' => 'Craftsman / Artisan',
+            'MANAGER' => 'Production Manager',
+            'DESIGNER' => '3D CAD Designer',
+            'SKETCHER' => '2D Concept Sketcher',
+            'FRONTLINER' => 'Front Office / Sales',
+            'ADMIN' => 'System Administrator',
             'THREE_D_DESIGNER' => '3D CAD Modeler',
             'RAW_SKETCHER' => '2D Raw Concept Sketcher',
             'GOLDSMITH' => 'Goldsmith Artisan',
@@ -404,7 +541,6 @@ abstract final class ApiDomainMapper {
             'POLISHER' => 'Polishing Artisan',
             'QUALITY_CHECK' => 'Quality Inspector',
             'PRODUCTION_MANAGER' => 'Production Manager',
-            'ADMIN' => 'System Administrator',
             'FRONTIER' => 'Frontier Sales Manager',
             _ => value.role.replaceAll('_', ' '),
           };
@@ -422,6 +558,12 @@ abstract final class ApiDomainMapper {
       currentAssignment: value.workerAssignmentsCount > 0
           ? '${value.workerAssignmentsCount} active lots assigned'
           : 'Ready for allocation',
+      email: value.email,
+      phone: value.phone,
+      role: value.role,
+      skills: value.skills,
+      specialty: value.specialty,
+      keycloakId: value.keycloakId,
     );
   }
 
@@ -650,7 +792,11 @@ abstract final class ApiDomainMapper {
     final blockReason =
         part['blockReason'] as String? ?? value['blockReason'] as String?;
     final statusStr =
-        (part['status'] as String? ?? value['status'] as String? ?? '')
+        (part['orderPartStatus'] as String? ??
+                part['status'] as String? ??
+                value['orderPartStatus'] as String? ??
+                value['status'] as String? ??
+                '')
             .toUpperCase();
     final isFailedOrHold =
         isBlocked ||
@@ -672,6 +818,9 @@ abstract final class ApiDomainMapper {
       assignedEmployee: employeeName,
       assignedEmployeeRole:
           latestAssignment['status'] as String? ??
+          part['orderPartStatus'] as String? ??
+          part['status'] as String? ??
+          value['orderPartStatus'] as String? ??
           value['status'] as String? ??
           '',
       pieces:

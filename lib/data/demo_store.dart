@@ -54,6 +54,166 @@ class DemoStore extends ChangeNotifier {
   final GoldRates _goldRates;
 
   final List<Map<String, String>> _adminDirectives = [];
+  final List<VaultRequisition> _vaultRequisitions = [];
+
+  List<VaultRequisition> get vaultRequisitions =>
+      List.unmodifiable(_vaultRequisitions);
+
+  int get pendingRequisitionsCount =>
+      _vaultRequisitions.where((r) => r.status == 'PENDING_ISSUE').length;
+
+  void createRequisitionForAssignment({
+    required String designNumber,
+    required String orderId,
+    required String artisanName,
+    required String stageName,
+    required int quantity,
+    double? grossWeight,
+    List<String>? stones,
+    List<StoneSpec>? stoneSpecs,
+  }) {
+    final pcs = quantity > 0 ? quantity : 1;
+
+    final newReq = VaultRequisition(
+      id: 'REQ-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+      designNumber: designNumber,
+      orderId: orderId,
+      artisanName: artisanName,
+      stageName: stageName,
+      quantity: pcs,
+      goldWeightGrams: (grossWeight != null && grossWeight > 0)
+          ? grossWeight
+          : 0.0,
+      stones: stones ?? const [],
+      stoneSpecs: stoneSpecs ?? const [],
+      status: 'PENDING_ISSUE',
+      timestamp:
+          'Today, ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+    );
+    _vaultRequisitions.insert(0, newReq);
+    createWorkerTaskForAssignment(
+      designNumber: designNumber,
+      orderId: orderId,
+      artisanName: artisanName,
+      stageName: stageName,
+      quantity: quantity,
+      grossWeight: grossWeight,
+    );
+  }
+
+  final List<ApiWorkerTask> _workerTasks = [];
+
+  List<ApiWorkerTask> get workerTasks => List.unmodifiable(_workerTasks);
+
+  void setWorkerTasks(List<ApiWorkerTask> tasks) {
+    _workerTasks.clear();
+    _workerTasks.addAll(tasks);
+    notifyListeners();
+  }
+
+  void updateWorkerTaskStatus(String taskId, String newStatus) {
+    final idx = _workerTasks.indexWhere((t) => t.id == taskId);
+    if (idx >= 0) {
+      final old = _workerTasks[idx];
+      _workerTasks[idx] = ApiWorkerTask(
+        id: old.id,
+        orderPartId: old.orderPartId,
+        stageId: old.stageId,
+        status: newStatus,
+        instructions: old.instructions,
+        stage: old.stage,
+        orderPart: old.orderPart,
+        assignedByManagerName: old.assignedByManagerName,
+      );
+      notifyListeners();
+    }
+  }
+
+  void createWorkerTaskForAssignment({
+    required String designNumber,
+    required String orderId,
+    required String artisanName,
+    required String stageName,
+    required int quantity,
+    double? grossWeight,
+  }) {
+    final newTask = ApiWorkerTask(
+      id: 'TASK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+      orderPartId: 'PART-$orderId',
+      stageId: 'STAGE-$stageName',
+      status: 'ASSIGNED',
+      instructions:
+          '$stageName for $designNumber ($quantity Pcs). Assigned to $artisanName',
+      stage: ApiWorkerTaskStage(id: 'STAGE-$stageName', name: stageName),
+      orderPart: ApiWorkerTaskOrderPart(
+        id: 'PART-$orderId',
+        designNumber: designNumber.isNotEmpty ? designNumber : 'DES-GENERIC',
+        quantity: quantity > 0 ? quantity : 1,
+        grossWeight: grossWeight ?? 15.0,
+        orderNumber: orderId.isNotEmpty ? orderId : 'ORD-NEW',
+      ),
+      assignedByManagerName: artisanName,
+    );
+    _workerTasks.insert(0, newTask);
+    notifyListeners();
+  }
+
+  void markRequisitionIssued(String reqId) {
+    final idx = _vaultRequisitions.indexWhere((r) => r.id == reqId);
+    if (idx >= 0) {
+      final req = _vaultRequisitions[idx];
+      _vaultRequisitions[idx] = req.copyWith(
+        status: 'ISSUED',
+      );
+      for (int i = 0; i < _workerTasks.length; i++) {
+        final t = _workerTasks[i];
+        if (t.id == reqId ||
+            t.orderPartId == reqId ||
+            (req.orderId.isNotEmpty && t.orderId == req.orderId) ||
+            (req.designNumber.isNotEmpty && t.designNumber == req.designNumber)) {
+          _workerTasks[i] = ApiWorkerTask(
+            id: t.id,
+            orderPartId: t.orderPartId,
+            stageId: t.stageId,
+            assignedEmployeeId: t.assignedEmployeeId,
+            assignedByManagerId: t.assignedByManagerId,
+            instructions: t.instructions,
+            status: t.status,
+            startedAt: t.startedAt,
+            completedAt: t.completedAt,
+            failureReason: t.failureReason,
+            createdAt: t.createdAt,
+            isStockIssued: true,
+            stage: t.stage,
+            orderPart: t.orderPart,
+            assignedByManagerName: t.assignedByManagerName,
+          );
+        }
+      }
+      notifyListeners();
+    }
+  }
+
+  bool isStockIssuedForTask(ApiWorkerTask task) {
+    if (task.effectiveIsStockIssued) return true;
+    return _vaultRequisitions.any((r) {
+      final isIssued = r.status.toUpperCase() == 'ISSUED';
+      final matchesId = r.id == task.orderPartId || r.id == task.id;
+      final matchesOrder = (r.orderId.isNotEmpty && r.orderId == task.orderId) ||
+          (r.designNumber.isNotEmpty && r.designNumber == task.designNumber);
+      return (matchesId || matchesOrder) && isIssued;
+    });
+  }
+
+  bool isWorkerTaskCompletedForPart(String partId, {String? designNumber, String? artisanName}) {
+    return _workerTasks.any((t) {
+      final matchesPart = t.id == partId || t.orderPartId == partId;
+      final matchesDesign = designNumber != null && designNumber.isNotEmpty && t.designNumber == designNumber;
+      final matchesArtisan = artisanName != null && artisanName.isNotEmpty && t.assignedEmployeeName.toLowerCase() == artisanName.toLowerCase();
+      final isDone = t.status.toUpperCase() == 'COMPLETED' || t.status.toUpperCase() == 'STAGE_COMPLETED';
+      return (matchesPart || matchesDesign || matchesArtisan) && isDone;
+    });
+  }
 
   List<Map<String, String>> get adminDirectives => _adminDirectives;
   List<Map<String, String>> get activeAdminDirectives => _adminDirectives
@@ -127,7 +287,9 @@ class DemoStore extends ChangeNotifier {
     final createdAt = DateTime.tryParse(directive.createdAt ?? '');
     final contentText = directive.instruction.trim().isNotEmpty
         ? directive.instruction.trim()
-        : (directive.title.trim().isNotEmpty ? directive.title.trim() : 'Directive Note');
+        : (directive.title.trim().isNotEmpty
+              ? directive.title.trim()
+              : 'Directive Note');
     return {
       'id': directive.id,
       'title': directive.title,
@@ -146,8 +308,14 @@ class DemoStore extends ChangeNotifier {
   String _directiveRecipient(String targetType) =>
       switch (targetType.trim().toUpperCase()) {
         'THREE_D_DESIGNER' || 'CAD_DESIGNER' || 'CAD' => 'CAD Designer',
-        'SKETCHER' || 'SKETCH' || 'RAW_DESIGNER' || 'SKETCH_DESIGNER' => 'Raw Designer',
-        'ALL_ARTISANS' || 'BENCH_ARTISAN' || 'ARTISAN' || 'ARTISANS' => 'Workshop Artisan',
+        'SKETCHER' ||
+        'SKETCH' ||
+        'RAW_DESIGNER' ||
+        'SKETCH_DESIGNER' => 'Raw Designer',
+        'ALL_ARTISANS' ||
+        'BENCH_ARTISAN' ||
+        'ARTISAN' ||
+        'ARTISANS' => 'Workshop Artisan',
         'PROCESS_MANAGER' || 'PRODUCTION_MANAGER' => 'Product Manager',
         'FRONT_OFFICE' || 'SALES' => 'Front Office',
         'ALL' || 'ALL_TEAMS' => DirectiveRecipients.allTeams,
@@ -267,8 +435,8 @@ class DemoStore extends ChangeNotifier {
               status: hasHeldLot
                   ? 'Lot On Hold'
                   : (count > 0
-                      ? '$count active lot${count == 1 ? '' : 's'}'
-                      : 'Available'),
+                        ? '$count active lot${count == 1 ? '' : 's'}'
+                        : 'Available'),
               quantity: '$count lot${count == 1 ? '' : 's'}',
               owner: member.shift,
               tone: hasHeldLot
@@ -1075,6 +1243,16 @@ class DemoStore extends ChangeNotifier {
 
   void addTeamMember(TeamMember member) {
     _team.insert(0, member);
+    notifyListeners();
+  }
+
+  void updateTeamMember(TeamMember member) {
+    final index = _team.indexWhere((t) => t.id == member.id);
+    if (index >= 0) {
+      _team[index] = member;
+    } else {
+      _team.insert(0, member);
+    }
     notifyListeners();
   }
 

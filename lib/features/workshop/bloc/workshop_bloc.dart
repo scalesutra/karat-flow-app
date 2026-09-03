@@ -47,6 +47,10 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
       final stages = await _api.listStages();
       // Stage IDs in the production response need this lookup during mapping.
       _store.setStages(stages);
+      try {
+        final workerTasks = await _api.listWorkerTasks();
+        _store.setWorkerTasks(workerTasks);
+      } catch (_) {}
       final isWorker = appRole == AppRole.workshopArtisan;
       final isFrontier = appRole == AppRole.frontOffice;
       final canManageAssignments =

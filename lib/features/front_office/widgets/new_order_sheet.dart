@@ -34,12 +34,15 @@ class NewOrderSheet extends StatefulWidget {
 class _NewOrderSheetState extends State<NewOrderSheet> {
   ClientInfo? _selectedClient;
   final Map<String, int> _selectedQuantities = {};
-  String _dueDate = 'Due Today Â· 6:00 PM';
+  String _dueDate = 'Due Today · 6:00 PM';
   final _notesController = TextEditingController();
+  final _clientSearchController = TextEditingController();
+  final _designSearchController = TextEditingController();
+  bool _isClientDropdownOpen = false;
 
   final List<String> _dueDatePresets = const [
-    'Due Today Â· 6:00 PM',
-    'Due Tomorrow Â· 12:00 PM',
+    'Due Today · 6:00 PM',
+    'Due Tomorrow · 12:00 PM',
     'Due in 3 Days',
     'Due Friday',
     'Due next Monday',
@@ -50,15 +53,16 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
     super.initState();
     if (widget.store.clients.isNotEmpty) {
       _selectedClient = widget.store.clients.first;
-    }
-    if (widget.store.designs.isNotEmpty) {
-      _selectedQuantities[widget.store.designs.first.code] = 1;
+      _clientSearchController.text =
+          '${_selectedClient!.firmName} · ${_selectedClient!.city}';
     }
   }
 
   @override
   void dispose() {
     _notesController.dispose();
+    _clientSearchController.dispose();
+    _designSearchController.dispose();
     super.dispose();
   }
 
@@ -66,6 +70,23 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
   Widget build(BuildContext context) {
     final designs = widget.store.designs;
     final clients = widget.store.clients;
+
+    final clientQuery = _clientSearchController.text.trim().toLowerCase();
+    final filteredClients = clients.where((c) {
+      if (clientQuery.isEmpty) return true;
+      return c.firmName.toLowerCase().contains(clientQuery) ||
+          c.city.toLowerCase().contains(clientQuery) ||
+          c.contactPerson.toLowerCase().contains(clientQuery) ||
+          c.phone.contains(clientQuery);
+    }).toList();
+
+    final designQuery = _designSearchController.text.trim().toLowerCase();
+    final filteredDesigns = designs.where((d) {
+      if (designQuery.isEmpty) return true;
+      return d.name.toLowerCase().contains(designQuery) ||
+          d.code.toLowerCase().contains(designQuery) ||
+          d.purity.toLowerCase().contains(designQuery);
+    }).toList();
 
     int totalPcs = 0;
     double totalWeight = 0.0;
@@ -118,7 +139,7 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                   borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
                 ),
                 child: Text(
-                  '$totalPcs pcs Â· ${totalWeight.toStringAsFixed(1)}g',
+                  '$totalPcs pcs · ${totalWeight.toStringAsFixed(1)}g',
                   style: const TextStyle(
                     color: AppColors.emerald,
                     fontWeight: FontWeight.w800,
@@ -132,69 +153,210 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
           Expanded(
             child: ListView(
               children: [
-                // 1. SELECT CLIENT
-                const Text(
-                  '1. Select Client',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.canvas,
-                    borderRadius: BorderRadius.circular(
-                      AppDimensions.radiusSmall,
-                    ),
-                    border: Border.all(color: AppColors.outline),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<ClientInfo>(
-                      value: _selectedClient,
-                      isExpanded: true,
-                      icon: const Icon(
-                        Icons.arrow_drop_down,
+                // 1. SELECT CLIENT (Searchable & Editable)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '1. Select Client',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
                         color: AppColors.ink,
                       ),
-                      items: clients.map((c) {
-                        return DropdownMenuItem<ClientInfo>(
-                          value: c,
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.storefront_outlined,
-                                size: 16,
-                                color: AppColors.emerald,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '${c.firmName} Â· ${c.city}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ],
+                    ),
+                    if (_selectedClient != null) ...[
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Selected: ${_selectedClient!.firmName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.emerald,
                           ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 6),
+                CommonTextField(
+                  controller: _clientSearchController,
+                  hintText: 'Type to filter or enter client name...',
+                  prefixIcon: Icons.storefront_outlined,
+                  onTap: () {
+                    setState(() {
+                      _isClientDropdownOpen = true;
+                    });
+                  },
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_clientSearchController.text.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.clear, size: 16),
+                          onPressed: () {
+                            setState(() {
+                              _clientSearchController.clear();
+                              _selectedClient = null;
+                              _isClientDropdownOpen = true;
+                            });
+                          },
+                        ),
+                      IconButton(
+                        icon: Icon(
+                          _isClientDropdownOpen
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
+                          color: AppColors.ink,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isClientDropdownOpen = !_isClientDropdownOpen;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  onChanged: (val) {
+                    setState(() {
+                      _isClientDropdownOpen = true;
+                      final query = val.trim().toLowerCase();
+                      final matched = clients.where((c) {
+                        return c.firmName.toLowerCase().contains(query) ||
+                            c.city.toLowerCase().contains(query) ||
+                            c.contactPerson.toLowerCase().contains(query) ||
+                            c.phone.contains(query);
+                      }).firstOrNull;
+
+                      if (matched != null &&
+                          query == matched.firmName.toLowerCase()) {
+                        _selectedClient = matched;
+                      } else {
+                        _selectedClient = ClientInfo(
+                          id: matched?.id ??
+                              'CUSTOM-${DateTime.now().millisecondsSinceEpoch}',
+                          firmName: val.trim().isNotEmpty
+                              ? val.trim()
+                              : (clients.isNotEmpty
+                                  ? clients.first.firmName
+                                  : 'Guest Client'),
+                          city: matched?.city ?? '',
+                          contactPerson: matched?.contactPerson ?? '',
+                          phone: matched?.phone ?? '',
+                          creditLimitLakhs: 0,
+                          outstandingBalance: 0,
+                          activeOrdersCount: 0,
                         );
-                      }).toList(),
-                      onChanged: (c) {
-                        if (c != null) setState(() => _selectedClient = c);
-                      },
+                      }
+                    });
+                  },
+                ),
+                if (_isClientDropdownOpen) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 180),
+                    decoration: BoxDecoration(
+                      color: AppColors.paper,
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusSmall,
+                      ),
+                      border: Border.all(color: AppColors.outline),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusSmall,
+                      ),
+                      child: ListView(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        children: filteredClients.isEmpty
+                            ? [
+                                ListTile(
+                                  dense: true,
+                                  title: Text(
+                                    'Use custom client: "${_clientSearchController.text.trim()}"',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                      color: AppColors.emerald,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    setState(() {
+                                      _isClientDropdownOpen = false;
+                                    });
+                                  },
+                                ),
+                              ]
+                            : filteredClients.map((c) {
+                                final isSelected =
+                                    _selectedClient?.id == c.id ||
+                                    _selectedClient?.firmName == c.firmName;
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 0,
+                                  ),
+                                  leading: const Icon(
+                                    Icons.storefront_outlined,
+                                    size: 16,
+                                    color: AppColors.emerald,
+                                  ),
+                                  title: Text(
+                                    '${c.firmName} · ${c.city}',
+                                    style: TextStyle(
+                                      fontWeight: isSelected
+                                          ? FontWeight.w800
+                                          : FontWeight.w600,
+                                      fontSize: 13,
+                                      color: isSelected
+                                          ? AppColors.emerald
+                                          : AppColors.ink,
+                                    ),
+                                  ),
+                                  subtitle: c.contactPerson.isNotEmpty
+                                      ? Text(
+                                          '${c.contactPerson} (${c.phone})',
+                                          style: const TextStyle(fontSize: 11),
+                                        )
+                                      : null,
+                                  trailing: isSelected
+                                      ? const Icon(
+                                          Icons.check_circle,
+                                          size: 16,
+                                          color: AppColors.emerald,
+                                        )
+                                      : null,
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedClient = c;
+                                      _clientSearchController.text =
+                                          '${c.firmName} · ${c.city}';
+                                      _isClientDropdownOpen = false;
+                                    });
+                                  },
+                                );
+                              }).toList(),
+                      ),
                     ),
                   ),
-                ),
+                ],
                 const SizedBox(height: 16),
 
-                // 2. SELECT DESIGNS & QUANTITIES
+                // 2. SELECT DESIGNS & QUANTITIES (Searchable & Filterable)
                 const Text(
                   '2. Select Designs & Quantity for Each Design',
                   style: TextStyle(
@@ -204,7 +366,37 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                ...designs.map((design) {
+                CommonTextField(
+                  controller: _designSearchController,
+                  hintText: 'Search designs by name or code...',
+                  prefixIcon: Icons.search,
+                  suffixIcon: _designSearchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 16),
+                          onPressed: () {
+                            setState(() {
+                              _designSearchController.clear();
+                            });
+                          },
+                        )
+                      : null,
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 8),
+                if (filteredDesigns.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'No designs match "${_designSearchController.text.trim()}"',
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ...filteredDesigns.map((design) {
+
                   final qty = _selectedQuantities[design.code] ?? 0;
                   final isSelected = qty > 0;
 

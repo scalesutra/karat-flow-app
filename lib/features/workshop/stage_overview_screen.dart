@@ -81,17 +81,39 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   }
 
   String? _livePartId(JewelleryPart part) {
-    // 1. Direct part UUID from part.code if already a UUID
-    if (part.code.length > 20 &&
-        part.code.contains('-') &&
-        !part.code.toUpperCase().startsWith('ORD-')) {
-      return part.code;
-    }
-
     final pCodeLower = part.code.toLowerCase();
     final pNameLower = part.name.toLowerCase();
 
-    // Match only API lots that belong to this order/part.
+    // 1. Search raw order parts inside widget.orderData['parts'] or widget.orderData['orderParts']
+    final rawParts =
+        widget.orderData['parts'] ?? widget.orderData['orderParts'];
+    if (rawParts is List && rawParts.isNotEmpty) {
+      for (final p in rawParts) {
+        if (p is Map) {
+          final pid = p['id'] as String? ?? '';
+          final dNum = (p['designNumber'] as String? ?? '').toLowerCase();
+          final pName = (p['name'] as String? ?? '').toLowerCase();
+          final sId = (p['sketchId'] as String? ?? '').toLowerCase();
+          final tId = (p['threeDDesignId'] as String? ?? '').toLowerCase();
+
+          final matches =
+              pid == part.code ||
+              (dNum.isNotEmpty && dNum == pCodeLower) ||
+              (pName.isNotEmpty && pName == pNameLower) ||
+              (sId.isNotEmpty && sId == pCodeLower) ||
+              (tId.isNotEmpty && tId == pCodeLower);
+
+          if (matches &&
+              pid.length > 20 &&
+              pid.contains('-') &&
+              !pid.toUpperCase().startsWith('ORD-')) {
+            return pid;
+          }
+        }
+      }
+    }
+
+    // 2. Match API lots from DemoStore belonging to this order/part.
     for (final lot in DemoStore.instance.lots) {
       final matchesOrder =
           lot.orderId == _orderId ||
@@ -110,47 +132,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       }
     }
 
-    // 3. Search raw parts inside widget.orderData['parts'] or widget.orderData['orderParts']
-    final rawParts =
-        widget.orderData['parts'] ?? widget.orderData['orderParts'];
-    if (rawParts is List && rawParts.isNotEmpty) {
-      for (final p in rawParts) {
-        if (p is Map) {
-          final dNum = (p['designNumber'] as String? ?? '').toLowerCase();
-          final pName = (p['name'] as String? ?? '').toLowerCase();
-          final pid = p['id'] as String? ?? '';
-          if ((dNum == pCodeLower ||
-                  pName == pNameLower ||
-                  (pCodeLower.isNotEmpty && dNum == pCodeLower) ||
-                  (pNameLower.isNotEmpty && pName == pNameLower)) &&
-              pid.length > 20 &&
-              pid.contains('-') &&
-              !pid.toUpperCase().startsWith('ORD-')) {
-            return pid;
-          }
-        }
-      }
-    }
-
-    // 4. Match any lot belonging to this order
-    final orderNum =
-        widget.orderData['orderNumber'] as String? ??
-        widget.orderData['code'] as String? ??
-        '';
-    final rawId = widget.orderData['id'] as String? ?? '';
-    for (final lot in DemoStore.instance.lots) {
-      if (lot.id.length > 20 &&
-          lot.id.contains('-') &&
-          !lot.id.toUpperCase().startsWith('ORD-')) {
-        if ((rawId.isNotEmpty && (lot.orderId == rawId || lot.id == rawId)) ||
-            (_apiOrderId.isNotEmpty && lot.orderId == _apiOrderId) ||
-            (orderNum.isNotEmpty && lot.orderId == orderNum)) {
-          return lot.id;
-        }
-      }
-    }
-
-    // Use a direct API part ID when one is present in the route payload.
+    // 3. Direct API part ID from payload
     final directPartId =
         widget.orderData['orderPartId'] as String? ??
         widget.orderData['partId'] as String? ??
@@ -160,6 +142,13 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         directPartId.contains('-') &&
         !directPartId.toUpperCase().startsWith('ORD-')) {
       return directPartId;
+    }
+
+    // 4. Direct part UUID from part.code if nothing else matched
+    if (part.code.length > 20 &&
+        part.code.contains('-') &&
+        !part.code.toUpperCase().startsWith('ORD-')) {
+      return part.code;
     }
 
     return null;
@@ -243,6 +232,22 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         stageId: stageId,
       ),
     );
+
+    final String oId =
+        (widget.orderData['orderNumber'] as String?)?.isNotEmpty == true
+        ? widget.orderData['orderNumber'] as String
+        : ((widget.orderData['id'] as String?)?.isNotEmpty == true
+              ? widget.orderData['id'] as String
+              : 'ORD-${partId.length > 4 ? partId.substring(0, 4) : partId}');
+
+    DemoStore.instance.createRequisitionForAssignment(
+      designNumber: part.code.isNotEmpty ? part.code : part.name,
+      orderId: oId,
+      artisanName: workerDisplayName,
+      stageName: targetStage != null ? targetStage.name : part.stage.label,
+      quantity: part.pieces,
+      grossWeight: part.weight,
+    );
   }
 
   WorkshopStage _domainStage(ApiStage apiStage) {
@@ -283,7 +288,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       CommonSnackbar.error(
         context,
         title: 'Part Not Found',
-        message: 'A live backend part ID is required.',
+        message: 'Order part ID is required.',
       );
       return;
     }
@@ -371,6 +376,12 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         stageStr == 'completed' ||
         stageStr == 'all_stages_completed';
 
+    final bool isOrderExplicitlyUnblocked =
+        widget.orderData['isBlocked'] == false ||
+        (widget.orderData['isBlocked'] == null &&
+            widget.orderData['blockReason'] == null &&
+            widget.orderData['blockedReason'] == null);
+
     final rawId = widget.orderData['id'] as String? ?? '';
     final orderNum =
         widget.orderData['orderNumber'] as String? ??
@@ -430,6 +441,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
             isCompletedOrder ||
             lot.apiStageName.toLowerCase() == 'completed' ||
             lot.apiStageName.toUpperCase() == 'ALL_STAGES_COMPLETED' ||
+            lot.apiStageName.toUpperCase() == 'STAGE_COMPLETED' ||
             (lot.stage == WorkshopStage.readyForDispatch && isCompletedOrder);
 
         return JewelleryPart(
@@ -444,7 +456,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   lot.assignedEmployee == 'Unassigned')
               ? _extractWorkerName(widget.orderData)
               : lot.assignedEmployee),
-          blockerReason: lot.blockerReason,
+          blockerReason: isOrderExplicitlyUnblocked ? null : lot.blockerReason,
           weight: lot.issueWeightGrams,
           isCompleted: isLotComplete,
         );
@@ -493,9 +505,15 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   .firstOrNull
                   ?.name;
         final workerName = (row['artisan'] as String? ?? '').trim();
-        final rowStatus = (row['status'] as String? ?? '').toUpperCase();
+        final rowStatus =
+            (row['orderPartStatus'] as String? ??
+                    row['status'] as String? ??
+                    '')
+                .toUpperCase();
+
         final isRowComplete =
             isCompletedOrder ||
+            rowStatus == 'STAGE_COMPLETED' ||
             rowStatus == 'COMPLETED' ||
             rawStg.toUpperCase() == 'ALL_STAGES_COMPLETED' ||
             (stg == WorkshopStage.readyForDispatch &&
@@ -511,7 +529,9 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           assignedEmployee: workerName.isNotEmpty
               ? workerName
               : _extractWorkerName(widget.orderData),
-          blockerReason: row['blockReason'] as String?,
+          blockerReason: isOrderExplicitlyUnblocked
+              ? null
+              : row['blockReason'] as String?,
           weight: 0.0,
           isCompleted: isRowComplete,
         );
@@ -549,7 +569,28 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
               .firstOrNull
               ?.name;
 
-    final isOrderComplete = isCompletedOrder ||
+    final rawAssignments = widget.orderData['assignments'];
+    bool hasCompletedAssignment = false;
+    String? assignmentFailureReason;
+
+    if (rawAssignments is List && rawAssignments.isNotEmpty) {
+      for (final a in rawAssignments) {
+        if (a is Map) {
+          final st = (a['status'] as String? ?? '').toUpperCase();
+          if (st == 'COMPLETED' || st == 'PASSED' || a['completedAt'] != null) {
+            hasCompletedAssignment = true;
+          }
+          if (st == 'FAILED' &&
+              a['failureReason'] != null &&
+              !isOrderExplicitlyUnblocked) {
+            assignmentFailureReason = a['failureReason'] as String;
+          }
+        }
+      }
+    }
+
+    final isOrderComplete =
+        isCompletedOrder ||
         (widget.orderData['status'] as String? ?? '').toLowerCase() ==
             'complete' ||
         (widget.orderData['status'] as String? ?? '').toLowerCase() ==
@@ -567,9 +608,11 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       stage: stg,
       stageName: apiStageName ?? stg.label,
       assignedEmployee: _extractWorkerName(widget.orderData),
-      blockerReason:
-          widget.orderData['blockReason'] as String? ??
-          widget.orderData['blockedReason'] as String?,
+      blockerReason: isOrderExplicitlyUnblocked
+          ? null
+          : (assignmentFailureReason ??
+                widget.orderData['blockReason'] as String? ??
+                widget.orderData['blockedReason'] as String?),
       weight: (widget.orderData['grossWeight'] as num?)?.toDouble() ?? 0.0,
       isCompleted: isOrderComplete,
     );
@@ -587,6 +630,29 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   }
 
   String _extractWorkerName(Map<String, dynamic> data) {
+    // 0. Check live API 'assignments' array
+    final rawAssignments = data['assignments'];
+    if (rawAssignments is List && rawAssignments.isNotEmpty) {
+      final lastAssign = rawAssignments.last;
+      if (lastAssign is Map) {
+        final emp = lastAssign['assignedEmployee'];
+        if (emp is Map) {
+          final empName =
+              emp['name'] as String? ?? emp['fullName'] as String? ?? '';
+          if (empName.isNotEmpty) return empName;
+        } else if (emp is String && emp.isNotEmpty) {
+          return emp;
+        }
+      }
+    }
+
+    final empObj = data['assignedEmployee'];
+    if (empObj is Map) {
+      final empName =
+          empObj['name'] as String? ?? empObj['fullName'] as String? ?? '';
+      if (empName.isNotEmpty) return empName;
+    }
+
     final direct =
         data['assignedEmployee'] as String? ?? data['artisan'] as String? ?? '';
     if (direct.isNotEmpty && direct.toLowerCase() != 'unassigned') {
@@ -739,6 +805,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       }
     }
     if (workers.isEmpty) {
+      if (!context.mounted) return;
       final workshopBloc = context.read<WorkshopBloc>();
       final refresh = workshopBloc.stream.firstWhere(
         (state) => state is WorkshopLoaded || state is WorkshopError,
@@ -759,6 +826,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       workers = DemoStore.instance.team;
     }
     if (workers.isEmpty) {
+      if (!context.mounted) return;
       CommonSnackbar.error(
         context,
         title: 'Workers unavailable',
@@ -790,6 +858,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       text: '$selectedQuantity',
     );
 
+    if (!context.mounted) return;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -2280,14 +2349,28 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       CommonSnackbar.error(
         context,
         title: 'Part Not Found',
-        message: 'A live backend part ID is required.',
+        message: 'Order part ID is required.',
       );
       return;
     }
 
     widget.orderData['isBlocked'] = false;
+    widget.orderData['status'] = 'IN_PRODUCTION';
     widget.orderData['blockReason'] = null;
     widget.orderData['blockedReason'] = null;
+
+    final rawAssignments = widget.orderData['assignments'];
+    if (rawAssignments is List) {
+      for (final a in rawAssignments) {
+        if (a is Map) {
+          if ((a['status'] as String? ?? '').toUpperCase() == 'FAILED') {
+            a['status'] = 'UNBLOCKED';
+            a['failureReason'] = null;
+          }
+        }
+      }
+    }
+
     DemoStore.instance.toggleLotHold(partId, isBlocked: false);
     if (part.code.isNotEmpty) {
       DemoStore.instance.toggleLotHold(part.code, isBlocked: false);
@@ -2496,10 +2579,10 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   }
 
   Widget _buildOrderInfoCard() {
-    final String statusStr =
-        (widget.orderData['status'] as String? ?? '').toLowerCase();
-    final String stageStr =
-        (widget.orderData['stage'] as String? ?? '').toLowerCase();
+    final String statusStr = (widget.orderData['status'] as String? ?? '')
+        .toLowerCase();
+    final String stageStr = (widget.orderData['stage'] as String? ?? '')
+        .toLowerCase();
     final bool hasUnfinishedParts = _parentItems.any(
       (item) => item.parts.any(
         (p) =>
@@ -2510,7 +2593,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       ),
     );
 
-    final bool isCompleted = !hasUnfinishedParts &&
+    final bool isCompleted =
+        !hasUnfinishedParts &&
         (statusStr == 'complete' ||
             statusStr == 'completed' ||
             statusStr == 'ready' ||
@@ -2529,10 +2613,10 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     final String displayStatus = isCompleted
         ? 'Completed'
         : (hasBlockedPart
-            ? 'ON CRITICAL HOLD'
-            : (stageStr.isNotEmpty
-                ? (widget.orderData['stage'] as String? ?? 'In Workshop')
-                : 'In Workshop'));
+              ? 'ON CRITICAL HOLD'
+              : (stageStr.isNotEmpty
+                    ? (widget.orderData['stage'] as String? ?? 'In Workshop')
+                    : 'In Workshop'));
 
     final Color badgeColor = isCompleted
         ? AppColors.emerald
@@ -2879,11 +2963,52 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         final isSelected = _selectedStageFilter == stage;
         final stageColor = _getStageColor(stage);
 
-        // Find parts in this stage
+        // Check if worker task or orderPart is STAGE_COMPLETED or passed
+        final rawOrderPartStatus =
+            (widget.orderData['orderPartStatus'] as String? ??
+                    widget.orderData['status'] as String? ??
+                    '')
+                .toUpperCase();
+
+        final hasWorkerStageCompleted = DemoStore.instance.workerTasks.any((t) {
+          final matchesOrder =
+              t.orderPartId == _orderId ||
+              (t.orderPart?.orderId.isNotEmpty == true &&
+                  t.orderPart!.orderId == _orderId);
+          final tStageName = t.stage.name.toLowerCase();
+          final targetStageName = apiStage.name.toLowerCase();
+          final matchesStage =
+              tStageName.contains(targetStageName) ||
+              targetStageName.contains(tStageName);
+          final isDone =
+              t.status.toUpperCase() == 'STAGE_COMPLETED' ||
+              t.status.toUpperCase() == 'COMPLETED';
+          return matchesOrder && matchesStage && isDone;
+        });
+
+        final isStagePassed = _parentItems.any(
+          (parent) => parent.parts.any(
+            (p) => p.stage.index > stage.index || p.isCompleted,
+          ),
+        );
+
+        final isCurrentStageCompleted = _parentItems.any(
+          (parent) => parent.parts.any(
+            (p) =>
+                p.stage == stage &&
+                (hasWorkerStageCompleted ||
+                    rawOrderPartStatus == 'STAGE_COMPLETED'),
+          ),
+        );
+
+        final isStageDone = isStagePassed || isCurrentStageCompleted;
+
+        // Find parts in this stage (or completed for this stage)
         final stageParts = <JewelleryPart>[];
         for (final parent in _parentItems) {
           for (final part in parent.parts) {
-            if (part.stage == stage && !part.isCompleted) {
+            if (part.stage == stage ||
+                (isStageDone && part.stage.index >= stage.index)) {
               stageParts.add(part);
             }
           }
@@ -2903,8 +3028,12 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
               border: Border.all(
                 color: hasBlockedParts
                     ? AppColors.danger
-                    : (isSelected ? AppColors.emerald : AppColors.outline),
-                width: hasBlockedParts || isSelected ? 1.8 : 1,
+                    : (isStageDone
+                          ? AppColors.emerald
+                          : (isSelected
+                                ? AppColors.emerald
+                                : AppColors.outline)),
+                width: hasBlockedParts || isSelected || isStageDone ? 1.8 : 1,
               ),
               boxShadow: [
                 BoxShadow(
@@ -2941,17 +3070,23 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                           decoration: BoxDecoration(
                             color: hasBlockedParts
                                 ? AppColors.dangerLight
-                                : stageColor.withValues(alpha: 0.12),
+                                : (isStageDone
+                                      ? AppColors.emeraldLight
+                                      : stageColor.withValues(alpha: 0.12)),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
                             hasBlockedParts
                                 ? Icons.pause_circle_filled_rounded
-                                : _getStageIcon(stage),
+                                : (isStageDone
+                                      ? Icons.check_circle_rounded
+                                      : _getStageIcon(stage)),
                             size: 20,
                             color: hasBlockedParts
                                 ? AppColors.danger
-                                : stageColor,
+                                : (isStageDone
+                                      ? AppColors.emeraldDark
+                                      : stageColor),
                           ),
                         ),
                         const SizedBox(width: 14),
@@ -2973,7 +3108,32 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                       ),
                                     ),
                                   ),
-                                  if (hasBlockedParts) ...[
+                                  if (isStageDone) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.emeraldLight,
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: AppColors.emerald.withValues(
+                                            alpha: 0.4,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        '✓ STAGE COMPLETED',
+                                        style: TextStyle(
+                                          color: AppColors.emeraldDark,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ] else if (hasBlockedParts) ...[
                                     const SizedBox(width: 8),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
@@ -3000,17 +3160,23 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                               Text(
                                 hasBlockedParts
                                     ? '⚠️ $blockedPartsCount part(s) blocked / on hold'
-                                    : count > 0
-                                    ? '$count pieces in progress'
-                                    : 'No active pieces',
+                                    : (isStageDone
+                                          ? '✓ Stage work finished · Ready for next stage'
+                                          : (count > 0
+                                                ? '$count pieces in progress'
+                                                : 'No active pieces')),
                                 style: TextStyle(
                                   color: hasBlockedParts
                                       ? AppColors.danger
-                                      : count > 0
-                                      ? AppColors.emeraldDark
-                                      : AppColors.muted,
+                                      : (isStageDone
+                                            ? AppColors.emeraldDark
+                                            : (count > 0
+                                                  ? AppColors.emeraldDark
+                                                  : AppColors.muted)),
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: isStageDone || count > 0
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -3022,23 +3188,29 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppColors.emerald
-                                : (hasBlockedParts
-                                      ? AppColors.dangerLight
-                                      : stageColor.withValues(alpha: 0.1)),
+                            color: isStageDone
+                                ? AppColors.emeraldLight
+                                : (isSelected
+                                      ? AppColors.emerald
+                                      : (hasBlockedParts
+                                            ? AppColors.dangerLight
+                                            : stageColor.withValues(
+                                                alpha: 0.1,
+                                              ))),
                             borderRadius: BorderRadius.circular(
                               AppDimensions.radiusFull,
                             ),
                           ),
                           child: Text(
-                            '$count Pcs',
+                            isStageDone ? '✓ Done' : '$count Pcs',
                             style: TextStyle(
-                              color: isSelected
-                                  ? AppColors.pureWhite
-                                  : (hasBlockedParts
-                                        ? AppColors.danger
-                                        : stageColor),
+                              color: isStageDone
+                                  ? AppColors.emeraldDark
+                                  : (isSelected
+                                        ? AppColors.pureWhite
+                                        : (hasBlockedParts
+                                              ? AppColors.danger
+                                              : stageColor)),
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
                             ),
@@ -3145,13 +3317,76 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                                 ),
                                               ),
                                               const SizedBox(height: 2),
-                                              Text(
-                                                'Assigned: ${part.assignedEmployee ?? "Unassigned"}',
-                                                style: const TextStyle(
-                                                  color: AppColors.muted,
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
+                                              Builder(
+                                                builder: (context) {
+                                                  final isWorkerDone =
+                                                      part.isCompleted ||
+                                                      DemoStore.instance
+                                                          .isWorkerTaskCompletedForPart(
+                                                            part.code,
+                                                            artisanName: part
+                                                                .assignedEmployee,
+                                                          );
+                                                  if (isWorkerDone) {
+                                                    return Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 6,
+                                                            vertical: 2,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: AppColors
+                                                            .emeraldLight,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
+                                                        border: Border.all(
+                                                          color: AppColors
+                                                              .emerald
+                                                              .withValues(
+                                                                alpha: 0.4,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      child: Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          const Icon(
+                                                            Icons.check_circle,
+                                                            color: AppColors
+                                                                .emeraldDark,
+                                                            size: 12,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 4,
+                                                          ),
+                                                          Text(
+                                                            '${part.assignedEmployee ?? "Worker"} · WORK COMPLETED',
+                                                            style: const TextStyle(
+                                                              color: AppColors
+                                                                  .emeraldDark,
+                                                              fontSize: 10.5,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w800,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  }
+                                                  return Text(
+                                                    'Assigned: ${part.assignedEmployee ?? "Unassigned"}',
+                                                    style: const TextStyle(
+                                                      color: AppColors.muted,
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  );
+                                                },
                                               ),
                                             ],
                                           ),
@@ -3751,8 +3986,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   part.isCompleted
                       ? 'Completed'
                       : ((part.stageName != null && part.stageName!.isNotEmpty)
-                          ? part.stageName!
-                          : part.stage.label),
+                            ? part.stageName!
+                            : part.stage.label),
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   color: part.isCompleted ? AppColors.emeraldDark : stageColor,

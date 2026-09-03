@@ -46,6 +46,40 @@ class _AdminStockPageState extends State<AdminStockPage>
     'MAKING_CHARGE',
   ];
 
+  String _formatInvCategoryLabel(String cat) => switch (cat) {
+    'RAW_GOLD' => 'Raw Gold (Fine)',
+    'DIAMONDS' => 'Diamonds & Solitaires',
+    'FINDINGS_CASTS' => 'Findings & Castings',
+    'READY_ALLOY' => 'Ready Gold Alloys',
+    _ => 'All Vault Items',
+  };
+
+  IconData _formatInvCategoryIcon(String cat) => switch (cat) {
+    'RAW_GOLD' => Icons.grid_view_rounded,
+    'DIAMONDS' => Icons.diamond_outlined,
+    'FINDINGS_CASTS' => Icons.extension_outlined,
+    'READY_ALLOY' => Icons.token_outlined,
+    _ => Icons.all_inclusive,
+  };
+
+  String _formatMatCategoryLabel(String cat) => switch (cat) {
+    'METAL' => 'Metals & Bullion',
+    'DIAMOND' => 'Loose Diamonds',
+    'GEMSTONE' => 'Precious Gemstones',
+    'FINDING' => 'Findings & Parts',
+    'MAKING_CHARGE' => 'Labor & Making Charges',
+    _ => 'All Material Presets',
+  };
+
+  IconData _formatMatCategoryIcon(String cat) => switch (cat) {
+    'METAL' => Icons.square_outlined,
+    'DIAMOND' => Icons.diamond_outlined,
+    'GEMSTONE' => Icons.auto_awesome_outlined,
+    'FINDING' => Icons.handyman_outlined,
+    'MAKING_CHARGE' => Icons.receipt_long_outlined,
+    _ => Icons.category_outlined,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -149,33 +183,7 @@ class _AdminStockPageState extends State<AdminStockPage>
                     color: AppColors.muted,
                   ),
                   const SizedBox(height: 12),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.paper,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.outline),
-                    ),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicatorColor: AppColors.emerald,
-                      labelColor: AppColors.emerald,
-                      unselectedLabelColor: AppColors.muted,
-                      labelStyle: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                      tabs: const [
-                        Tab(
-                          icon: Icon(Icons.lock_outline, size: 18),
-                          text: 'Vault Stock Inventory',
-                        ),
-                        Tab(
-                          icon: Icon(Icons.diamond_outlined, size: 18),
-                          text: 'Master Raw Materials',
-                        ),
-                      ],
-                    ),
-                  ),
+                  _StockTabHeader(tabController: _tabController),
                 ],
               ),
             ),
@@ -213,8 +221,28 @@ class _AdminStockPageState extends State<AdminStockPage>
             inventoryRes = state.response;
           }
 
-          final summary = inventoryRes?.summary ?? const ApiInventorySummary();
+          final rawSummary =
+              inventoryRes?.summary ?? const ApiInventorySummary();
           final items = inventoryRes?.items ?? const <ApiInventoryItem>[];
+
+          final double totalVaultGold = rawSummary.totalVaultGold > 0
+              ? rawSummary.totalVaultGold
+              : items.fold(0.0, (sum, i) => sum + i.totalStock);
+
+          final double totalReservedWip = rawSummary.totalReservedWip > 0
+              ? rawSummary.totalReservedWip
+              : items.fold(0.0, (sum, i) => sum + i.reservedWip);
+
+          final double totalFreeBalance = rawSummary.totalFreeBalance > 0
+              ? rawSummary.totalFreeBalance
+              : items.fold(
+                  0.0,
+                  (sum, i) =>
+                      sum +
+                      (i.freeBalance > 0
+                          ? i.freeBalance
+                          : (i.totalStock - i.reservedWip)),
+                );
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
@@ -266,20 +294,20 @@ class _AdminStockPageState extends State<AdminStockPage>
                         Expanded(
                           child: _vaultStat(
                             'Total Vault Gold',
-                            '${summary.totalVaultGold.toStringAsFixed(1)} g',
+                            '${totalVaultGold.toStringAsFixed(1)} g',
                           ),
                         ),
                         Expanded(
                           child: _vaultStat(
                             'Reserved WIP',
-                            '${summary.totalReservedWip.toStringAsFixed(1)} g',
+                            '${totalReservedWip.toStringAsFixed(1)} g',
                             color: const Color(0xFFFFA88D),
                           ),
                         ),
                         Expanded(
                           child: _vaultStat(
                             'Free Balance',
-                            '${summary.totalFreeBalance.toStringAsFixed(1)} g',
+                            '${totalFreeBalance.toStringAsFixed(1)} g',
                             color: const Color(0xFFA9DDD0),
                           ),
                         ),
@@ -296,7 +324,8 @@ class _AdminStockPageState extends State<AdminStockPage>
                   Expanded(
                     child: CommonTextField(
                       controller: _invSearchController,
-                      hintText: 'Search vault stock by name, location, purity...',
+                      hintText:
+                          'Search vault stock by name, location, purity...',
                       prefixIcon: Icons.search,
                       onSubmitted: (_) => _fetchInventory(),
                     ),
@@ -326,14 +355,77 @@ class _AdminStockPageState extends State<AdminStockPage>
               const SizedBox(height: 10),
 
               // Category Filter Chips (Below Search)
-              CommonFilterChips<String>(
-                options: _invCategories,
-                selected: _invCategory,
-                onSelected: (val) {
-                  setState(() => _invCategory = val);
-                  _fetchInventory();
-                },
-                labelBuilder: (val) => val.replaceAll('_', ' '),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: _invCategories.map((cat) {
+                    final isSelected = _invCategory == cat;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: InkWell(
+                        onTap: () {
+                          setState(() => _invCategory = cat);
+                          _fetchInventory();
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.emerald
+                                : AppColors.paper,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.emerald
+                                  : AppColors.outlineLight,
+                            ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: AppColors.emerald.withOpacity(
+                                        0.25,
+                                      ),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _formatInvCategoryIcon(cat),
+                                size: 14,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.emeraldDark,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _formatInvCategoryLabel(cat),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppColors.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
               const SizedBox(height: 14),
 
@@ -345,49 +437,15 @@ class _AdminStockPageState extends State<AdminStockPage>
                 )
               else if (items.isEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 40, bottom: 40),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-                    alignment: Alignment.center,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.inventory_2_outlined,
-                          size: 52,
-                          color: AppColors.muted,
-                        ),
-                        const SizedBox(height: 14),
-                        const Text(
-                          'No vault stock items found.',
-                          style: TextStyle(
-                            color: AppColors.muted,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        ElevatedButton.icon(
-                          onPressed: () => _openAddInventorySheet(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.emerald,
-                            foregroundColor: AppColors.pureWhite,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 22,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text(
-                            'Add Vault Stock',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: AnimatedEmptyStateWidget(
+                    icon: Icons.inventory_2_outlined,
+                    title: 'No Vault Stock Found',
+                    subtitle:
+                        'No gold bullion, alloy casts, or raw vault stock items match your search.',
+                    accentColor: AppColors.emerald,
+                    actionLabel: 'Add Vault Stock',
+                    onAction: () => _openAddInventorySheet(context),
                   ),
                 )
               else
@@ -463,14 +521,77 @@ class _AdminStockPageState extends State<AdminStockPage>
               const SizedBox(height: 10),
 
               // Category Filter Chips (Below Search)
-              CommonFilterChips<String>(
-                options: _matCategories,
-                selected: _matCategory,
-                onSelected: (val) {
-                  setState(() => _matCategory = val);
-                  _fetchMaterials();
-                },
-                labelBuilder: (val) => val.replaceAll('_', ' '),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: _matCategories.map((cat) {
+                    final isSelected = _matCategory == cat;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: InkWell(
+                        onTap: () {
+                          setState(() => _matCategory = cat);
+                          _fetchMaterials();
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.goldDark
+                                : AppColors.paper,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.goldDark
+                                  : AppColors.outlineLight,
+                            ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: AppColors.goldDark.withOpacity(
+                                        0.25,
+                                      ),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _formatMatCategoryIcon(cat),
+                                size: 14,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.goldDark,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _formatMatCategoryLabel(cat),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppColors.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
               const SizedBox(height: 14),
 
@@ -482,49 +603,15 @@ class _AdminStockPageState extends State<AdminStockPage>
                 )
               else if (materials.isEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 40, bottom: 40),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-                    alignment: Alignment.center,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.diamond_outlined,
-                          size: 52,
-                          color: AppColors.muted,
-                        ),
-                        const SizedBox(height: 14),
-                        const Text(
-                          'No raw materials or presets found.',
-                          style: TextStyle(
-                            color: AppColors.muted,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        ElevatedButton.icon(
-                          onPressed: () => _openAddMaterialSheet(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.emerald,
-                            foregroundColor: AppColors.pureWhite,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 22,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          icon: const Icon(Icons.add_circle_outline, size: 18),
-                          label: const Text(
-                            'Create New Preset',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: AnimatedEmptyStateWidget(
+                    icon: Icons.diamond_outlined,
+                    title: 'No Material Presets Found',
+                    subtitle:
+                        'No raw materials, gemstones, or alloy specs configured for production.',
+                    accentColor: AppColors.goldDark,
+                    actionLabel: 'Create New Preset',
+                    onAction: () => _openAddMaterialSheet(context),
                   ),
                 )
               else
@@ -878,10 +965,7 @@ class _AdminStockPageState extends State<AdminStockPage>
     );
   }
 
-  void _openDeleteInventoryDialog(
-    BuildContext context,
-    ApiInventoryItem item,
-  ) {
+  void _openDeleteInventoryDialog(BuildContext context, ApiInventoryItem item) {
     showDialog<void>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
@@ -1479,6 +1563,212 @@ class _MaterialItemCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _StockTabHeader extends StatelessWidget {
+  const _StockTabHeader({required this.tabController});
+
+  final TabController tabController;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: tabController,
+      builder: (context, _) {
+        final selectedIndex = tabController.index;
+        final invState = context.watch<InventoryBloc>().state;
+        final invCount = invState is InventoryLoaded
+            ? invState.response.items.length
+            : 0;
+        final matState = context.watch<MaterialsBloc>().state;
+        final matCount = matState is MaterialsLoaded
+            ? matState.materials.length
+            : 0;
+
+        return Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: AppColors.canvas,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.outlineLight),
+          ),
+          child: Row(
+            children: [
+              // TAB 1: Vault Stock Inventory
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => tabController.animateTo(0),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 9,
+                      horizontal: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selectedIndex == 0
+                          ? AppColors.paper
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(9),
+                      border: selectedIndex == 0
+                          ? Border.all(
+                              color: AppColors.emerald.withOpacity(0.3),
+                            )
+                          : null,
+                      boxShadow: selectedIndex == 0
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.lock_outline_rounded,
+                          size: 16,
+                          color: selectedIndex == 0
+                              ? AppColors.emeraldDark
+                              : AppColors.muted,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Vault Inventory',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: selectedIndex == 0
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              color: selectedIndex == 0
+                                  ? AppColors.emeraldDark
+                                  : AppColors.ink,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: selectedIndex == 0
+                                ? AppColors.emeraldLight
+                                : AppColors.canvas,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            invCount > 0 ? '$invCount' : 'Live',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: selectedIndex == 0
+                                  ? AppColors.emeraldDark
+                                  : AppColors.muted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              // TAB 2: Master Raw Materials
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => tabController.animateTo(1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 9,
+                      horizontal: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selectedIndex == 1
+                          ? AppColors.paper
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(9),
+                      border: selectedIndex == 1
+                          ? Border.all(
+                              color: AppColors.goldDark.withOpacity(0.3),
+                            )
+                          : null,
+                      boxShadow: selectedIndex == 1
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.diamond_outlined,
+                          size: 16,
+                          color: selectedIndex == 1
+                              ? AppColors.goldDark
+                              : AppColors.muted,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Master Materials',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: selectedIndex == 1
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              color: selectedIndex == 1
+                                  ? AppColors.goldDark
+                                  : AppColors.ink,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: selectedIndex == 1
+                                ? AppColors.goldLight
+                                : AppColors.canvas,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            matCount > 0 ? '$matCount' : 'Live',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: selectedIndex == 1
+                                  ? AppColors.goldDark
+                                  : AppColors.muted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

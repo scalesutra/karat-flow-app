@@ -65,37 +65,113 @@ class ApiEmployee {
     required this.email,
     required this.phone,
     required this.role,
+    this.keycloakId = '',
+    this.skills = const [],
     this.specialty = '',
     this.isActive = true,
+    this.createdAt = '',
+    this.updatedAt = '',
     this.workerAssignmentsCount = 0,
+    this.activeAssignmentsCount = 0,
   });
 
   factory ApiEmployee.fromJson(Map<String, dynamic> json) {
-    final count =
-        (json['activeAssignmentsCount'] as num?)?.toInt() ??
-        (json['_count'] is Map
-            ? (json['_count']['workerAssignments'] as num?)?.toInt() ?? 0
-            : 0);
+    final rawSkills = json['skills'];
+    final parsedSkills = rawSkills is List
+        ? rawSkills.map((e) => e.toString()).toList()
+        : <String>[];
+
+    final totalCount = (json['_count'] is Map
+        ? (json['_count']['workerAssignments'] as num?)?.toInt() ?? 0
+        : 0);
+
+    final activeCount = (json['activeAssignmentsCount'] as num?)?.toInt() ?? 0;
+
     return ApiEmployee(
       id: json['id'] as String? ?? '',
+      keycloakId: json['keycloakId'] as String? ?? '',
       name: json['name'] as String? ?? '',
       email: json['email'] as String? ?? '',
       phone: json['phone'] as String? ?? '',
-      role: json['role'] as String? ?? 'OTHER_EMPLOYEE',
+      role: json['role'] as String? ?? 'CRAFTSMAN',
+      skills: parsedSkills,
       specialty: json['specialty'] as String? ?? '',
       isActive: json['isActive'] as bool? ?? true,
-      workerAssignmentsCount: count,
+      createdAt: json['createdAt'] as String? ?? '',
+      updatedAt: json['updatedAt'] as String? ?? '',
+      workerAssignmentsCount: totalCount > 0 ? totalCount : activeCount,
+      activeAssignmentsCount: activeCount,
     );
   }
 
   final String id;
+  final String keycloakId;
   final String name;
   final String email;
   final String phone;
   final String role;
+  final List<String> skills;
   final String specialty;
   final bool isActive;
+  final String createdAt;
+  final String updatedAt;
   final int workerAssignmentsCount;
+  final int activeAssignmentsCount;
+}
+
+class ApiEmployeeAssignment {
+  const ApiEmployeeAssignment({
+    required this.id,
+    required this.status,
+    required this.instructions,
+    this.startedAt,
+    this.completedAt,
+    this.createdAt = '',
+    this.stageName = '',
+    this.stageNumber = 0,
+    this.designNumber = '',
+    this.orderNumber = '',
+    this.customerName = '',
+    this.quantity = 0,
+    this.grossWeight = 0.0,
+  });
+
+  factory ApiEmployeeAssignment.fromJson(Map<String, dynamic> json) {
+    final stageMap = json['stage'] as Map<String, dynamic>? ?? {};
+    final partMap = json['orderPart'] as Map<String, dynamic>? ?? {};
+    final orderMap = partMap['order'] as Map<String, dynamic>? ?? {};
+    final customerMap = orderMap['customer'] as Map<String, dynamic>? ?? {};
+
+    return ApiEmployeeAssignment(
+      id: json['id'] as String? ?? '',
+      status: json['status'] as String? ?? 'ASSIGNED',
+      instructions: json['instructions'] as String? ?? '',
+      startedAt: json['startedAt'] as String?,
+      completedAt: json['completedAt'] as String?,
+      createdAt: json['createdAt'] as String? ?? '',
+      stageName: stageMap['name'] as String? ?? '',
+      stageNumber: (stageMap['stageNumber'] as num?)?.toInt() ?? 0,
+      designNumber: partMap['designNumber'] as String? ?? '',
+      orderNumber: orderMap['orderNumber'] as String? ?? '',
+      customerName: customerMap['name'] as String? ?? '',
+      quantity: (partMap['quantity'] as num?)?.toInt() ?? 0,
+      grossWeight: (partMap['grossWeight'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  final String id;
+  final String status;
+  final String instructions;
+  final String? startedAt;
+  final String? completedAt;
+  final String createdAt;
+  final String stageName;
+  final int stageNumber;
+  final String designNumber;
+  final String orderNumber;
+  final String customerName;
+  final int quantity;
+  final double grossWeight;
 }
 
 // ── 3. Customer / Client Models ─────────────────────────────────────
@@ -188,11 +264,20 @@ class ApiSketch {
   });
 
   factory ApiSketch.fromJson(Map<String, dynamic> json) {
+    final rawUrl =
+        json['sketchUrl'] as String? ??
+        json['imageUrl'] as String? ??
+        json['url'] as String? ??
+        json['image'] as String? ??
+        json['sketchPath'] as String? ??
+        json['filePath'] as String? ??
+        '';
+
     return ApiSketch(
       id: json['id'] as String? ?? '',
       designNumber: json['designNumber'] as String? ?? '',
       title: json['title'] as String? ?? '',
-      sketchUrl: json['sketchUrl'] as String? ?? '',
+      sketchUrl: rawUrl,
       status: json['status'] as String? ?? 'PENDING',
       version: json['version'] as int? ?? 1,
       adminInstructions: json['adminInstructions'] as String?,
@@ -469,102 +554,247 @@ class ApiOrderPart {
 }
 
 // ── 8. Workshop Worker Task Models ──────────────────────────────────
+class ApiWorkerTaskStage {
+  const ApiWorkerTaskStage({
+    required this.id,
+    required this.name,
+    this.stageNumber = 0,
+    this.description = '',
+  });
+
+  final String id;
+  final String name;
+  final int stageNumber;
+  final String description;
+
+  factory ApiWorkerTaskStage.fromJson(Map<String, dynamic>? json) {
+    if (json == null) {
+      return const ApiWorkerTaskStage(id: '', name: 'Bench Operation');
+    }
+    return ApiWorkerTaskStage(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? 'Bench Stage',
+      stageNumber: (json['stageNumber'] as num?)?.toInt() ?? 0,
+      description: json['description'] as String? ?? '',
+    );
+  }
+}
+
+class ApiWorkerTaskOrderPart {
+  const ApiWorkerTaskOrderPart({
+    required this.id,
+    this.orderId = '',
+    this.designNumber = 'D01',
+    this.quantity = 1,
+    this.grossWeight = 0.0,
+    this.status = 'ASSIGNED',
+    this.isBlocked = false,
+    this.isStockIssued = false,
+    this.orderNumber = '',
+    this.sketchUrl = '',
+    this.gemQuantity = 0,
+    this.goldQuantity = 0.0,
+  });
+
+  final String id;
+  final String orderId;
+  final String designNumber;
+  final int quantity;
+  final double grossWeight;
+  final String status;
+  final bool isBlocked;
+  final bool isStockIssued;
+  final String orderNumber;
+  final String sketchUrl;
+  final int gemQuantity;
+  final double goldQuantity;
+
+  factory ApiWorkerTaskOrderPart.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const ApiWorkerTaskOrderPart(id: '');
+    final orderMap = json['order'] as Map<String, dynamic>?;
+    final sketchMap = json['sketch'] as Map<String, dynamic>?;
+    final cadMap = json['threeDDesign'] as Map<String, dynamic>?;
+
+    final isStockIssuedVal =
+        json['isStockIssued'] as bool? ??
+        json['isIssued'] as bool? ??
+        (json['issuance'] != null);
+
+    return ApiWorkerTaskOrderPart(
+      id: json['id'] as String? ?? '',
+      orderId: json['orderId'] as String? ?? '',
+      designNumber: json['designNumber'] as String? ?? 'D01',
+      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      grossWeight: (json['grossWeight'] as num?)?.toDouble() ?? 0.0,
+      status: json['status'] as String? ?? 'ASSIGNED',
+      isBlocked: json['isBlocked'] as bool? ?? false,
+      isStockIssued: isStockIssuedVal,
+      orderNumber: orderMap?['orderNumber'] as String? ?? '',
+      sketchUrl: sketchMap?['imageUrl'] as String? ?? '',
+      gemQuantity: (cadMap?['gemQuantity'] as num?)?.toInt() ?? 0,
+      goldQuantity: (cadMap?['goldQuantity'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}
+
 class ApiWorkerTask {
   const ApiWorkerTask({
     required this.id,
+    this.orderPartId = '',
+    this.stageId = '',
+    this.assignedEmployeeId = '',
+    this.assignedByManagerId = '',
+    this.instructions = '',
     required this.status,
-    required this.instructions,
-    required this.designNumber,
-    required this.quantity,
-    required this.stageName,
-    this.orderId = '',
-    this.assignedEmployeeName = '',
-    this.grossWeight = 0.0,
+    this.startedAt,
+    this.completedAt,
+    this.failureReason,
+    this.createdAt = '',
+    this.isStockIssued = false,
+    this.stage = const ApiWorkerTaskStage(id: '', name: 'Bench Operation'),
+    this.orderPart = const ApiWorkerTaskOrderPart(id: ''),
+    this.assignedByManagerName = '',
   });
 
+  final String id;
+  final String orderPartId;
+  final String stageId;
+  final String assignedEmployeeId;
+  final String assignedByManagerId;
+  final String instructions;
+  final String status; // 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'FAILED'
+  final String? startedAt;
+  final String? completedAt;
+  final String? failureReason;
+  final String createdAt;
+  final bool isStockIssued;
+  final ApiWorkerTaskStage stage;
+  final ApiWorkerTaskOrderPart orderPart;
+  final String assignedByManagerName;
+
+  String get designNumber =>
+      orderPart.designNumber.isNotEmpty ? orderPart.designNumber : 'D01';
+  String get orderId => orderPart.orderNumber.isNotEmpty
+      ? orderPart.orderNumber
+      : (orderPart.orderId.isNotEmpty ? orderPart.orderId : 'N/A');
+  String get stageName => stage.name.isNotEmpty ? stage.name : 'Bench Stage';
+  int get quantity => orderPart.quantity > 0 ? orderPart.quantity : 1;
+  double get grossWeight => orderPart.grossWeight > 0
+      ? orderPart.grossWeight
+      : orderPart.goldQuantity;
+  bool get effectiveIsStockIssued =>
+      isStockIssued ||
+      orderPart.isStockIssued ||
+      status.toUpperCase() == 'IN_PROGRESS' ||
+      status.toUpperCase() == 'COMPLETED' ||
+      status.toUpperCase() == 'STAGE_COMPLETED';
+  String get assignedEmployeeName => assignedByManagerName;
+
   factory ApiWorkerTask.fromJson(Map<String, dynamic> json) {
-    String dNum = '';
-    int qty = 0;
-    double gWt = 0.0;
+    final stageMap = json['stage'] as Map<String, dynamic>?;
+    final partMap = json['orderPart'] as Map<String, dynamic>?;
+    final managerMap = json['assignedByManager'] as Map<String, dynamic>?;
+
+    String dNum =
+        partMap?['designNumber'] as String? ??
+        json['designNumber'] as String? ??
+        'D01';
+    int qty =
+        (partMap?['quantity'] as num?)?.toInt() ??
+        (json['quantity'] as num?)?.toInt() ??
+        1;
+    double gWt =
+        (partMap?['grossWeight'] as num?)?.toDouble() ??
+        (json['grossWeight'] as num?)?.toDouble() ??
+        0.0;
     String oId = '';
-    String sName = '';
-    String employeeName = '';
-    if (json['orderPart'] is Map) {
-      dNum = json['orderPart']['designNumber'] as String? ?? '';
-      qty = json['orderPart']['quantity'] as int? ?? 0;
-      gWt = (json['orderPart']['grossWeight'] as num?)?.toDouble() ?? 0.0;
-      if (json['orderPart']['order'] is Map) {
-        oId =
-            json['orderPart']['order']['orderNumber'] as String? ??
-            json['orderPart']['order']['id'] as String? ??
-            '';
-      }
-      oId = oId.isNotEmpty
-          ? oId
-          : json['orderPart']['orderNumber'] as String? ??
-                json['orderPart']['orderId'] as String? ??
-                '';
+    if (partMap?['order'] is Map) {
+      oId =
+          partMap!['order']['orderNumber'] as String? ??
+          partMap['order']['id'] as String? ??
+          '';
     }
-    if (json['stage'] is Map) {
-      sName = json['stage']['name'] as String? ?? '';
-    }
-    final employee =
-        json['assignedEmployee'] ??
-        json['employee'] ??
-        json['artisan'] ??
-        json['worker'];
-    if (employee is Map) {
-      employeeName =
-          employee['name'] as String? ?? employee['fullName'] as String? ?? '';
-      if (employeeName.isEmpty && employee['firstName'] != null) {
-        final fName = employee['firstName'] as String? ?? '';
-        final lName = employee['lastName'] as String? ?? '';
-        employeeName = '$fName $lName'.trim();
-      }
-    } else if (employee is String) {
-      employeeName = employee;
+    if (oId.isEmpty) {
+      oId =
+          partMap?['orderNumber'] as String? ??
+          json['orderId'] as String? ??
+          '';
     }
 
-    final instructionsStr = json['instructions'] as String? ?? '';
-    if (employeeName.isEmpty || employeeName.trim().isEmpty) {
-      if (instructionsStr.contains('Assigned to ')) {
-        final idx = instructionsStr.indexOf('Assigned to ');
-        final rest = instructionsStr
-            .substring(idx + 'Assigned to '.length)
-            .trim();
-        final cleanName = rest.contains(':')
-            ? rest.substring(0, rest.indexOf(':')).trim()
-            : (rest.contains('\n')
-                  ? rest.substring(0, rest.indexOf('\n')).trim()
-                  : rest);
-        if (cleanName.isNotEmpty) {
-          employeeName = cleanName;
-        }
-      }
-    }
+    String sName =
+        stageMap?['name'] as String? ??
+        json['stageName'] as String? ??
+        'Bench Operation';
+    String mgrName =
+        managerMap?['name'] as String? ??
+        json['assignedEmployeeName'] as String? ??
+        '';
+
+    final parsedOrderPart = partMap != null
+        ? ApiWorkerTaskOrderPart.fromJson(partMap)
+        : ApiWorkerTaskOrderPart(
+            id: json['orderPartId'] as String? ?? '',
+            designNumber: dNum,
+            quantity: qty,
+            grossWeight: gWt,
+            orderNumber: oId,
+          );
+
+    final isIssued =
+        json['isStockIssued'] as bool? ??
+        json['isIssued'] as bool? ??
+        (json['issuance'] != null) || parsedOrderPart.isStockIssued;
 
     return ApiWorkerTask(
       id: json['id'] as String? ?? '',
+      orderPartId: json['orderPartId'] as String? ?? '',
+      stageId: json['stageId'] as String? ?? '',
+      assignedEmployeeId: json['assignedEmployeeId'] as String? ?? '',
+      assignedByManagerId: json['assignedByManagerId'] as String? ?? '',
+      instructions: json['instructions'] as String? ?? '',
       status: json['status'] as String? ?? 'ASSIGNED',
-      instructions: instructionsStr,
-      designNumber: dNum,
-      quantity: qty,
-      stageName: sName,
-      orderId: oId,
-      assignedEmployeeName: employeeName,
-      grossWeight: gWt,
+      startedAt: json['startedAt'] as String?,
+      completedAt: json['completedAt'] as String?,
+      failureReason:
+          json['failureReason'] as String? ?? json['reason'] as String?,
+      createdAt: json['createdAt'] as String? ?? '',
+      isStockIssued: isIssued,
+      stage: stageMap != null
+          ? ApiWorkerTaskStage.fromJson(stageMap)
+          : ApiWorkerTaskStage(id: '', name: sName),
+      orderPart: parsedOrderPart,
+      assignedByManagerName: mgrName,
     );
   }
+}
 
-  final String id;
-  final String status;
-  final String instructions;
-  final String designNumber;
-  final int quantity;
-  final String stageName;
-  final String orderId;
-  final String assignedEmployeeName;
-  final double grossWeight;
+class ApiWorkerTasksResponse {
+  const ApiWorkerTasksResponse({
+    this.items = const [],
+    this.total = 0,
+    this.page = 1,
+    this.limit = 10,
+    this.totalPages = 1,
+  });
+
+  final List<ApiWorkerTask> items;
+  final int total;
+  final int page;
+  final int limit;
+  final int totalPages;
+
+  factory ApiWorkerTasksResponse.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'] as List? ?? [];
+    return ApiWorkerTasksResponse(
+      items: rawItems
+          .map((i) => ApiWorkerTask.fromJson(i as Map<String, dynamic>))
+          .toList(),
+      total: (json['total'] as num?)?.toInt() ?? rawItems.length,
+      page: (json['page'] as num?)?.toInt() ?? 1,
+      limit: (json['limit'] as num?)?.toInt() ?? 10,
+      totalPages: (json['totalPages'] as num?)?.toInt() ?? 1,
+    );
+  }
 }
 
 // ── 9. S3 Storage Models ────────────────────────────────────────────
@@ -858,9 +1088,29 @@ class ApiInventoryResponse {
     final itemsList = rawItems
         .map((item) => ApiInventoryItem.fromJson(item as Map<String, dynamic>))
         .toList();
-    final summaryData = json['summary'] is Map
+
+    double calcVaultGold = 0.0;
+    double calcReservedWip = 0.0;
+    double calcFreeBalance = 0.0;
+    for (final item in itemsList) {
+      calcVaultGold += item.totalStock;
+      calcReservedWip += item.reservedWip;
+      calcFreeBalance += item.freeBalance > 0
+          ? item.freeBalance
+          : (item.totalStock - item.reservedWip);
+    }
+
+    final summaryObj = json['summary'] is Map
         ? ApiInventorySummary.fromJson(json['summary'] as Map<String, dynamic>)
-        : const ApiInventorySummary();
+        : null;
+
+    final summaryData = (summaryObj != null && summaryObj.totalVaultGold > 0)
+        ? summaryObj
+        : ApiInventorySummary(
+            totalVaultGold: calcVaultGold,
+            totalReservedWip: calcReservedWip,
+            totalFreeBalance: calcFreeBalance,
+          );
 
     return ApiInventoryResponse(items: itemsList, summary: summaryData);
   }
@@ -947,6 +1197,7 @@ class GemBreakdownItem {
     required this.dimensions,
     required this.count,
     required this.weightTw,
+    this.color = '',
   });
 
   factory GemBreakdownItem.fromJson(Map<String, dynamic> json) {
@@ -955,6 +1206,7 @@ class GemBreakdownItem {
       dimensions: json['dimensions'] as String? ?? '',
       count: (json['count'] as num?)?.toInt() ?? 0,
       weightTw: (json['weightTw'] as num?)?.toDouble() ?? 0.0,
+      color: json['color'] as String? ?? '',
     );
   }
 
@@ -962,6 +1214,7 @@ class GemBreakdownItem {
   final String dimensions;
   final int count;
   final double weightTw;
+  final String color;
 }
 
 class CadOcrExtractedData {
@@ -1005,3 +1258,381 @@ class CadOcrExtractedData {
   final double confidenceScore;
 }
 
+// ── 16. Worker & Stockist Dedicated Models ────────────────────────
+class ApiWorker {
+  const ApiWorker({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.craft,
+    this.specialty = '',
+    this.isActive = true,
+    this.activeLotsCount = 0,
+    this.workerAssignmentsCount = 0,
+    this.createdAt = '',
+    this.updatedAt = '',
+  });
+
+  factory ApiWorker.fromJson(Map<String, dynamic> json) {
+    return ApiWorker(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      craft:
+          json['craft'] as String? ??
+          json['specialty'] as String? ??
+          'GOLDSMITH',
+      specialty: json['specialty'] as String? ?? '',
+      isActive: json['isActive'] as bool? ?? true,
+      activeLotsCount: (json['activeLotsCount'] as num?)?.toInt() ?? 0,
+      workerAssignmentsCount:
+          (json['workerAssignmentsCount'] as num?)?.toInt() ?? 0,
+      createdAt: json['createdAt'] as String? ?? '',
+      updatedAt: json['updatedAt'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'email': email,
+    'phone': phone,
+    'craft': craft,
+    'specialty': specialty,
+    'isActive': isActive,
+  };
+
+  final String id;
+  final String name;
+  final String email;
+  final String phone;
+  final String craft;
+  final String specialty;
+  final bool isActive;
+  final int activeLotsCount;
+  final int workerAssignmentsCount;
+  final String createdAt;
+  final String updatedAt;
+}
+
+class ApiStockist {
+  const ApiStockist({
+    required this.id,
+    required this.firmName,
+    required this.contactPerson,
+    required this.phone,
+    this.email = '',
+    this.location = 'Vault Main',
+    this.vaultAccessLevel = 'LEVEL_1',
+    this.totalManagedGrams = 0.0,
+    this.outstandingBalance = 0.0,
+    this.creditLimitLakhs = 0.0,
+    this.isActive = true,
+    this.createdAt = '',
+    this.updatedAt = '',
+  });
+
+  factory ApiStockist.fromJson(Map<String, dynamic> json) {
+    return ApiStockist(
+      id: json['id'] as String? ?? '',
+      firmName: json['firmName'] as String? ?? json['name'] as String? ?? '',
+      contactPerson: json['contactPerson'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      location: json['location'] as String? ?? 'Vault Main',
+      vaultAccessLevel: json['vaultAccessLevel'] as String? ?? 'LEVEL_1',
+      totalManagedGrams: (json['totalManagedGrams'] as num?)?.toDouble() ?? 0.0,
+      outstandingBalance:
+          (json['outstandingBalance'] as num?)?.toDouble() ?? 0.0,
+      creditLimitLakhs: (json['creditLimitLakhs'] as num?)?.toDouble() ?? 0.0,
+      isActive: json['isActive'] as bool? ?? true,
+      createdAt: json['createdAt'] as String? ?? '',
+      updatedAt: json['updatedAt'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'firmName': firmName,
+    'contactPerson': contactPerson,
+    'phone': phone,
+    'email': email,
+    'location': location,
+    'vaultAccessLevel': vaultAccessLevel,
+    'totalManagedGrams': totalManagedGrams,
+    'outstandingBalance': outstandingBalance,
+    'creditLimitLakhs': creditLimitLakhs,
+    'isActive': isActive,
+  };
+
+  final String id;
+  final String firmName;
+  final String contactPerson;
+  final String phone;
+  final String email;
+  final String location;
+  final String vaultAccessLevel;
+  final double totalManagedGrams;
+  final double outstandingBalance;
+  final double creditLimitLakhs;
+  final bool isActive;
+  final String createdAt;
+  final String updatedAt;
+}
+
+class StoneSpec {
+  const StoneSpec({
+    required this.name,
+    required this.count,
+    required this.size,
+    required this.shape,
+    required this.color,
+    required this.clarity,
+  });
+
+  final String name;
+  final int count;
+  final String size;
+  final String shape;
+  final String color;
+  final String clarity;
+}
+
+// ── Vault Material & Stones Requisition Model ──────────────────────────────────
+class VaultRequisition {
+  const VaultRequisition({
+    required this.id,
+    required this.designNumber,
+    required this.orderId,
+    required this.artisanName,
+    required this.stageName,
+    required this.quantity,
+    required this.goldWeightGrams,
+    required this.stones,
+    this.stoneSpecs = const [],
+    required this.status,
+    required this.timestamp,
+  });
+
+  final String id;
+  final String designNumber;
+  final String orderId;
+  final String artisanName;
+  final String stageName;
+  final int quantity;
+  final double goldWeightGrams;
+  final List<String> stones;
+  final List<StoneSpec> stoneSpecs;
+  final String status; // 'PENDING_ISSUE', 'ISSUED'
+  final String timestamp;
+
+  VaultRequisition copyWith({String? status, List<StoneSpec>? stoneSpecs}) {
+    return VaultRequisition(
+      id: id,
+      designNumber: designNumber,
+      orderId: orderId,
+      artisanName: artisanName,
+      stageName: stageName,
+      quantity: quantity,
+      goldWeightGrams: goldWeightGrams,
+      stones: stones,
+      stoneSpecs: stoneSpecs ?? this.stoneSpecs,
+      status: status ?? this.status,
+      timestamp: timestamp,
+    );
+  }
+}
+
+// ── Official Stockist Pending Issuance & Allocation Models ─────────────────────
+class ApiAssignedCraftsman {
+  const ApiAssignedCraftsman({
+    required this.id,
+    required this.name,
+    this.phone = '',
+    this.role = '',
+  });
+
+  final String id;
+  final String name;
+  final String phone;
+  final String role;
+
+  factory ApiAssignedCraftsman.fromJson(Map<String, dynamic> json) {
+    return ApiAssignedCraftsman(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? 'Craftsman',
+      phone: json['phone'] as String? ?? '',
+      role: json['role'] as String? ?? '',
+    );
+  }
+}
+
+class ApiGemBreakdownItem {
+  const ApiGemBreakdownItem({
+    required this.shape,
+    required this.dimensions,
+    required this.color,
+    required this.count,
+  });
+
+  final String shape;
+  final String dimensions;
+  final String color;
+  final int count;
+
+  factory ApiGemBreakdownItem.fromJson(Map<String, dynamic> json) {
+    return ApiGemBreakdownItem(
+      shape: json['shape'] as String? ?? '',
+      dimensions: json['dimensions'] as String? ?? '',
+      color: json['color'] as String? ?? '',
+      count: (json['count'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class ApiCadSpecs {
+  const ApiCadSpecs({
+    this.gemQuantity = 0,
+    this.goldQuantity = 0.0,
+    this.gemWeightTw = 0.0,
+    this.sizeDimensions = '',
+    this.gemBreakdown = const [],
+  });
+
+  final int gemQuantity;
+  final double goldQuantity;
+  final double gemWeightTw;
+  final String sizeDimensions;
+  final List<ApiGemBreakdownItem> gemBreakdown;
+
+  factory ApiCadSpecs.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const ApiCadSpecs();
+    final rawBreakdown = json['gemBreakdown'] as List? ?? [];
+    return ApiCadSpecs(
+      gemQuantity: (json['gemQuantity'] as num?)?.toInt() ?? 0,
+      goldQuantity: (json['goldQuantity'] as num?)?.toDouble() ?? 0.0,
+      gemWeightTw: (json['gemWeightTw'] as num?)?.toDouble() ?? 0.0,
+      sizeDimensions: json['sizeDimensions'] as String? ?? '',
+      gemBreakdown: rawBreakdown
+          .map((b) => ApiGemBreakdownItem.fromJson(b as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
+class ApiPendingIssuance {
+  const ApiPendingIssuance({
+    required this.orderPartId,
+    required this.orderId,
+    required this.orderNumber,
+    required this.designNumber,
+    this.customerName = '',
+    this.dueDate = '',
+    required this.currentStage,
+    this.orderPartStatus = '',
+    this.assignedCraftsman,
+    this.partAssignmentId = '',
+    this.cadSpecs = const ApiCadSpecs(),
+    this.isStockIssued = false,
+    this.issuance,
+  });
+
+  final String orderPartId;
+  final String orderId;
+  final String orderNumber;
+  final String designNumber;
+  final String customerName;
+  final String dueDate;
+  final String currentStage;
+  final String orderPartStatus;
+  final ApiAssignedCraftsman? assignedCraftsman;
+  final String partAssignmentId;
+  final ApiCadSpecs cadSpecs;
+  final bool isStockIssued;
+  final ApiMaterialIssuance? issuance;
+
+  factory ApiPendingIssuance.fromJson(Map<String, dynamic> json) {
+    final craftsmanMap = json['assignedCraftsman'] as Map<String, dynamic>?;
+    final specsMap = json['cadSpecs'] as Map<String, dynamic>?;
+    final issuanceMap = json['issuance'] as Map<String, dynamic>?;
+    return ApiPendingIssuance(
+      orderPartId: json['orderPartId'] as String? ?? '',
+      orderId: json['orderId'] as String? ?? '',
+      orderNumber: json['orderNumber'] as String? ?? '',
+      designNumber: json['designNumber'] as String? ?? 'D01',
+      customerName: json['customerName'] as String? ?? '',
+      dueDate: json['dueDate'] as String? ?? '',
+      currentStage: json['currentStage'] as String? ?? 'Setting',
+      orderPartStatus: json['orderPartStatus'] as String? ?? 'ASSIGNED',
+      assignedCraftsman: craftsmanMap != null
+          ? ApiAssignedCraftsman.fromJson(craftsmanMap)
+          : null,
+      partAssignmentId: json['partAssignmentId'] as String? ?? '',
+      cadSpecs: ApiCadSpecs.fromJson(specsMap),
+      isStockIssued: json['isStockIssued'] as bool? ?? false,
+      issuance: issuanceMap != null
+          ? ApiMaterialIssuance.fromJson(issuanceMap)
+          : null,
+    );
+  }
+}
+
+class ApiMaterialIssuance {
+  const ApiMaterialIssuance({
+    required this.id,
+    required this.issueNumber,
+    required this.orderPartId,
+    this.partAssignmentId = '',
+    this.craftsmanId = '',
+    this.stockistId = '',
+    required this.status,
+    this.itemsIssued = const [],
+    this.totalWeightIssued = 0.0,
+    this.totalPcsIssued = 0,
+    this.issuedAt = '',
+    this.reconciliationNotes,
+    this.craftsmanName = '',
+    this.stockistName = '',
+  });
+
+  final String id;
+  final String issueNumber;
+  final String orderPartId;
+  final String partAssignmentId;
+  final String craftsmanId;
+  final String stockistId;
+  final String status;
+  final List<Map<String, dynamic>> itemsIssued;
+  final double totalWeightIssued;
+  final int totalPcsIssued;
+  final String issuedAt;
+  final String? reconciliationNotes;
+  final String craftsmanName;
+  final String stockistName;
+
+  factory ApiMaterialIssuance.fromJson(Map<String, dynamic> json) {
+    final craftsmanMap = json['craftsman'] as Map<String, dynamic>?;
+    final stockistMap = json['stockist'] as Map<String, dynamic>?;
+    final itemsList = (json['itemsIssued'] as List? ?? [])
+        .map((i) => i as Map<String, dynamic>)
+        .toList();
+    return ApiMaterialIssuance(
+      id: json['id'] as String? ?? '',
+      issueNumber: json['issueNumber'] as String? ?? '',
+      orderPartId: json['orderPartId'] as String? ?? '',
+      partAssignmentId: json['partAssignmentId'] as String? ?? '',
+      craftsmanId: json['craftsmanId'] as String? ?? '',
+      stockistId: json['stockistId'] as String? ?? '',
+      status: json['status'] as String? ?? 'ISSUED',
+      itemsIssued: itemsList,
+      totalWeightIssued: (json['totalWeightIssued'] as num?)?.toDouble() ?? 0.0,
+      totalPcsIssued: (json['totalPcsIssued'] as num?)?.toInt() ?? 0,
+      issuedAt: json['issuedAt'] as String? ?? '',
+      reconciliationNotes: json['reconciliationNotes'] as String?,
+      craftsmanName: craftsmanMap?['name'] as String? ?? '',
+      stockistName: stockistMap?['name'] as String? ?? '',
+    );
+  }
+}

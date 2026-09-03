@@ -7,6 +7,7 @@ import '../../../../core/widgets/common_card.dart';
 import '../../../../core/widgets/common_progress_indicator.dart';
 import '../../../../core/widgets/common_snackbar.dart';
 import '../../../../core/widgets/common_text_field.dart';
+import '../../../../core/widgets/animated_empty_state_widget.dart';
 import '../../../../data/demo_store.dart';
 import '../../../../domain/models.dart';
 import '../bloc/admin_bloc.dart';
@@ -315,11 +316,29 @@ class AdminReviewCadSheet extends StatelessWidget {
                       onRefresh: () async => context.read<CadBloc>().add(
                         const FetchCadTasksEvent(),
                       ),
-                      child: ListView.separated(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount: pendingTasks.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
-                        itemBuilder: (ctx, index) {
+                      child: pendingTasks.isEmpty
+                          ? ListView(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 70,
+                                    bottom: 40,
+                                  ),
+                                  child: AnimatedEmptyStateWidget(
+                                    icon: Icons.view_in_ar_rounded,
+                                    title: 'No CAD Approvals Pending',
+                                    subtitle:
+                                        'All 3D CAD models and specs have been reviewed and signed off for production!',
+                                    accentColor: AppColors.goldDark,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : ListView.separated(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemCount: pendingTasks.length,
+                              separatorBuilder: (_, _) => const SizedBox(height: 12),
+                              itemBuilder: (ctx, index) {
                           final task = pendingTasks[index];
                           final isApproved =
                               task.status == CadTaskStatus.completed ||

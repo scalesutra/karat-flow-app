@@ -33,3 +33,8 @@ final class InventoryError extends InventoryState {
   const InventoryError(this.message);
   final String message;
 }
+
+final class PendingIssuancesQueueLoaded extends InventoryState {
+  const PendingIssuancesQueueLoaded({required this.queue});
+  final List<ApiPendingIssuance> queue;
+}

@@ -3,9 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 
-enum IndicatorTheme { universal, workshop, frontOffice, cad }
+enum IndicatorTheme {
+  universal,
+  workshop,
+  frontOffice,
+  cad,
+  stockist,
+  rawDesigner,
+  artisan,
+}
 
-/// Ultra-Modern 3D Luxury Progress Indicator with Dedicated Workshop, CAD & Front Office Modes
+/// Ultra-Modern 3D Luxury Progress Indicator with Dedicated Workshop, CAD, Front Office, Stockist, Raw Designer & Artisan Modes
 class CommonProgressIndicator extends StatefulWidget {
   const CommonProgressIndicator({
     super.key,
@@ -45,6 +53,36 @@ class CommonProgressIndicator extends StatefulWidget {
     this.primaryColor,
     this.secondaryColor,
     this.label = 'Rendering 3D CAD Mesh & STL Geometry...',
+  });
+
+  const CommonProgressIndicator.stockist({
+    super.key,
+    this.size = 46.0,
+    this.strokeWidth = 3.0,
+    this.theme = IndicatorTheme.stockist,
+    this.primaryColor = AppColors.gold,
+    this.secondaryColor = AppColors.emerald,
+    this.label = 'Securing Vault Stock & Material Requisitions...',
+  });
+
+  const CommonProgressIndicator.rawDesigner({
+    super.key,
+    this.size = 46.0,
+    this.strokeWidth = 3.0,
+    this.theme = IndicatorTheme.rawDesigner,
+    this.primaryColor = const Color(0xFF6366F1),
+    this.secondaryColor = AppColors.gold,
+    this.label = 'Rendering 2D Concept Artworks & Sketches...',
+  });
+
+  const CommonProgressIndicator.artisan({
+    super.key,
+    this.size = 46.0,
+    this.strokeWidth = 3.0,
+    this.theme = IndicatorTheme.artisan,
+    this.primaryColor = const Color(0xFFD97706),
+    this.secondaryColor = AppColors.emerald,
+    this.label = 'Syncing Live Karigar Bench Tasks & Materials...',
   });
 
   const CommonProgressIndicator.admin({
@@ -142,6 +180,9 @@ class _CommonProgressIndicatorState extends State<CommonProgressIndicator>
       IndicatorTheme.workshop => _buildWorkshopIndicator(),
       IndicatorTheme.frontOffice => _buildFrontOfficeIndicator(),
       IndicatorTheme.cad => _buildCadIndicator(),
+      IndicatorTheme.stockist => _buildStockistIndicator(),
+      IndicatorTheme.rawDesigner => _buildRawDesignerIndicator(),
+      IndicatorTheme.artisan => _buildArtisanIndicator(),
       IndicatorTheme.universal => _buildUniversalIndicator(),
     };
   }
@@ -779,6 +820,426 @@ class _CommonProgressIndicatorState extends State<CommonProgressIndicator>
 
     return loader;
   }
+
+  // =========================================================================
+  // 5. STOCKIST VAULT INDICATOR (Gold Bullion & Diamond Vault Ring)
+  // =========================================================================
+  Widget _buildStockistIndicator() {
+    final goldColor = widget.primaryColor ?? AppColors.gold;
+    final emeraldColor = widget.secondaryColor ?? AppColors.emerald;
+
+    final loader = SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([
+          _spinController,
+          _pulseController,
+          _sparkleController,
+        ]),
+        builder: (context, _) {
+          final spin = _spinController.value * 2 * math.pi;
+          final pulse = Curves.easeInOutCubic.transform(_pulseController.value);
+
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: widget.size * 0.95,
+                height: widget.size * 0.95,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      goldColor.withValues(alpha: 0.18 + 0.1 * pulse),
+                      emeraldColor.withValues(alpha: 0.05),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+              Transform.rotate(
+                angle: spin,
+                child: CustomPaint(
+                  size: Size(widget.size, widget.size),
+                  painter: _CadLaserOrbitPainter(
+                    color1: goldColor,
+                    color2: emeraldColor,
+                    strokeWidth: widget.strokeWidth,
+                    progress: 0.8,
+                  ),
+                ),
+              ),
+              Transform.rotate(
+                angle: -spin * 1.4,
+                child: CustomPaint(
+                  size: Size(widget.size * 0.72, widget.size * 0.72),
+                  painter: _CadLaserOrbitPainter(
+                    color1: emeraldColor,
+                    color2: goldColor,
+                    strokeWidth: widget.strokeWidth * 0.85,
+                    progress: 0.6,
+                  ),
+                ),
+              ),
+              if (widget.size >= 24)
+                Transform.scale(
+                  scale: 0.85 + 0.2 * pulse,
+                  child: Container(
+                    padding: EdgeInsets.all(widget.size * 0.15),
+                    decoration: BoxDecoration(
+                      color: AppColors.paper,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: goldColor.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                      border: Border.all(color: goldColor, width: 1.5),
+                    ),
+                    child: Icon(
+                      Icons.shield_outlined,
+                      size: widget.size * 0.38,
+                      color: goldColor,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (widget.label != null && widget.size >= 36) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          loader,
+          const SizedBox(height: 14),
+          Text(
+            widget.label!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+              color: AppColors.ink,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.verified_user_outlined,
+                size: 12,
+                color: AppColors.gold,
+              ),
+              SizedBox(width: 4),
+              Text(
+                'Vault Allocation & Requisitions Engine',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return loader;
+  }
+
+  // =========================================================================
+  // 6. RAW DESIGNER SKETCH STUDIO INDICATOR (Indigo Brush Orbit & Canvas Sparkle)
+  // =========================================================================
+  Widget _buildRawDesignerIndicator() {
+    final indigoColor = widget.primaryColor ?? const Color(0xFF6366F1);
+    final goldColor = widget.secondaryColor ?? AppColors.gold;
+
+    final loader = SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([
+          _spinController,
+          _pulseController,
+          _sparkleController,
+        ]),
+        builder: (context, _) {
+          final spin = _spinController.value * 2 * math.pi;
+          final pulse = Curves.easeInOutCubic.transform(_pulseController.value);
+
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: widget.size * 0.95,
+                height: widget.size * 0.95,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      indigoColor.withValues(alpha: 0.2 + 0.1 * pulse),
+                      goldColor.withValues(alpha: 0.06),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+              Transform.rotate(
+                angle: spin,
+                child: CustomPaint(
+                  size: Size(widget.size, widget.size),
+                  painter: _CadLaserOrbitPainter(
+                    color1: indigoColor,
+                    color2: goldColor,
+                    strokeWidth: widget.strokeWidth,
+                    progress: 0.75,
+                  ),
+                ),
+              ),
+              Transform.rotate(
+                angle: -spin * 1.2,
+                child: CustomPaint(
+                  size: Size(widget.size * 0.72, widget.size * 0.72),
+                  painter: _CadLaserOrbitPainter(
+                    color1: goldColor,
+                    color2: indigoColor,
+                    strokeWidth: widget.strokeWidth * 0.85,
+                    progress: 0.65,
+                  ),
+                ),
+              ),
+              if (widget.size >= 24)
+                Transform.scale(
+                  scale: 0.85 + 0.2 * pulse,
+                  child: Container(
+                    padding: EdgeInsets.all(widget.size * 0.15),
+                    decoration: BoxDecoration(
+                      color: AppColors.paper,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: indigoColor.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                      border: Border.all(color: indigoColor, width: 1.5),
+                    ),
+                    child: Icon(
+                      Icons.draw_rounded,
+                      size: widget.size * 0.38,
+                      color: indigoColor,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (widget.label != null && widget.size >= 36) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          loader,
+          const SizedBox(height: 14),
+          Text(
+            widget.label!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+              color: AppColors.ink,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.palette_outlined, size: 12, color: Color(0xFF6366F1)),
+              SizedBox(width: 4),
+              Text(
+                '2D Sketch Concept Studio Engine',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return loader;
+  }
+
+  // =========================================================================
+  // 7. ARTISAN BENCH INDICATOR (3D Isometric Goldsmith Anvil, Molten Gold Sparkle & Karigar Bench Orbit)
+  // =========================================================================
+  Widget _buildArtisanIndicator() {
+    final amberBronze = widget.primaryColor ?? const Color(0xFFD97706);
+    final emeraldLuxe = widget.secondaryColor ?? AppColors.emerald;
+    final moltenGold = const Color(0xFFFFD700);
+
+    final loader = SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([
+          _spinController,
+          _pulseController,
+          _sparkleController,
+        ]),
+        builder: (context, _) {
+          final spin = _spinController.value * 2 * math.pi;
+          final pulse = Curves.easeInOutCubic.transform(_pulseController.value);
+          final spark = _sparkleController.value * 2 * math.pi;
+
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              // 1. Molten Gold Glow Halo
+              Container(
+                width: widget.size * 0.95,
+                height: widget.size * 0.95,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      amberBronze.withValues(alpha: 0.22 + 0.12 * pulse),
+                      moltenGold.withValues(alpha: 0.08 * pulse),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+
+              // 2. 3D Isometric Goldsmith Bench Orbit Ring (Primary)
+              Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.002)
+                  ..rotateX(0.7)
+                  ..rotateZ(spin),
+                child: CustomPaint(
+                  size: Size(widget.size * 0.95, widget.size * 0.95),
+                  painter: _CadLaserOrbitPainter(
+                    color1: amberBronze,
+                    color2: moltenGold,
+                    strokeWidth: widget.strokeWidth * 1.1,
+                    progress: 0.82,
+                  ),
+                ),
+              ),
+
+              // 3. Counter-Rotating Emerald & Bronze Precision Orbit Ring
+              Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.002)
+                  ..rotateX(-0.65)
+                  ..rotateZ(-spin * 1.3),
+                child: CustomPaint(
+                  size: Size(widget.size * 0.72, widget.size * 0.72),
+                  painter: _CadLaserOrbitPainter(
+                    color1: emeraldLuxe,
+                    color2: amberBronze,
+                    strokeWidth: widget.strokeWidth * 0.9,
+                    progress: 0.65,
+                  ),
+                ),
+              ),
+
+              // 4. Center 3D Goldsmith Anvil / Karigar Bench Emblem
+              if (widget.size >= 24)
+                Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.identity()
+                    ..setEntry(3, 2, 0.002)
+                    ..rotateY(0.15 * math.sin(spark))
+                    ..scaleByDouble(
+                      0.85 + 0.18 * pulse,
+                      0.85 + 0.18 * pulse,
+                      1.0,
+                      1.0,
+                    ),
+                  child: Container(
+                    padding: EdgeInsets.all(widget.size * 0.15),
+                    decoration: BoxDecoration(
+                      color: AppColors.paper,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: amberBronze.withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          spreadRadius: 1.5,
+                        ),
+                      ],
+                      border: Border.all(color: amberBronze, width: 1.8),
+                    ),
+                    child: Icon(
+                      Icons.handyman_rounded,
+                      size: widget.size * 0.38,
+                      color: amberBronze,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (widget.label != null && widget.size >= 36) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          loader,
+          const SizedBox(height: 14),
+          Text(
+            widget.label!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+              color: AppColors.ink,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.handyman_outlined, size: 12, color: Color(0xFFD97706)),
+              SizedBox(width: 4),
+              Text(
+                'Goldsmith Bench & Karigar Task Engine',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return loader;
+  }
 }
 
 /// CAD Coordinate Viewport Bezel
@@ -1135,6 +1596,12 @@ class _CommonRefreshIndicatorState extends State<CommonRefreshIndicator> {
                         'Synchronizing Vault Inventory & Client Orders...',
                       IndicatorTheme.cad =>
                         'Synchronizing 3D CAD Mesh & Solitaire Models...',
+                      IndicatorTheme.stockist =>
+                        'Synchronizing Stockist Vault & Materials Queue...',
+                      IndicatorTheme.rawDesigner =>
+                        'Synchronizing 2D Concept Artworks & Sketches...',
+                      IndicatorTheme.artisan =>
+                        'Synchronizing Karigar Bench Tasks & Materials...',
                       IndicatorTheme.universal =>
                         'Synchronizing KaratFlow Cloud & Factory ERP...',
                     },
@@ -1170,6 +1637,12 @@ class CommonLoadingState extends StatelessWidget {
             'Connecting to Jewelry Vault & Orders Pipeline...',
           IndicatorTheme.cad =>
             'Compiling 3D CAD Mesh & Solitaire Wireframes...',
+          IndicatorTheme.stockist =>
+            'Securing Vault Stock & Material Requisitions...',
+          IndicatorTheme.rawDesigner =>
+            'Rendering 2D Concept Artworks & Sketches...',
+          IndicatorTheme.artisan =>
+            'Syncing Live Karigar Bench Tasks & Materials...',
           IndicatorTheme.universal => 'Synchronizing KaratFlow Cloud Engine...',
         };
 
@@ -1180,6 +1653,12 @@ class CommonLoadingState extends StatelessWidget {
         'Solitaire Diamonds, Real-time Pricing & Dispatch Tracker',
       IndicatorTheme.cad =>
         'Rhino, MatrixGold STL Mesh & 3D Interactive Viewport',
+      IndicatorTheme.stockist =>
+        'Vault Inventory, Bullion Allocation & Stockist Engine',
+      IndicatorTheme.rawDesigner =>
+        '2D Artworks, Concept Sketches & Design Studio Engine',
+      IndicatorTheme.artisan =>
+        'Goldsmith Bench, Filing, Setting & Polishing Engine',
       IndicatorTheme.universal =>
         'Real-time RFID, scale & bench synchronization',
     };

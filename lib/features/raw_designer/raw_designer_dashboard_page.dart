@@ -176,9 +176,7 @@ class _RawDesignerDashboardPageState extends State<RawDesignerDashboardPage> {
                     if (loading)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 80),
-                        child: CommonProgressIndicator(
-                          label: 'Loading live sketches...',
-                        ),
+                        child: CommonProgressIndicator.rawDesigner(),
                       )
                     else if (state is SketchError)
                       CommonEmptyState(

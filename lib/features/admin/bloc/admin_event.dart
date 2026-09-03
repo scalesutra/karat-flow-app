@@ -17,19 +17,47 @@ final class FetchStockInventoryEvent extends AdminEvent {
   const FetchStockInventoryEvent();
 }
 
-/// Register a new workshop artisan / goldsmith
+/// Register a new employee (Keycloak sync & DB creation)
 final class AddArtisanEvent extends AdminEvent {
   const AddArtisanEvent(
     this.member, {
     required this.email,
     required this.phone,
     required this.stageId,
+    this.role = 'CRAFTSMAN',
+    this.password,
+    this.skills,
+    this.specialty,
   });
 
   final TeamMember member;
   final String email;
   final String phone;
   final String stageId;
+  final String role;
+  final String? password;
+  final List<String>? skills;
+  final String? specialty;
+}
+
+final class CreateEmployeeEvent extends AdminEvent {
+  const CreateEmployeeEvent({
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.role,
+    this.password,
+    this.skills,
+    this.specialty,
+  });
+
+  final String name;
+  final String email;
+  final String phone;
+  final String role;
+  final String? password;
+  final List<String>? skills;
+  final String? specialty;
 }
 
 /// Send creative or operational governance directive
@@ -79,13 +107,21 @@ final class ReviewSketchDirectiveEvent extends AdminEvent {
 final class UpdateEmployeeEvent extends AdminEvent {
   const UpdateEmployeeEvent({
     required this.employeeId,
-    required this.role,
-    required this.isActive,
+    this.name,
+    this.phone,
+    this.role,
+    this.specialty,
+    this.skills,
+    this.isActive,
   });
 
   final String employeeId;
-  final String role;
-  final bool isActive;
+  final String? name;
+  final String? phone;
+  final String? role;
+  final String? specialty;
+  final List<String>? skills;
+  final bool? isActive;
 }
 
 final class RegisterCustomerEvent extends AdminEvent {

@@ -7,7 +7,7 @@ class AppTranslations extends Translations {
 
   static const Map<String, String> enUS = {
     // 1. General
-    AppStrings.appName: 'KaratFlow',
+    AppStrings.appName: 'RK Jewellers',
     AppStrings.appTagline: 'Fine Jewellery Manufacturing & ERP',
     AppStrings.online: 'Online',
     AppStrings.offline: 'Offline',

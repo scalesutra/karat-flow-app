@@ -227,7 +227,7 @@ class _LoginPageState extends State<LoginPage> {
 
                           Center(
                             child: Text(
-                              'KARATFLOW',
+                              'RK JEWELLERS',
                               style: GoogleFonts.cinzel(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w900,
@@ -364,7 +364,8 @@ class _LoginPageState extends State<LoginPage> {
                                         CommonTextField(
                                           controller: _emailController,
                                           label: 'Email Address *',
-                                          hintText: 'e.g. admin@karratflow.com',
+                                          hintText:
+                                              'e.g. admin@rkjewellers.com',
                                           prefixIcon: Icons.email_outlined,
                                           keyboardType:
                                               TextInputType.emailAddress,
@@ -471,8 +472,7 @@ class _LoginPageState extends State<LoginPage> {
                                               child: CommonProgressIndicator(
                                                 theme: IndicatorTheme.universal,
                                                 size: 54,
-                                                label:
-                                                    'Authenticating with live server...',
+                                                label: 'Authenticating...',
                                               ),
                                             ),
                                           )

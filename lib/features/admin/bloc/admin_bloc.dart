@@ -17,6 +17,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       super(const AdminInitial()) {
     on<FetchAdminDashboardEvent>(_onFetchDashboard);
     on<AddArtisanEvent>(_onAddArtisan);
+    on<CreateEmployeeEvent>(_onCreateEmployee);
     on<UpdateEmployeeEvent>(_onUpdateEmployee);
     on<RegisterCustomerEvent>(_onRegisterCustomer);
     on<UpdateCustomerEvent>(_onUpdateCustomer);
@@ -94,16 +95,47 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
   ) async {
     emit(const AdminLoading());
     try {
-      await _api.onboardEmployee(
+      await _api.createEmployee(
         name: event.member.name,
         email: event.email,
         phone: event.phone,
-        role: 'OTHER_EMPLOYEE',
+        role: event.role,
+        password: event.password,
+        skills: event.skills,
+        specialty: event.specialty,
       );
-      emit(const AdminActionSuccess('Employee onboarded successfully.'));
+      emit(
+        const AdminActionSuccess(
+          'Employee onboarded & registered successfully.',
+        ),
+      );
       add(const FetchAdminDashboardEvent());
     } catch (error) {
-      emit(AdminError('Failed to onboard employee: $error'));
+      final msg = error.toString().replaceAll('Exception: ', '');
+      emit(AdminError('Failed to onboard employee: $msg'));
+    }
+  }
+
+  Future<void> _onCreateEmployee(
+    CreateEmployeeEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    emit(const AdminLoading());
+    try {
+      await _api.createEmployee(
+        name: event.name,
+        email: event.email,
+        phone: event.phone,
+        role: event.role,
+        password: event.password,
+        skills: event.skills,
+        specialty: event.specialty,
+      );
+      emit(const AdminActionSuccess('New employee registered successfully.'));
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      final msg = error.toString().replaceAll('Exception: ', '');
+      emit(AdminError('Failed to create employee: $msg'));
     }
   }
 
@@ -112,15 +144,20 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     Emitter<AdminState> emit,
   ) async {
     try {
-      await _api.updateEmployeeRole(
+      await _api.updateEmployee(
         id: event.employeeId,
+        name: event.name,
+        phone: event.phone,
         role: event.role,
+        specialty: event.specialty,
+        skills: event.skills,
         isActive: event.isActive,
       );
       emit(const AdminActionSuccess('Employee updated successfully.'));
       add(const FetchAdminDashboardEvent());
     } catch (error) {
-      emit(AdminError('Failed to update employee: $error'));
+      final msg = error.toString().replaceAll('Exception: ', '');
+      emit(AdminError('Failed to update employee: $msg'));
     }
   }
 
@@ -224,7 +261,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       await _api.uploadSketch(
         designNumber: event.designNumber,
         title: event.title,
-        sketchUrl: upload.fileKey,
+        sketchUrl: upload.fileUrl.isNotEmpty ? upload.fileUrl : upload.fileKey,
       );
       emit(const AdminActionSuccess('Sketch uploaded successfully.'));
       add(const FetchAdminDashboardEvent());
@@ -248,7 +285,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       await _api.reuploadSketch(
         id: event.sketchId,
         title: event.title,
-        sketchUrl: upload.fileKey,
+        sketchUrl: upload.fileUrl.isNotEmpty ? upload.fileUrl : upload.fileKey,
       );
       emit(const AdminActionSuccess('Sketch revision uploaded.'));
       add(const FetchAdminDashboardEvent());

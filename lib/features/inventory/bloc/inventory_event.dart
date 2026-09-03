@@ -62,3 +62,19 @@ final class DeleteInventoryItemEvent extends InventoryEvent {
   const DeleteInventoryItemEvent({required this.id});
   final String id;
 }
+
+final class FetchPendingIssuancesQueueEvent extends InventoryEvent {
+  const FetchPendingIssuancesQueueEvent();
+}
+
+final class IssueMaterialsToCraftsmanEvent extends InventoryEvent {
+  const IssueMaterialsToCraftsmanEvent({
+    required this.orderPartId,
+    required this.items,
+    this.notes = '',
+  });
+
+  final String orderPartId;
+  final List<Map<String, dynamic>> items;
+  final String notes;
+}

@@ -1,5 +1,8 @@
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+
 import '../../core/network/api_client.dart';
 import '../../core/network/api_endpoints.dart';
 import '../models/api_models.dart';
@@ -55,14 +58,22 @@ class KaratFlowApiRepository {
 
   // ── SECTION 2: Employee & User Management (/employees) ───────────
   Future<List<ApiEmployee>> listEmployees({
+    String? search,
     String? role,
+    bool? isActive,
     int page = 1,
     int limit = 100,
   }) async {
     try {
       final query = <String, dynamic>{'page': page, 'limit': limit};
-      if (role != null && role.isNotEmpty) {
-        query['role'] = role;
+      if (search != null && search.trim().isNotEmpty) {
+        query['search'] = search.trim();
+      }
+      if (role != null && role.trim().isNotEmpty) {
+        query['role'] = role.trim();
+      }
+      if (isActive != null) {
+        query['isActive'] = isActive ? 'true' : 'false';
       }
       final response = await _api.get(
         ApiEndpoints.employees,
@@ -84,22 +95,71 @@ class KaratFlowApiRepository {
     return ApiEmployee.fromJson(data);
   }
 
+  Future<ApiEmployee> createEmployee({
+    required String name,
+    required String email,
+    required String phone,
+    required String role,
+    String? password,
+    List<String>? skills,
+    String? specialty,
+  }) async {
+    final payload = <String, dynamic>{
+      'name': name.trim(),
+      'email': email.trim(),
+      'phone': phone.trim(),
+      'role': role.trim(),
+      if (password != null && password.trim().isNotEmpty)
+        'password': password.trim(),
+      if (skills != null && skills.isNotEmpty) 'skills': skills,
+      if (specialty != null && specialty.trim().isNotEmpty)
+        'specialty': specialty.trim(),
+    };
+
+    final response = await _api.post(ApiEndpoints.employees, data: payload);
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiEmployee.fromJson(data);
+  }
+
   Future<ApiEmployee> onboardEmployee({
     required String name,
     required String email,
     required String phone,
-    String role = 'OTHER_EMPLOYEE',
+    String role = 'CRAFTSMAN',
     String specialty = '',
+    List<String>? skills,
+    String? password,
+  }) => createEmployee(
+    name: name,
+    email: email,
+    phone: phone,
+    role: role,
+    password: password,
+    skills: skills,
+    specialty: specialty,
+  );
+
+  Future<ApiEmployee> updateEmployee({
+    required String id,
+    String? name,
+    String? phone,
+    String? role,
+    String? specialty,
+    List<String>? skills,
+    bool? isActive,
   }) async {
-    final response = await _api.post(
-      ApiEndpoints.employees,
-      data: {
-        'name': name,
-        'email': email,
-        'phone': phone,
-        'role': role,
-        if (specialty.isNotEmpty) 'specialty': specialty,
-      },
+    final payload = <String, dynamic>{
+      if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+      if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      if (role != null && role.trim().isNotEmpty) 'role': role.trim(),
+      if (specialty != null) 'specialty': specialty.trim(),
+      'skills': ?skills,
+      'isActive': ?isActive,
+    };
+
+    final response = await _api.patch(
+      ApiEndpoints.updateEmployee(id),
+      data: payload,
     );
     final data = response.data['data'] as Map<String, dynamic>;
     return ApiEmployee.fromJson(data);
@@ -109,13 +169,34 @@ class KaratFlowApiRepository {
     required String id,
     required String role,
     bool isActive = true,
+  }) => updateEmployee(id: id, role: role, isActive: isActive);
+
+  Future<List<ApiEmployeeAssignment>> getEmployeeAssignments(
+    String id, {
+    String? status,
+    String? search,
+    int page = 1,
+    int limit = 20,
   }) async {
-    final response = await _api.patch(
-      ApiEndpoints.updateEmployee(id),
-      data: {'role': role, 'isActive': isActive},
-    );
-    final data = response.data['data'] as Map<String, dynamic>;
-    return ApiEmployee.fromJson(data);
+    try {
+      final query = <String, dynamic>{'page': page, 'limit': limit};
+      if (status != null && status.trim().isNotEmpty) {
+        query['status'] = status.trim();
+      }
+      if (search != null && search.trim().isNotEmpty) {
+        query['search'] = search.trim();
+      }
+      final response = await _api.get(
+        ApiEndpoints.employeeAssignments(id),
+        queryParameters: query,
+      );
+      final list = response.data['data'] as List? ?? [];
+      return list
+          .map((e) => ApiEmployeeAssignment.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   // ── SECTION 3: Customers & Clients (/customers) ───────────────────
@@ -319,18 +400,22 @@ class KaratFlowApiRepository {
     int page = 1,
     int limit = 50,
   }) async {
-    final response = await _api.get(
-      ApiEndpoints.threeDDesigns,
-      queryParameters: {
-        if (status.isNotEmpty) 'status': status,
-        'page': page,
-        'limit': limit,
-      },
-    );
-    final list = response.data['data'] as List? ?? [];
-    return list
-        .map((t) => ApiThreeDDesign.fromJson(t as Map<String, dynamic>))
-        .toList();
+    try {
+      final response = await _api.get(
+        ApiEndpoints.threeDDesigns,
+        queryParameters: {
+          if (status.isNotEmpty) 'status': status,
+          'page': page,
+          'limit': limit,
+        },
+      );
+      final list = response.data['data'] as List? ?? [];
+      return list
+          .map((t) => ApiThreeDDesign.fromJson(t as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<ApiThreeDDesign> getThreeDDesignDetails(String id) async {
@@ -605,31 +690,101 @@ class KaratFlowApiRepository {
   }
 
   // ── SECTION 9: Worker Tasks (/worker-tasks) ───────────────────────
-  Future<List<ApiWorkerTask>> listWorkerTasks() async {
+  Future<List<ApiWorkerTask>> listWorkerTasks({
+    String status = '',
+    int page = 1,
+    int limit = 20,
+  }) async {
     try {
-      final response = await _api.get(ApiEndpoints.workerTasks);
-      final list = response.data['data'] as List? ?? [];
-      return list
+      final response = await _api.get(
+        ApiEndpoints.workerTasks,
+        queryParameters: {
+          if (status.isNotEmpty) 'status': status,
+          'page': page,
+          'limit': limit,
+        },
+      );
+      debugPrint(
+        '📋 [WORKER TASKS API] GET /worker-tasks status: ${response.statusCode}',
+      );
+      debugPrint('📄 [WORKER TASKS API DATA] ${response.data}');
+
+      final data = response.data['data'];
+      List rawList = [];
+      if (data is Map<String, dynamic>) {
+        rawList = data['items'] as List? ?? [];
+      } else if (data is List) {
+        rawList = data;
+      }
+      final tasks = rawList
           .map((w) => ApiWorkerTask.fromJson(w as Map<String, dynamic>))
           .toList();
-    } catch (_) {
+
+      debugPrint(
+        '🔨 [WORKER TASKS PARSED] Loaded ${tasks.length} bench tasks:',
+      );
+      for (final t in tasks) {
+        debugPrint(
+          '   ➜ TaskID: ${t.id} | Order#: ${t.orderId} | Design: ${t.designNumber} | Stage: ${t.stageName} | Status: ${t.status} | StockIssued: ${t.isStockIssued}',
+        );
+      }
+      return tasks;
+    } catch (e, st) {
+      debugPrint('❌ [WORKER TASKS API ERROR] $e\n$st');
       return [];
     }
   }
 
-  Future<void> startWorkerTask(String id) async {
-    await _api.post(ApiEndpoints.startWorkerTask(id));
+  Future<ApiWorkerTask> startWorkerTask(String id) async {
+    try {
+      debugPrint('▶️ [WORKER TASK START API] POST /worker-tasks/$id/start');
+      final response = await _api.post(ApiEndpoints.startWorkerTask(id));
+      debugPrint(
+        '✅ [WORKER TASK START SUCCESS] ${response.statusCode} | Data: ${response.data}',
+      );
+      final dataMap = _dataMap(response.data);
+      return ApiWorkerTask.fromJson(dataMap);
+    } on DioException catch (e) {
+      debugPrint(
+        '❌ [WORKER TASK START DIO ERROR] Status: ${e.response?.statusCode} | Data: ${e.response?.data}',
+      );
+      final resMsg = e.response?.data?['message'] as String?;
+      if (resMsg != null && resMsg.isNotEmpty) {
+        throw Exception(resMsg);
+      }
+      rethrow;
+    } catch (e) {
+      debugPrint('❌ [WORKER TASK START UNKNOWN ERROR] $e');
+      rethrow;
+    }
   }
 
-  Future<void> completeWorkerTask(String id) async {
-    await _api.post(ApiEndpoints.completeWorkerTask(id));
-  }
-
-  Future<void> reportWorkerTaskFailure(String id, String reason) async {
-    await _api.post(
-      ApiEndpoints.reportWorkerTaskFailure(id),
-      data: {'failureReason': reason, 'reason': reason},
+  Future<ApiWorkerTask> completeWorkerTask(String id) async {
+    debugPrint('✅ [WORKER TASK COMPLETE API] POST /worker-tasks/$id/complete');
+    final response = await _api.post(ApiEndpoints.completeWorkerTask(id));
+    debugPrint(
+      '🎉 [WORKER TASK COMPLETE SUCCESS] ${response.statusCode} | Data: ${response.data}',
     );
+    final dataMap = _dataMap(response.data);
+    return ApiWorkerTask.fromJson(dataMap);
+  }
+
+  Future<ApiWorkerTask> reportWorkerTaskFailure(
+    String id,
+    String reason,
+  ) async {
+    debugPrint(
+      '⚠️ [WORKER TASK FAILURE API] POST /worker-tasks/$id/report-failure | Reason: $reason',
+    );
+    final response = await _api.post(
+      ApiEndpoints.reportWorkerTaskFailure(id),
+      data: {'failureReason': reason},
+    );
+    debugPrint(
+      '🚨 [WORKER TASK FAILURE REPORTED] ${response.statusCode} | Data: ${response.data}',
+    );
+    final dataMap = _dataMap(response.data);
+    return ApiWorkerTask.fromJson(dataMap);
   }
 
   // ── SECTION 10: AWS S3 Cloud Storage (/storage) ──────────────────
@@ -753,17 +908,21 @@ class KaratFlowApiRepository {
     String? category,
     String? search,
   }) async {
-    final response = await _api.get(
-      ApiEndpoints.materials,
-      queryParameters: {
-        if (category != null && category.isNotEmpty) 'category': category,
-        if (search != null && search.isNotEmpty) 'search': search,
-      },
-    );
-    final list = _dataList(response.data);
-    return list
-        .map((e) => ApiMaterial.fromJson(e as Map<String, dynamic>))
-        .toList();
+    try {
+      final response = await _api.get(
+        ApiEndpoints.materials,
+        queryParameters: {
+          if (category != null && category.isNotEmpty) 'category': category,
+          if (search != null && search.isNotEmpty) 'search': search,
+        },
+      );
+      final list = _dataList(response.data);
+      return list
+          .map((e) => ApiMaterial.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<ApiMaterial> getMaterialById(String id) async {
@@ -942,5 +1101,92 @@ class KaratFlowApiRepository {
   Future<ApiHealthStatus> checkHealth() async {
     final response = await _api.get(ApiEndpoints.health);
     return ApiHealthStatus.fromJson(_dataMap(response.data));
+  }
+
+  // ── SECTION 15: Stockist Material Allocation & Issuances (/issuances) ─────
+  Future<List<ApiPendingIssuance>> getPendingIssuancesQueue() async {
+    try {
+      final response = await _api.get(ApiEndpoints.issuancesPendingQueue);
+      final list = _dataList(response.data);
+      return list
+          .map(
+            (item) => ApiPendingIssuance.fromJson(item as Map<String, dynamic>),
+          )
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<ApiMaterialIssuance> issueMaterialsForOrderPart(
+    String orderPartId, {
+    required List<Map<String, dynamic>> items,
+    String notes = '',
+  }) async {
+    final response = await _api.post(
+      ApiEndpoints.issueOrderPartMaterials(orderPartId),
+      data: {'items': items, if (notes.isNotEmpty) 'notes': notes},
+    );
+    final data = _dataMap(response.data);
+    return ApiMaterialIssuance.fromJson(data);
+  }
+
+  Future<ApiMaterialIssuance?> getMaterialIssuanceByPart(
+    String orderPartId,
+  ) async {
+    try {
+      final response = await _api.get(
+        ApiEndpoints.getIssuanceByOrderPart(orderPartId),
+      );
+      final data = _dataMap(response.data);
+      return ApiMaterialIssuance.fromJson(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<ApiMaterialIssuance> reconcileMaterialIssuance(
+    String issuanceId, {
+    required double returnedGrossWeight,
+    required double scrapDustWeight,
+    int unusedStonesCount = 0,
+    int brokenStonesCount = 0,
+    String notes = '',
+  }) async {
+    final response = await _api.post(
+      ApiEndpoints.reconcileIssuance(issuanceId),
+      data: {
+        'returnedGrossWeight': returnedGrossWeight,
+        'scrapDustWeight': scrapDustWeight,
+        'unusedStonesCount': unusedStonesCount,
+        'brokenStonesCount': brokenStonesCount,
+        if (notes.isNotEmpty) 'reconciliationNotes': notes,
+      },
+    );
+    final data = _dataMap(response.data);
+    return ApiMaterialIssuance.fromJson(data);
+  }
+
+  Future<List<ApiMaterialIssuance>> listMaterialIssuances({
+    String status = '',
+    String craftsmanId = '',
+    String orderPartId = '',
+  }) async {
+    try {
+      final response = await _api.get(
+        ApiEndpoints.issuances,
+        queryParameters: {
+          if (status.isNotEmpty) 'status': status,
+          if (craftsmanId.isNotEmpty) 'craftsmanId': craftsmanId,
+          if (orderPartId.isNotEmpty) 'orderPartId': orderPartId,
+        },
+      );
+      final list = _dataList(response.data);
+      return list
+          .map((i) => ApiMaterialIssuance.fromJson(i as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 }

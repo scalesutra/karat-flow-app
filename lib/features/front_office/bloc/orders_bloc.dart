@@ -67,29 +67,42 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     try {
       final orders = await _api.listOrders(status: '', limit: 100);
       final customers = await _api.listCustomers(limit: 100);
-      final sketches = await _api.listSketches(limit: 100);
-      final threeD = await _api.listThreeDDesigns(limit: 100);
-      final mappedOrders = orders.map(ApiDomainMapper.order).toList();
-
+      final sketches = await _api.listSketches(status: 'APPROVED', limit: 100);
+      final threeD = await _api.listThreeDDesigns(
+        status: 'APPROVED',
+        limit: 100,
+      );
       final seenDesignKeys = <String>{};
       final catalogueDesigns = <JewelleryDesign>[];
 
-      // 1. Add finished 3D CAD designs (with real weight, price & 3D models)
+      // 1. Add finished 3D CAD designs (ONLY APPROVED)
       for (final t in threeD) {
-        catalogueDesigns.add(ApiDomainMapper.threeDDesign(t));
-        if (t.sketchId.isNotEmpty) seenDesignKeys.add(t.sketchId);
-        if (t.sketch?.id.isNotEmpty == true) seenDesignKeys.add(t.sketch!.id);
-        if (t.sketch?.designNumber.isNotEmpty == true) {
-          seenDesignKeys.add(t.sketch!.designNumber.toLowerCase().trim());
+        final isApproved =
+            t.status.isEmpty ||
+            t.status.toUpperCase() == 'APPROVED' ||
+            t.status.toUpperCase() == 'COMPLETED' ||
+            t.status.toUpperCase() == 'READY';
+        if (isApproved) {
+          catalogueDesigns.add(ApiDomainMapper.threeDDesign(t));
+          if (t.sketchId.isNotEmpty) seenDesignKeys.add(t.sketchId);
+          if (t.sketch?.id.isNotEmpty == true) {
+            seenDesignKeys.add(t.sketch!.id);
+          }
+          if (t.sketch?.designNumber.isNotEmpty == true) {
+            seenDesignKeys.add(t.sketch!.designNumber.toLowerCase().trim());
+          }
+          if (t.id.isNotEmpty) seenDesignKeys.add(t.id);
         }
-        if (t.id.isNotEmpty) seenDesignKeys.add(t.id);
       }
 
-      // 2. Add all 2D Sketches that do NOT already have a 3D CAD design
+      // 2. Add all 2D Sketches that do NOT already have a 3D CAD design (ONLY APPROVED)
       for (final s in sketches) {
-        final isDuplicate = seenDesignKeys.contains(s.id) ||
+        final isApproved =
+            s.status.isEmpty || s.status.toUpperCase() == 'APPROVED';
+        final isDuplicate =
+            seenDesignKeys.contains(s.id) ||
             seenDesignKeys.contains(s.designNumber.toLowerCase().trim());
-        if (!isDuplicate) {
+        if (isApproved && !isDuplicate) {
           catalogueDesigns.add(ApiDomainMapper.sketch(s));
           if (s.id.isNotEmpty) seenDesignKeys.add(s.id);
           if (s.designNumber.isNotEmpty) {
@@ -99,9 +112,12 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
       }
 
       _store
-        ..setOrders(mappedOrders)
         ..setClients(customers.map(ApiDomainMapper.customer).toList())
         ..setDesigns(catalogueDesigns);
+
+      final mappedOrders = orders.map(ApiDomainMapper.order).toList();
+      _store.setOrders(mappedOrders);
+
       emit(OrdersLoaded(orders: mappedOrders, filteredOrders: mappedOrders));
     } catch (error) {
       emit(OrdersError('Failed to load live front-office data: $error'));

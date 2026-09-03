@@ -51,8 +51,20 @@ abstract final class DirectiveRecipients {
         'goldsmith (artisans)',
         'goldsmith',
         'qc team',
+      ],
+      AppRole.worker => const [
+        'worker',
+        'bench worker',
+        'factory worker',
+        'goldsmith',
+        'artisan',
+      ],
+      AppRole.stockist => const [
+        'stockist',
+        'vault keeper',
         'store keeper',
         'vault / store keeper',
+        'stock manager',
       ],
     };
     return aliases.any((alias) => normalized.contains(alias) || alias.contains(normalized));

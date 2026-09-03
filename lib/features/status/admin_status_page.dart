@@ -162,9 +162,9 @@ class _AdminStatusPageState extends State<AdminStatusPage> {
               ),
             ),
             if (items.isEmpty)
-              const SliverFillRemaining(
+              SliverFillRemaining(
                 hasScrollBody: false,
-                child: _HealthyEmptyState(),
+                child: _HealthyEmptyState(pivot: _pivot),
               )
             else
               SliverPadding(
@@ -682,18 +682,43 @@ class _TonePill extends StatelessWidget {
 }
 
 class _HealthyEmptyState extends StatelessWidget {
-  const _HealthyEmptyState();
+  const _HealthyEmptyState({required this.pivot});
+
+  final StatusPivot pivot;
 
   @override
-  Widget build(BuildContext context) => const Center(
-    child: Padding(
-      padding: EdgeInsets.all(28),
-      child: CommonEmptyState(
-        icon: Icons.check_circle_outline,
-        title: 'No issues in this view',
-        description:
-            'All work items in this category are healthy and on schedule.',
+  Widget build(BuildContext context) {
+    final (icon, title, subtitle, color) = switch (pivot) {
+      StatusPivot.orders => (
+        Icons.inventory_2_outlined,
+        'No Orders in View',
+        'All client orders in this status category are healthy and on schedule.',
+        AppColors.emerald,
       ),
-    ),
-  );
+      StatusPivot.people => (
+        Icons.group_outlined,
+        'No Artisan Workloads',
+        'All artisans and gold masters are actively working on schedule.',
+        AppColors.emerald,
+      ),
+      StatusPivot.stages => (
+        Icons.account_tree_outlined,
+        'No Stage Blockers',
+        'All manufacturing stages and routing sequences are moving smoothly.',
+        AppColors.emerald,
+      ),
+    };
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: AnimatedEmptyStateWidget(
+          icon: icon,
+          title: title,
+          subtitle: subtitle,
+          accentColor: color,
+        ),
+      ),
+    );
+  }
 }

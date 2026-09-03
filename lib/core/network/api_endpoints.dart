@@ -15,6 +15,7 @@ abstract final class ApiEndpoints {
   static const String employees = '/employees';
   static String employeeDetails(String id) => '/employees/$id';
   static String updateEmployee(String id) => '/employees/$id';
+  static String employeeAssignments(String id) => '/employees/$id/assignments';
 
   // ── SECTION 3: Client Accounts / Customers (/customers) ──────────
   static const String customers = '/customers';
@@ -91,4 +92,13 @@ abstract final class ApiEndpoints {
 
   // ── SECTION 14: System & Database Health (/health) ───────────────
   static const String health = '/health';
+
+  // ── SECTION 15: Stockist Material Allocation & Issuances (/issuances)
+  static const String issuancesPendingQueue = '/issuances/pending-queue';
+  static String issueOrderPartMaterials(String orderPartId) =>
+      '/issuances/order-part/$orderPartId/issue';
+  static String getIssuanceByOrderPart(String orderPartId) =>
+      '/issuances/order-part/$orderPartId';
+  static String reconcileIssuance(String id) => '/issuances/$id/reconcile';
+  static const String issuances = '/issuances';
 }

@@ -37,7 +37,13 @@ abstract final class LiveDataBlocCoordinator {
         context.read<SketchBloc>().add(const FetchSketchesEvent());
         context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
       case AppRole.workshopArtisan:
+      case AppRole.worker:
         context.read<ArtisanBloc>().add(const FetchArtisanTasksEvent());
+        context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
+      case AppRole.stockist:
+        context.read<MaterialsBloc>().add(const FetchMaterialsEvent());
+        context.read<InventoryBloc>().add(const FetchInventoryEvent());
+        context.read<InventoryBloc>().add(const FetchPendingIssuancesQueueEvent());
         context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
     }
   }

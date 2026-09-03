@@ -167,115 +167,380 @@ class _AdminManagePageState extends State<AdminManagePage> {
     _openSheet(
       context: context,
       title: 'Employees & Goldsmiths',
-      subtitle: 'Registered workshop artisans, skill matrix and wage slabs',
-      actionLabel: 'Add Artisan',
+      subtitle:
+          'Registered workshop artisans, keycloak accounts and active roles',
+      actionLabel: 'Add Employee',
       onAction: () {
         AddArtisanSheet.show(context, store);
       },
-      child: ListView.separated(
-        shrinkWrap: true,
-        itemCount: store.team.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (ctx, index) {
-          final member = store.team[index];
-          final (statusColor, statusBg) = switch (member.status) {
-            EmployeeStatus.working => (
-              AppColors.emerald,
-              AppColors.emeraldLight,
-            ),
-            EmployeeStatus.available => (
-              AppColors.warning,
-              AppColors.warningLight,
-            ),
-            EmployeeStatus.onLeave => (AppColors.muted, AppColors.outlineLight),
-            EmployeeStatus.blocked => (AppColors.danger, AppColors.dangerLight),
-          };
-
-          return CommonCard(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.emeraldLight,
-                  child: Text(
-                    member.name.substring(0, 1),
-                    style: const TextStyle(
-                      color: AppColors.emerald,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
+      child: ListenableBuilder(
+        listenable: store,
+        builder: (context, _) {
+          if (store.team.isEmpty) {
+            return const AnimatedEmptyStateWidget(
+              icon: Icons.people_outline,
+              title: 'No Employees Registered',
+              subtitle:
+                  'No workshop artisans or employee accounts registered yet.',
+              accentColor: AppColors.emerald,
+            );
+          }
+          return ListView.separated(
+            shrinkWrap: true,
+            itemCount: store.team.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (ctx, index) {
+              final member = store.team[index];
+              final (statusColor, statusBg) = switch (member.status) {
+                EmployeeStatus.working => (
+                  AppColors.emerald,
+                  AppColors.emeraldLight,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                EmployeeStatus.available => (
+                  AppColors.emerald,
+                  AppColors.emeraldLight,
+                ),
+                EmployeeStatus.onLeave => (
+                  AppColors.warning,
+                  AppColors.warningLight,
+                ),
+                EmployeeStatus.blocked => (
+                  AppColors.danger,
+                  AppColors.dangerLight,
+                ),
+              };
+
+              return InkWell(
+                onTap: () => _showEmployeeEditDialog(context, member),
+                borderRadius: BorderRadius.circular(12),
+                child: CommonCard(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              member.name,
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: AppColors.emeraldLight,
+                        child: Text(
+                          member.name.isNotEmpty
+                              ? member.name.substring(0, 1).toUpperCase()
+                              : 'E',
+                          style: const TextStyle(
+                            color: AppColors.emerald,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    member.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: statusBg,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    member.status == EmployeeStatus.blocked
+                                        ? 'Inactive'
+                                        : 'Active',
+                                    style: TextStyle(
+                                      color: statusColor,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              [
+                                member.craft,
+                                if (member.email.isNotEmpty) member.email,
+                                if (member.phone.isNotEmpty) member.phone,
+                              ].where((value) => value.isNotEmpty).join(' · '),
                               style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
+                                color: AppColors.muted,
+                                fontSize: 11,
                               ),
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${member.activeLotsCount} Active Lots',
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: statusBg,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              member.status.label,
-                              style: TextStyle(
-                                color: statusColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+                          const SizedBox(height: 2),
+                          const Icon(
+                            Icons.edit_outlined,
+                            size: 14,
+                            color: AppColors.muted,
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        [
-                          member.craft,
-                          if (member.shift.isNotEmpty) 'Shift: ${member.shift}',
-                          member.currentAssignment,
-                        ].where((value) => value.isNotEmpty).join(' · '),
-                        style: const TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 11,
-                        ),
                       ),
                     ],
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${member.activeLotsCount} Active Lots',
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              );
+            },
           );
         },
       ),
+    );
+  }
+
+  void _showEmployeeEditDialog(BuildContext context, TeamMember member) {
+    String selectedRole = member.role.isNotEmpty ? member.role : 'CRAFTSMAN';
+    bool isActive = member.status != EmployeeStatus.blocked;
+    final nameController = TextEditingController(text: member.name);
+    final phoneController = TextEditingController(text: member.phone);
+    final specialtyController = TextEditingController(text: member.specialty);
+
+    const roles = [
+      'CRAFTSMAN',
+      'MANAGER',
+      'DESIGNER',
+      'SKETCHER',
+      'FRONTLINER',
+      'ADMIN',
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.paper,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (modalCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setStateModal) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                left: 20,
+                right: 20,
+                top: 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.outline,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppColors.goldLight,
+                        child: Text(
+                          member.name.isNotEmpty
+                              ? member.name.substring(0, 1).toUpperCase()
+                              : 'E',
+                          style: const TextStyle(
+                            color: AppColors.goldDark,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              member.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            Text(
+                              member.email.isNotEmpty
+                                  ? member.email
+                                  : 'ID: ${member.id}',
+                              style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 24, color: AppColors.outlineLight),
+
+                  // Phone Input
+                  CommonTextField(
+                    controller: phoneController,
+                    label: 'Phone Number',
+                    hintText: '+91 98290 00000',
+                    prefixIcon: Icons.phone_outlined,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Specialty Input
+                  CommonTextField(
+                    controller: specialtyController,
+                    label: 'Primary Specialty',
+                    hintText: 'e.g. Stone Setting',
+                    prefixIcon: Icons.workspace_premium_outlined,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Role Dropdown
+                  const Text(
+                    'Assigned Role',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.paper,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.outline),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: roles.contains(selectedRole)
+                            ? selectedRole
+                            : roles.first,
+                        isExpanded: true,
+                        items: roles.map((r) {
+                          return DropdownMenuItem<String>(
+                            value: r,
+                            child: Text(
+                              r,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setStateModal(() => selectedRole = val);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Active Switch
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Account Active Status',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: isActive,
+                        activeColor: AppColors.emerald,
+                        onChanged: (val) {
+                          setStateModal(() => isActive = val);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Save Button
+                  CommonButton.primary(
+                    label: 'Save Changes',
+                    icon: Icons.check,
+                    onPressed: () {
+                      final updatedMember = member.copyWith(
+                        phone: phoneController.text.trim(),
+                        role: selectedRole,
+                        specialty: specialtyController.text.trim(),
+                        craft: specialtyController.text.trim().isNotEmpty
+                            ? specialtyController.text.trim()
+                            : selectedRole,
+                        status: isActive
+                            ? EmployeeStatus.available
+                            : EmployeeStatus.blocked,
+                      );
+                      store.updateTeamMember(updatedMember);
+
+                      context.read<AdminBloc>().add(
+                        UpdateEmployeeEvent(
+                          employeeId: member.id,
+                          name: nameController.text.trim(),
+                          phone: phoneController.text.trim(),
+                          role: selectedRole,
+                          specialty: specialtyController.text.trim(),
+                          isActive: isActive,
+                        ),
+                      );
+                      Navigator.pop(modalCtx);
+                      CommonSnackbar.success(
+                        context,
+                        title: 'Employee Updated',
+                        message: '${member.name} profile updated successfully.',
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -289,63 +554,80 @@ class _AdminManagePageState extends State<AdminManagePage> {
       context: context,
       title: 'Production Stage Workload',
       subtitle: 'Live lots and pieces from the production API',
-      child: ListView.separated(
-        shrinkWrap: true,
-        itemCount: stages.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (ctx, i) {
-          final stage = stages[i];
-          final lots = store.lotsForStage(stage);
-          final pieces = lots.fold<int>(0, (sum, lot) => sum + lot.pieces);
-          final held = lots.where((lot) => lot.isOnHold).length;
-          return CommonCard(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      stage.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
+      child: stages.isEmpty
+          ? const AnimatedEmptyStateWidget(
+              icon: Icons.engineering_outlined,
+              title: 'No Production Workloads',
+              subtitle:
+                  'No production stage workloads or live parts recorded in system.',
+              accentColor: AppColors.emerald,
+            )
+          : ListView.separated(
+              shrinkWrap: true,
+              itemCount: stages.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              itemBuilder: (ctx, i) {
+                final stage = stages[i];
+                final lots = store.lotsForStage(stage);
+                final pieces = lots.fold<int>(
+                  0,
+                  (sum, lot) => sum + lot.pieces,
+                );
+                final held = lots.where((lot) => lot.isOnHold).length;
+                return CommonCard(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            stage.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.emeraldLight,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '${lots.length} lots',
+                              style: const TextStyle(
+                                color: AppColors.emerald,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          _metricMini(
+                            Icons.category_outlined,
+                            '$pieces pieces',
+                          ),
+                          const SizedBox(width: 16),
+                          _metricMini(
+                            Icons.pause_circle_outline,
+                            '$held on hold',
+                          ),
+                        ],
                       ),
-                      decoration: BoxDecoration(
-                        color: AppColors.emeraldLight,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        '${lots.length} lots',
-                        style: const TextStyle(
-                          color: AppColors.emerald,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _metricMini(Icons.category_outlined, '$pieces pieces'),
-                    const SizedBox(width: 16),
-                    _metricMini(Icons.pause_circle_outline, '$held on hold'),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 
@@ -357,85 +639,99 @@ class _AdminManagePageState extends State<AdminManagePage> {
       context: context,
       title: 'Wholesale Client Ledgers',
       subtitle: 'Client credit allocations, active orders and ledger caps',
-      child: ListView.separated(
-        shrinkWrap: true,
-        itemCount: store.clients.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (ctx, i) {
-          final client = store.clients[i];
-          final limitRupees = client.creditLimitLakhs * 100000;
-          final percent =
-              (client.outstandingBalance / (limitRupees > 0 ? limitRupees : 1))
-                  .clamp(0.0, 1.0);
+      child: store.clients.isEmpty
+          ? const AnimatedEmptyStateWidget(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'No Wholesale Clients Found',
+              subtitle:
+                  'No registered wholesale client accounts or active credit ledgers available at the moment.',
+              accentColor: AppColors.goldDark,
+            )
+          : ListView.separated(
+              shrinkWrap: true,
+              itemCount: store.clients.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              itemBuilder: (ctx, i) {
+                final client = store.clients[i];
+                final limitRupees = client.creditLimitLakhs * 100000;
+                final percent =
+                    (client.outstandingBalance /
+                            (limitRupees > 0 ? limitRupees : 1))
+                        .clamp(0.0, 1.0);
 
-          return CommonCard(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      client.firmName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
+                return CommonCard(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            client.firmName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Text(
+                            client.city,
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    Text(
-                      client.city,
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                      const SizedBox(height: 2),
+                      Text(
+                        'Contact: ${client.contactPerson} · ${client.phone}',
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 11,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Contact: ${client.contactPerson} · ${client.phone}',
-                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Outstanding: ₹${(client.outstandingBalance / 100000).toStringAsFixed(1)}L',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.danger,
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Outstanding: ₹${(client.outstandingBalance / 100000).toStringAsFixed(1)}L',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.danger,
+                            ),
+                          ),
+                          Text(
+                            'Limit: ₹${client.creditLimitLakhs.toStringAsFixed(1)}L',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    Text(
-                      'Limit: ₹${client.creditLimitLakhs.toStringAsFixed(1)}L',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: percent,
+                          minHeight: 5,
+                          backgroundColor: AppColors.outlineLight,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            percent > 0.8
+                                ? AppColors.danger
+                                : AppColors.emerald,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: percent,
-                    minHeight: 5,
-                    backgroundColor: AppColors.outlineLight,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      percent > 0.8 ? AppColors.danger : AppColors.emerald,
-                    ),
+                    ],
                   ),
-                ),
-              ],
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 
@@ -451,49 +747,57 @@ class _AdminManagePageState extends State<AdminManagePage> {
       context: context,
       title: 'Standard Production Routing',
       subtitle: '${stages.length} backend-configured production stages',
-      child: ListView.separated(
-        shrinkWrap: true,
-        itemCount: stages.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (ctx, i) {
-          final s = stages[i];
-          return CommonCard(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: AppColors.ink,
-                  child: Text(
-                    s['step']!,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      child: stages.isEmpty
+          ? const AnimatedEmptyStateWidget(
+              icon: Icons.alt_route,
+              title: 'No Standard Routes',
+              subtitle:
+                  'No manufacturing routing sequences configured in backend.',
+              accentColor: AppColors.emerald,
+            )
+          : ListView.separated(
+              shrinkWrap: true,
+              itemCount: stages.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              itemBuilder: (ctx, i) {
+                final s = stages[i];
+                return CommonCard(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
                     children: [
-                      Text(
-                        s['name']!,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: AppColors.ink,
+                        child: Text(
+                          s['step']!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              s['name']!,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                ),
-              ],
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 
@@ -623,11 +927,12 @@ class _AdminManagePageState extends State<AdminManagePage> {
         builder: (ctx, _) {
           final directives = store.activeAdminDirectives;
           if (directives.isEmpty) {
-            return const Center(
-              child: Text(
-                'No active governance directives from the API.',
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
-              ),
+            return const AnimatedEmptyStateWidget(
+              icon: Icons.campaign_outlined,
+              title: 'No Active Governance Directives',
+              subtitle:
+                  'No active directives or instructions issued to designers or gold artisans right now.',
+              accentColor: AppColors.goldDark,
             );
           }
           return ListView.separated(

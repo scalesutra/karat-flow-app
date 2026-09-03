@@ -9,7 +9,9 @@ enum AppRole {
   processManager,
   cadDesigner,
   rawDesigner,
-  workshopArtisan;
+  workshopArtisan,
+  worker,
+  stockist;
 
   static AppRole fromRoleString(String? role) {
     if (role == null || role.trim().isEmpty) return AppRole.admin;
@@ -39,15 +41,22 @@ enum AppRole {
       'RAW_DESIGNER' ||
       'SKETCH_DESIGNER' ||
       'SKETCH' => AppRole.rawDesigner,
+      'STOCKIST' ||
+      'STOCK_MANAGER' ||
+      'VAULT_KEEPER' ||
+      'VAULT_STOCKIST' ||
+      'STOCK' => AppRole.stockist,
+      'WORKER' ||
+      'BENCH_WORKER' ||
+      'FACTORY_WORKER' ||
+      'OPERATIVE' => AppRole.worker,
       'CRAFTSMAN' ||
       'WORKSHOP_ARTISAN' ||
       'ARTISAN' ||
       'OTHER_EMPLOYEE' ||
       'GOLDSMITH' ||
       'QC' ||
-      'WORKSHOP' ||
-      'WORKER' ||
-      'BENCH_WORKER' => AppRole.workshopArtisan,
+      'WORKSHOP' => AppRole.workshopArtisan,
       _ => AppRole.admin,
     };
   }
@@ -59,6 +68,8 @@ enum AppRole {
     AppRole.cadDesigner => 'CAD Designer',
     AppRole.rawDesigner => 'Raw Designer',
     AppRole.workshopArtisan => 'Workshop Artisan',
+    AppRole.worker => 'Worker',
+    AppRole.stockist => 'Stockist',
   };
 
   String get shortDescription => switch (this) {
@@ -68,6 +79,8 @@ enum AppRole {
     AppRole.cadDesigner => '3D CAD modeling, STL uploads & design tasks',
     AppRole.rawDesigner => 'Pencil sketch creation, review and revisions',
     AppRole.workshopArtisan => 'Assigned bench work and task completion',
+    AppRole.worker => 'Bench operations, job sheet execution & piece tracking',
+    AppRole.stockist => 'Safe vault inventory, raw gold bullion & material control',
   };
 }
 
@@ -321,6 +334,9 @@ class JewelleryDesign {
     required this.description,
     this.isPopular = false,
     this.sizeDimensions,
+    this.priceBreakdown,
+    this.gemBreakdown = const [],
+    this.gemQuantity = 0,
   }) : grossWeightGrams = grossWeightGrams ?? defaultGrossWeightGrams ?? 0.0,
        defaultGrossWeightGrams =
            defaultGrossWeightGrams ?? grossWeightGrams ?? 0.0,
@@ -342,6 +358,9 @@ class JewelleryDesign {
   final String description;
   final bool isPopular;
   final String? sizeDimensions;
+  final ApiPriceBreakdown? priceBreakdown;
+  final List<GemBreakdownItem> gemBreakdown;
+  final int gemQuantity;
 
   bool get hasBackendPrice => _estimatedPrice != null && _estimatedPrice > 0;
 
@@ -364,6 +383,9 @@ class JewelleryDesign {
     String? description,
     bool? isPopular,
     String? sizeDimensions,
+    ApiPriceBreakdown? priceBreakdown,
+    List<GemBreakdownItem>? gemBreakdown,
+    int? gemQuantity,
   }) {
     return JewelleryDesign(
       id: id ?? this.id,
@@ -383,6 +405,9 @@ class JewelleryDesign {
       description: description ?? this.description,
       isPopular: isPopular ?? this.isPopular,
       sizeDimensions: sizeDimensions ?? this.sizeDimensions,
+      priceBreakdown: priceBreakdown ?? this.priceBreakdown,
+      gemBreakdown: gemBreakdown ?? this.gemBreakdown,
+      gemQuantity: gemQuantity ?? this.gemQuantity,
     );
   }
 }
@@ -568,6 +593,7 @@ class WorkshopLot {
   final String apiStageName;
 
   bool get isOnHold => blockerReason?.trim().isNotEmpty == true;
+  String get status => apiStageName.isNotEmpty ? apiStageName : assignedEmployeeRole;
 
   WorkshopLot copyWith({
     WorkshopStage? stage,
@@ -613,6 +639,12 @@ class TeamMember {
     required this.status,
     required this.todayEfficiencyPercent,
     required this.currentAssignment,
+    this.email = '',
+    this.phone = '',
+    this.role = '',
+    this.skills = const [],
+    this.specialty = '',
+    this.keycloakId = '',
   });
 
   final String id;
@@ -623,6 +655,12 @@ class TeamMember {
   final EmployeeStatus status;
   final int todayEfficiencyPercent;
   final String currentAssignment;
+  final String email;
+  final String phone;
+  final String role;
+  final List<String> skills;
+  final String specialty;
+  final String keycloakId;
 
   TeamMember copyWith({
     String? id,
@@ -633,6 +671,12 @@ class TeamMember {
     EmployeeStatus? status,
     int? todayEfficiencyPercent,
     String? currentAssignment,
+    String? email,
+    String? phone,
+    String? role,
+    List<String>? skills,
+    String? specialty,
+    String? keycloakId,
   }) {
     return TeamMember(
       id: id ?? this.id,
@@ -644,6 +688,12 @@ class TeamMember {
       todayEfficiencyPercent:
           todayEfficiencyPercent ?? this.todayEfficiencyPercent,
       currentAssignment: currentAssignment ?? this.currentAssignment,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      role: role ?? this.role,
+      skills: skills ?? this.skills,
+      specialty: specialty ?? this.specialty,
+      keycloakId: keycloakId ?? this.keycloakId,
     );
   }
 }

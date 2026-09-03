@@ -249,17 +249,46 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
 
                 const SizedBox(height: 14),
 
-                // Order List for selected category
-                if (displayedOrders.isEmpty)
-                  CommonEmptyState(
-                    icon: Icons.assignment_turned_in_outlined,
-                    title: 'No orders in this section',
-                    description:
-                        'All orders in this filter category are clear.',
-                    actionLabel: 'View All Orders',
-                    onAction: () => setState(() => _selectedTab = 0),
-                  )
-                else
+                if (displayedOrders.isEmpty) ...[
+                  const SizedBox(height: 20),
+                  AnimatedEmptyStateWidget(
+                    icon: switch (_selectedTab) {
+                      1 => Icons.error_outline_rounded,
+                      2 => Icons.hourglass_top_rounded,
+                      3 => Icons.local_shipping_rounded,
+                      4 => Icons.pause_circle_outline,
+                      _ => Icons.assignment_turned_in_outlined,
+                    },
+                    title: switch (_selectedTab) {
+                      1 => 'No Delayed Orders',
+                      2 => 'No Pending Orders',
+                      3 => 'No Dispatched Orders',
+                      4 => 'No Orders On Hold',
+                      _ => 'No Orders Found',
+                    },
+                    subtitle: switch (_selectedTab) {
+                      1 =>
+                        'Great news! Zero orders are behind schedule right now.',
+                      2 =>
+                        'All customer orders have been assigned & started on floor.',
+                      3 =>
+                        'No dispatched or delivered orders recorded in history.',
+                      4 => 'No production orders currently on hold or blocked.',
+                      _ => 'No customer orders match your selected filter.',
+                    },
+                    accentColor: switch (_selectedTab) {
+                      1 => AppColors.danger,
+                      2 => AppColors.warning,
+                      3 => AppColors.emerald,
+                      4 => AppColors.danger,
+                      _ => AppColors.emerald,
+                    },
+                    actionLabel: _selectedTab != 0 ? 'Show All Orders' : null,
+                    onAction: _selectedTab != 0
+                        ? () => setState(() => _selectedTab = 0)
+                        : null,
+                  ),
+                ] else
                   ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -302,14 +331,13 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                           final isOrderCompleted =
                               order.status == OrderStatus.ready ||
                               order.status == OrderStatus.delivered ||
-                              order.currentWorkshopStage
-                                  .toLowerCase()
-                                  .contains('complete') ||
+                              order.currentWorkshopStage.toLowerCase().contains(
+                                'complete',
+                              ) ||
                               (designRows.isNotEmpty &&
                                   designRows.every((d) {
-                                    final stg =
-                                        (d['stage'] as String? ?? '')
-                                            .toLowerCase();
+                                    final stg = (d['stage'] as String? ?? '')
+                                        .toLowerCase();
                                     return stg.contains('complete') ||
                                         stg.contains('dispatch');
                                   }));
@@ -400,78 +428,112 @@ class _ReportMetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+      borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
         decoration: BoxDecoration(
           color: AppColors.paper,
-          borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isSelected
+                ? [AppColors.paper, color.withOpacity(0.08)]
+                : [AppColors.paper, AppColors.canvas],
+          ),
           border: Border.all(
-            color: isSelected ? color : AppColors.outline,
+            color: isSelected ? color : AppColors.outlineLight,
             width: isSelected ? 1.8 : 1.0,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.12),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
+          boxShadow: [
+            BoxShadow(
+              color: isSelected
+                  ? color.withOpacity(0.22)
+                  : Colors.black.withOpacity(0.06),
+              blurRadius: isSelected ? 12 : 6,
+              spreadRadius: isSelected ? 1 : 0,
+              offset: const Offset(0, 4),
+            ),
+            BoxShadow(
+              color: Colors.white.withOpacity(0.8),
+              blurRadius: 1,
+              offset: const Offset(0, -1),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(7),
+                  padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
                     color: bgColor,
-                    borderRadius: BorderRadius.circular(
-                      AppDimensions.radiusSmall,
-                    ),
+                    borderRadius: BorderRadius.circular(7),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.15),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  child: Icon(icon, color: color, size: 18),
+                  child: Icon(icon, color: color, size: 15),
                 ),
                 if (isSelected)
                   Container(
-                    width: 7,
-                    height: 7,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: color,
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'ACTIVE',
+                      style: TextStyle(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             Text(
               value,
               style: TextStyle(
-                fontSize: 20,
+                fontSize: 16,
                 fontWeight: FontWeight.w900,
                 color: color,
-                letterSpacing: -0.5,
+                letterSpacing: -0.4,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 1),
             Text(
               title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
                 color: AppColors.ink,
               ),
             ),
             const SizedBox(height: 1),
             Text(
               subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 10,
                 color: AppColors.muted,
                 fontWeight: FontWeight.w500,
               ),
@@ -574,119 +636,164 @@ class _OrderReportRow extends StatelessWidget {
     };
 
     final isOnHold = holdStatus?.isNotEmpty == true;
-    return CommonCard(
-      onTap: onTap,
-      borderColor: isOnHold
-          ? AppColors.danger.withValues(alpha: 0.55)
-          : AppColors.outline,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                order.id.length > 10
-                    ? 'ORD-${order.id.substring(0, 6).toUpperCase()}'
-                    : order.id,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                  color: AppColors.ink,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: isOnHold ? AppColors.dangerLight : statusBg,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-                ),
-                child: Text(
-                  isOnHold ? 'ON HOLD' : order.status.label,
-                  style: TextStyle(
-                    color: isOnHold ? AppColors.danger : statusColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppColors.paper,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isOnHold
+              ? AppColors.danger.withOpacity(0.5)
+              : AppColors.outlineLight,
+          width: isOnHold ? 1.5 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isOnHold
+                ? AppColors.danger.withOpacity(0.12)
+                : Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
-          const SizedBox(height: 4),
-          Text(
-            '${order.clientFirmName} · ${order.clientCity}',
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              color: AppColors.ink,
-            ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.8),
+            blurRadius: 1,
+            offset: const Offset(0, -1),
           ),
-          const SizedBox(height: 2),
-          Text(
-            order.itemsSummary,
-            style: const TextStyle(color: AppColors.muted, fontSize: 11),
-          ),
-          if (isOnHold) ...[
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.danger.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-              ),
-              child: Text(
-                holdStatus!,
-                style: const TextStyle(
-                  color: AppColors.danger,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppColors.canvas,
-              borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      order.id.length > 10
+                          ? 'ORD-${order.id.substring(0, 6).toUpperCase()}'
+                          : order.id,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isOnHold ? AppColors.dangerLight : statusBg,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        isOnHold ? 'ON HOLD' : order.status.label,
+                        style: TextStyle(
+                          color: isOnHold ? AppColors.danger : statusColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
                 Text(
-                  '${order.itemsCount} pcs · ${order.totalGrossGrams}g Gold',
+                  '${order.clientFirmName} · ${order.clientCity}',
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 11,
                     color: AppColors.ink,
                   ),
                 ),
+                const SizedBox(height: 1),
                 Text(
-                  'Due: ${order.promiseDate}',
-                  style: const TextStyle(
-                    color: AppColors.muted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                  order.itemsSummary,
+                  style: const TextStyle(color: AppColors.muted, fontSize: 10),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (isOnHold) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.danger.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      holdStatus!,
+                      style: const TextStyle(
+                        color: AppColors.danger,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.canvas,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${order.itemsCount} pcs · ${order.totalGrossGrams}g Gold',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      Text(
+                        'Due: ${order.promiseDate}',
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                if (onDirective != null) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: onDirective,
+                      icon: const Icon(Icons.add_comment_outlined, size: 14),
+                      label: const Text(
+                        'Send Directive',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-          if (onDirective != null) ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onDirective,
-                icon: const Icon(Icons.add_comment_outlined, size: 16),
-                label: const Text('Send Directive'),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

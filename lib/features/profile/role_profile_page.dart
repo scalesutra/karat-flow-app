@@ -34,7 +34,7 @@ class RoleProfilePage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 RoleDashboardHeader(
-                  eyebrow: 'Account',
+                  eyebrow: 'Account & Permissions',
                   title: title,
                   description: description,
                   icon: Icons.person_outline_rounded,
@@ -44,28 +44,75 @@ class RoleProfilePage extends StatelessWidget {
                 const SizedBox(height: 14),
                 RoleDirectivesSection(store: store, role: role),
                 const SizedBox(height: 14),
-                CommonCard(
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.paper,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.outlineLight),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.8),
+                        blurRadius: 1,
+                        offset: const Offset(0, -1),
+                      ),
+                    ],
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Secure Session',
-                        style: TextStyle(
-                          color: AppColors.ink,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Your access and role are loaded from the authenticated API profile.',
-                        style: TextStyle(color: AppColors.muted, height: 1.4),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.emeraldLight,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.verified_user_outlined,
+                              color: AppColors.emeraldDark,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Authenticated Session',
+                                style: TextStyle(
+                                  color: AppColors.ink,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Role privileges active and synchronized',
+                                style: TextStyle(
+                                  color: AppColors.muted,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 14),
-                      CommonButton.danger(
-                        label: 'Sign Out',
-                        icon: Icons.logout_rounded,
-                        onPressed: () => CommonLogoutDialog.show(context),
+                      Text(
+                        role.shortDescription,
+                        style: const TextStyle(
+                          color: AppColors.ink,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          height: 1.4,
+                        ),
                       ),
                     ],
                   ),

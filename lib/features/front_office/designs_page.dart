@@ -306,7 +306,7 @@ class _DesignCard extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      design.purity.isNotEmpty ? design.purity : '22KT',
+                      design.purity.split(' ').first,
                       style: const TextStyle(
                         color: AppColors.pureWhite,
                         fontSize: 10,
@@ -377,54 +377,55 @@ class _DesignCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.scale,
-                            size: 12,
-                            color: AppColors.muted,
-                          ),
-                          const SizedBox(width: 4),
-                          CommonText.bodySmall(
-                            '${design.grossWeightGrams.toStringAsFixed(1)}g GW',
-                            fontSize: 11,
-                            color: AppColors.muted,
-                          ),
-                          if (design.sizeDimensions != null &&
-                              design.sizeDimensions!.trim().isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 1.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.canvas,
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: AppColors.outline,
-                                ),
-                              ),
-                              child: Text(
-                                design.sizeDimensions!.trim(),
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.ink,
-                                ),
-                              ),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.scale,
+                              size: 12,
+                              color: AppColors.muted,
                             ),
-                          ],
-                          if (design.diamondCarats > 0) ...[
-                            const SizedBox(width: 6),
+                            const SizedBox(width: 4),
                             CommonText.bodySmall(
-                              '${design.diamondCarats}ct',
+                              '${design.grossWeightGrams.toStringAsFixed(1)}g GW',
                               fontSize: 11,
-                              color: AppColors.emerald,
-                              fontWeight: FontWeight.w700,
+                              color: AppColors.muted,
                             ),
+                            if (design.sizeDimensions != null &&
+                                design.sizeDimensions!.trim().isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.canvas,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: AppColors.outline),
+                                ),
+                                child: Text(
+                                  design.sizeDimensions!.trim(),
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.ink,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (design.diamondCarats > 0) ...[
+                              const SizedBox(width: 6),
+                              CommonText.bodySmall(
+                                '${design.diamondCarats}ct',
+                                fontSize: 11,
+                                color: AppColors.emerald,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -520,153 +521,302 @@ class _DesignDetailModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.paper,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.outline,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CommonRemoteImage(
-                imageUrl: design.imageUrl,
-                width: 64,
-                height: 64,
-                borderRadius: BorderRadius.circular(16),
-                fallbackWidget: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: design.accentColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    design.category.icon,
-                    size: 36,
-                    color: design.accentColor,
-                  ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.outline,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CommonRemoteImage(
+                  imageUrl: design.imageUrl,
+                  width: 64,
+                  height: 64,
+                  borderRadius: BorderRadius.circular(16),
+                  fallbackWidget: Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: design.accentColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      design.category.icon,
+                      size: 36,
+                      color: design.accentColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.ink,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              design.purity,
+                              style: const TextStyle(
+                                color: AppColors.pureWhite,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _formatDesignCode(design.code),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      CommonText.titleLarge(design.name),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            CommonText.bodyMedium(design.description, color: AppColors.muted),
+            const SizedBox(height: 18),
+            CommonCard(
+              backgroundColor: AppColors.canvas,
+              child: Column(
+                children: [
+                  _specRow(
+                    'Metal & Purity',
+                    design.purity.isNotEmpty
+                        ? design.purity
+                        : '22K Yellow Gold',
+                    isBold: true,
+                  ),
+                  const Divider(height: 14),
+                  _specRow('Gross Weight', '${design.grossWeightGrams} g'),
+                  if (design.sizeDimensions != null &&
+                      design.sizeDimensions!.trim().isNotEmpty) ...[
+                    const Divider(height: 14),
+                    _specRow(
+                      'Size / Dimensions',
+                      design.sizeDimensions!.trim(),
+                    ),
+                  ],
+                  const Divider(height: 14),
+                  _specRow('Net Gold Weight', '${design.netGoldWeightGrams} g'),
+                  const Divider(height: 14),
+                  _specRow(
+                    'Gem Summary',
+                    design.gemQuantity > 0 || design.diamondCarats > 0
+                        ? '${design.gemQuantity > 0 ? "${design.gemQuantity} Gems · " : ""}${design.diamondCarats} ct TW'
+                        : 'None',
+                  ),
+                  const Divider(height: 14),
+                  _specRow(
+                    'Backend Price',
+                    design.hasBackendPrice
+                        ? '₹${design.estimatedPrice.toStringAsFixed(0)}'
+                        : 'Not provided',
+                    isBold: true,
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Detailed Price Breakdown (If available from API) ────────────────
+            if (design.priceBreakdown != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.emerald.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.emerald.withOpacity(0.2)),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.ink,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            design.purity,
-                            style: const TextStyle(
-                              color: AppColors.pureWhite,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 16,
+                          color: AppColors.emeraldDark,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _formatDesignCode(design.code),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.muted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Live Price Calculation Breakdown',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                            color: AppColors.emeraldDark,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    CommonText.titleLarge(design.name),
+                    const SizedBox(height: 10),
+                    _specRow(
+                      'Gold Cost (${design.priceBreakdown!.netGoldWeight}g @ ₹${design.priceBreakdown!.goldRatePerGram.toStringAsFixed(0)}/g)',
+                      '₹${design.priceBreakdown!.totalGoldCost.toStringAsFixed(0)}',
+                    ),
+                    const SizedBox(height: 6),
+                    _specRow(
+                      'Gem Cost (${design.priceBreakdown!.gemQuantity} Gems)',
+                      '₹${design.priceBreakdown!.totalGemCost.toStringAsFixed(0)}',
+                    ),
+                    const SizedBox(height: 6),
+                    _specRow(
+                      'Subtotal',
+                      '₹${design.priceBreakdown!.subtotal.toStringAsFixed(0)}',
+                    ),
+                    const SizedBox(height: 6),
+                    _specRow(
+                      'GST (${design.priceBreakdown!.gstPercent}%)',
+                      '₹${design.priceBreakdown!.gstAmount.toStringAsFixed(0)}',
+                    ),
+                    const Divider(height: 12),
+                    _specRow(
+                      'Final Price',
+                      '₹${design.priceBreakdown!.finalPrice.toStringAsFixed(0)}',
+                      isBold: true,
+                    ),
                   ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 16),
-          CommonText.bodyMedium(design.description, color: AppColors.muted),
-          const SizedBox(height: 18),
-          CommonCard(
-            backgroundColor: AppColors.canvas,
-            child: Column(
-              children: [
-                _specRow('Gross Weight', '${design.grossWeightGrams} g'),
-                if (design.sizeDimensions != null &&
-                    design.sizeDimensions!.trim().isNotEmpty) ...[
-                  const Divider(height: 14),
-                  _specRow('Size / Dimensions', design.sizeDimensions!.trim()),
-                ],
-                const Divider(height: 14),
-                _specRow('Net Gold Weight', '${design.netGoldWeightGrams} g'),
-                const Divider(height: 14),
-                _specRow(
-                  'Diamond Carat Weight',
-                  design.diamondCarats > 0
-                      ? '${design.diamondCarats} cts'
-                      : 'None',
+
+            // ── Detailed Gem Breakdown Table (If available from API) ─────────────
+            if (design.gemBreakdown.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.canvas,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.outlineLight),
                 ),
-                const Divider(height: 14),
-                _specRow(
-                  'Making Charges',
-                  '₹${design.makingChargesPerGram}/g',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.diamond_outlined,
+                              size: 16,
+                              color: AppColors.ink,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Gem Breakdown',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          'Total ${design.gemQuantity} Gems',
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...design.gemBreakdown.map(
+                      (g) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '${g.count}x ${g.shape} (${g.dimensions})',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            Text(
+                              '${g.weightTw.toStringAsFixed(2)} ct TW',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.emeraldDark,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const Divider(height: 14),
-                _specRow(
-                  'Backend Price',
-                  design.hasBackendPrice
-                      ? '₹${design.estimatedPrice.toStringAsFixed(0)}'
-                      : 'Not provided',
-                  isBold: true,
-                ),
-              ],
+              ),
+            ],
+            const SizedBox(height: 20),
+            CommonButton.primary(
+              label: design.hasBackendPrice
+                  ? 'Add to Order Cart'
+                  : 'Backend Price Required',
+              icon: Icons.shopping_bag_outlined,
+              onPressed: design.hasBackendPrice
+                  ? () {
+                      store.addToCart(design);
+                      Navigator.pop(context);
+                      CommonSnackbar.success(
+                        context,
+                        title: 'Added to Cart',
+                        message: '${design.name} has been added.',
+                        duration: const Duration(seconds: 2),
+                      );
+                    }
+                  : null,
             ),
-          ),
-          const SizedBox(height: 20),
-          CommonButton.primary(
-            label: design.hasBackendPrice
-                ? 'Add to Order Cart'
-                : 'Backend Price Required',
-            icon: Icons.shopping_bag_outlined,
-            onPressed: design.hasBackendPrice
-                ? () {
-                    store.addToCart(design);
-                    Navigator.pop(context);
-                    CommonSnackbar.success(
-                      context,
-                      title: 'Added to Cart',
-                      message: '${design.name} has been added.',
-                      duration: const Duration(seconds: 2),
-                    );
-                  }
-                : null,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

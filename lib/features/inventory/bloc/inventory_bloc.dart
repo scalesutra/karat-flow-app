@@ -16,9 +16,45 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     on<AddInventoryItemEvent>(_onAddItem);
     on<UpdateInventoryItemEvent>(_onUpdateItem);
     on<DeleteInventoryItemEvent>(_onDeleteItem);
+    on<FetchPendingIssuancesQueueEvent>(_onFetchPendingIssuancesQueue);
+    on<IssueMaterialsToCraftsmanEvent>(_onIssueMaterials);
   }
 
   final KaratFlowApiRepository _repository;
+
+  Future<void> _onFetchPendingIssuancesQueue(
+    FetchPendingIssuancesQueueEvent event,
+    Emitter<InventoryState> emit,
+  ) async {
+    emit(const InventoryLoading());
+    try {
+      final queue = await _repository.getPendingIssuancesQueue();
+      emit(PendingIssuancesQueueLoaded(queue: queue));
+    } catch (error) {
+      emit(InventoryError('Failed to fetch pending material queue: $error'));
+    }
+  }
+
+  Future<void> _onIssueMaterials(
+    IssueMaterialsToCraftsmanEvent event,
+    Emitter<InventoryState> emit,
+  ) async {
+    try {
+      await _repository.issueMaterialsForOrderPart(
+        event.orderPartId,
+        items: event.items,
+        notes: event.notes,
+      );
+      emit(
+        const InventoryOperationSuccess(
+          'Materials successfully issued to artisan.',
+        ),
+      );
+      add(const FetchPendingIssuancesQueueEvent());
+    } catch (error) {
+      emit(InventoryError('Failed to issue materials: $error'));
+    }
+  }
 
   Future<void> _onFetchInventory(
     FetchInventoryEvent event,

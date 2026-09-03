@@ -96,14 +96,66 @@ class StageLotsModal extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'Active Pouches on Bench:',
-                style: TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Active Pouches on Bench:',
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (store.activeRole == AppRole.processManager &&
+                      lots.isNotEmpty)
+                    InkWell(
+                      onTap: () {
+                        for (final lot in lots) {
+                          context.read<WorkshopBloc>().add(
+                            AdvanceLotStageEvent(lot.id),
+                          );
+                        }
+                        Navigator.pop(context);
+                        CommonSnackbar.success(
+                          context,
+                          title: 'Bulk Stage Advance',
+                          message:
+                              'All ${lots.length} lots moved to next stage.',
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.emerald,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.fast_forward_rounded,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Advance All (${lots.length})',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               if (lots.isEmpty)

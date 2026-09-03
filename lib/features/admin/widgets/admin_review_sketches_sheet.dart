@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +9,10 @@ import '../../../../core/widgets/common_button.dart';
 import '../../../../core/widgets/common_card.dart';
 import '../../../../core/widgets/common_snackbar.dart';
 import '../../../../core/widgets/common_text_field.dart';
+import '../../../../core/widgets/common_progress_indicator.dart';
+import '../../../../core/widgets/presigned_sketch_image.dart';
+import '../../../../core/widgets/animated_empty_state_widget.dart';
+import '../../../../core/network/api_endpoints.dart';
 import '../../../../data/demo_store.dart';
 import '../bloc/admin_bloc.dart';
 import 'sketch_directive_dialog.dart';
@@ -52,6 +58,12 @@ class AdminReviewSketchesSheet extends StatefulWidget {
 class _AdminReviewSketchesSheetState extends State<AdminReviewSketchesSheet> {
   String _selectedFilter = 'PENDING';
 
+  @override
+  void initState() {
+    super.initState();
+    context.read<AdminBloc>().add(const FetchAdminDashboardEvent());
+  }
+
   void _openNewSketchModal(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
@@ -90,247 +102,506 @@ class _AdminReviewSketchesSheetState extends State<AdminReviewSketchesSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.store,
-      builder: (context, _) {
-        final allDesigns = widget.store.designs;
-        final pendingDesigns = allDesigns
-            .where(
-              (d) =>
-                  !d.isPopular && !d.name.contains('(Sketch Approved)'),
-            )
-            .toList();
-        final approvedDesigns = allDesigns
-            .where(
-              (d) =>
-                  d.isPopular || d.name.contains('(Sketch Approved)'),
-            )
-            .toList();
+    return BlocBuilder<AdminBloc, AdminState>(
+      builder: (context, adminState) {
+        return AnimatedBuilder(
+          animation: widget.store,
+          builder: (context, _) {
+            final allDesigns = widget.store.designs;
+            final pendingDesigns = allDesigns
+                .where(
+                  (d) => !d.isPopular && !d.name.contains('(Sketch Approved)'),
+                )
+                .toList();
+            final approvedDesigns = allDesigns
+                .where(
+                  (d) => d.isPopular || d.name.contains('(Sketch Approved)'),
+                )
+                .toList();
 
-        final designs = switch (_selectedFilter) {
-          'APPROVED' => approvedDesigns,
-          'ALL' => allDesigns,
-          _ => pendingDesigns,
-        };
+            final designs = switch (_selectedFilter) {
+              'APPROVED' => approvedDesigns,
+              'ALL' => allDesigns,
+              _ => pendingDesigns,
+            };
 
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.outline,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            final isLoading = adminState is AdminLoading && allDesigns.isEmpty;
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.outline,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Review Client Sketches',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 17,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Approve client 2D sketches or send correction directives',
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: AppColors.muted),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
                       children: [
-                        Text(
-                          'Review Client Sketches',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 17,
-                            color: AppColors.ink,
-                          ),
+                        _filterChip(
+                          'Pending Review (${pendingDesigns.length})',
+                          'PENDING',
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Approve client 2D sketches or send correction directives',
-                          style: TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 11,
-                          ),
+                        const SizedBox(width: 8),
+                        _filterChip(
+                          'Approved (${approvedDesigns.length})',
+                          'APPROVED',
                         ),
+                        const SizedBox(width: 8),
+                        _filterChip('All (${allDesigns.length})', 'ALL'),
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.muted),
-                    onPressed: () => Navigator.pop(context),
+                  const SizedBox(height: 14),
+                  Expanded(
+                    child: isLoading
+                        ? const Center(
+                            child: CommonProgressIndicator.admin(
+                              label: 'Syncing live API sketches...',
+                            ),
+                          )
+                        : CommonRefreshIndicator(
+                            theme: IndicatorTheme.universal,
+                            onRefresh: () async => context
+                                .read<AdminBloc>()
+                                .add(const FetchAdminDashboardEvent()),
+                            child: designs.isEmpty
+                                ? ListView(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          top: 70,
+                                          bottom: 40,
+                                        ),
+                                        child: AnimatedEmptyStateWidget(
+                                          icon: _selectedFilter == 'PENDING'
+                                              ? Icons.draw_outlined
+                                              : (_selectedFilter == 'APPROVED'
+                                                    ? Icons.verified_outlined
+                                                    : Icons.palette_outlined),
+                                          title: _selectedFilter == 'PENDING'
+                                              ? 'No Pending Sketches'
+                                              : (_selectedFilter == 'APPROVED'
+                                                    ? 'No Approved Sketches'
+                                                    : 'No Sketches Available'),
+                                          subtitle: _selectedFilter == 'PENDING'
+                                              ? 'All client 2D design sketches have been reviewed and processed!'
+                                              : (_selectedFilter == 'APPROVED'
+                                                    ? 'No approved design sketches found in history.'
+                                                    : 'No design sketches registered for review right now.'),
+                                          accentColor: AppColors.emerald,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : ListView.separated(
+                                    itemCount: designs.length,
+                                    separatorBuilder: (_, _) =>
+                                        const SizedBox(height: 10),
+                                    itemBuilder: (ctx, index) {
+                                      final design = designs[index];
+                                      final isApproved =
+                                          design.isPopular ||
+                                          design.name.contains(
+                                            '(Sketch Approved)',
+                                          );
+
+                                      return CommonCard(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    design.name,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      fontSize: 14,
+                                                      color: AppColors.ink,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 3,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: isApproved
+                                                        ? AppColors.emeraldLight
+                                                        : AppColors.goldLight,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      if (isApproved)
+                                                        const Icon(
+                                                          Icons.check_circle,
+                                                          size: 11,
+                                                          color: AppColors
+                                                              .emeraldDark,
+                                                        )
+                                                      else
+                                                        const Icon(
+                                                          Icons
+                                                              .pending_outlined,
+                                                          size: 11,
+                                                          color: AppColors
+                                                              .goldDark,
+                                                        ),
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        isApproved
+                                                            ? 'APPROVED'
+                                                            : 'PENDING REVIEW',
+                                                        style: TextStyle(
+                                                          color: isApproved
+                                                              ? AppColors
+                                                                    .emeraldDark
+                                                              : AppColors
+                                                                    .goldDark,
+                                                          fontSize: 10,
+                                                          fontWeight:
+                                                              FontWeight.w800,
+                                                          letterSpacing: 0.3,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Code: ${design.code} · Purity: ${design.purity} · Est. Weight: ${design.grossWeightGrams} g · ₹${(design.estimatedPrice / 1000).toStringAsFixed(0)}k',
+                                              style: const TextStyle(
+                                                color: AppColors.muted,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                            _buildSketchImageThumbnail(
+                                              context,
+                                              design,
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Row(
+                                              children: [
+                                                if (!isApproved) ...[
+                                                  Expanded(
+                                                    child: CommonButton.primary(
+                                                      height: 34,
+                                                      backgroundColor:
+                                                          AppColors.emerald,
+                                                      icon: Icons.check,
+                                                      label: 'Approve Sketch',
+                                                      onPressed: () {
+                                                        context
+                                                            .read<AdminBloc>()
+                                                            .add(
+                                                              ApproveSketchDesignEvent(
+                                                                design.id,
+                                                              ),
+                                                            );
+                                                      },
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                ],
+                                                Expanded(
+                                                  child: CommonButton.outlined(
+                                                    height: 34,
+                                                    icon: Icons.send,
+                                                    label: 'Send Directive',
+                                                    onPressed: () =>
+                                                        SketchDirectiveDialog.show(
+                                                          context,
+                                                          design,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: CommonButton.primary(
+                      onPressed: () => _openNewSketchModal(context),
+                      label: '+ Register New Design Sketch',
+                      icon: Icons.add_photo_alternate_outlined,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSketchImageThumbnail(
+    BuildContext context,
+    JewelleryDesign design,
+  ) {
+    final hasImage = design.imageUrl.trim().isNotEmpty;
+
+    return GestureDetector(
+      onTap: () => _showFullSketchImage(context, design),
+      child: Container(
+        height: 140,
+        width: double.infinity,
+        margin: const EdgeInsets.only(top: 8, bottom: 8),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: AppColors.canvas,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.outlineLight),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (hasImage)
+              PresignedSketchImage(
+                imageUrl: design.imageUrl,
+                width: double.infinity,
+                height: 140,
+                fit: BoxFit.cover,
+                errorBuilder: () => _buildSketchPlaceholder(design),
+              )
+            else
+              _buildSketchPlaceholder(design),
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.65),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    _filterChip(
-                      'Pending Review (${pendingDesigns.length})',
-                      'PENDING',
-                    ),
-                    const SizedBox(width: 8),
-                    _filterChip(
-                      'Approved (${approvedDesigns.length})',
-                      'APPROVED',
-                    ),
-                    const SizedBox(width: 8),
-                    _filterChip(
-                      'All (${allDesigns.length})',
-                      'ALL',
+                    Icon(Icons.zoom_in_rounded, color: Colors.white, size: 14),
+                    SizedBox(width: 4),
+                    Text(
+                      'Tap to View Full Image',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
-              Expanded(
-                child: designs.isEmpty
-                    ? Center(
-                        child: Text(
-                          _selectedFilter == 'PENDING'
-                              ? 'No pending sketches for review.'
-                              : (_selectedFilter == 'APPROVED'
-                                    ? 'No approved sketches.'
-                                    : 'No design sketches available.'),
-                          style: const TextStyle(color: AppColors.muted),
-                        ),
-                      )
-                    : ListView.separated(
-                        itemCount: designs.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (ctx, index) {
-                          final design = designs[index];
-                          final isApproved =
-                              design.isPopular ||
-                              design.name.contains('(Sketch Approved)');
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                          return CommonCard(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        design.name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 14,
-                                          color: AppColors.ink,
-                                        ),
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isApproved
-                                            ? AppColors.emeraldLight
-                                            : AppColors.goldLight,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          if (isApproved)
-                                            const Icon(
-                                              Icons.check_circle,
-                                              size: 11,
-                                              color: AppColors.emeraldDark,
-                                            )
-                                          else
-                                            const Icon(
-                                              Icons.pending_outlined,
-                                              size: 11,
-                                              color: AppColors.goldDark,
-                                            ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            isApproved
-                                                ? 'APPROVED'
-                                                : 'PENDING REVIEW',
-                                            style: TextStyle(
-                                              color: isApproved
-                                                  ? AppColors.emeraldDark
-                                                  : AppColors.goldDark,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: 0.3,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Code: ${design.code} · Purity: ${design.purity} · Est. Weight: ${design.grossWeightGrams} g · ₹${(design.estimatedPrice / 1000).toStringAsFixed(0)}k',
-                                  style: const TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    if (!isApproved) ...[
-                                      Expanded(
-                                        child: CommonButton.primary(
-                                          height: 34,
-                                          backgroundColor: AppColors.emerald,
-                                          icon: Icons.check,
-                                          label: 'Approve Sketch',
-                                          onPressed: () {
-                                            context.read<AdminBloc>().add(
-                                              ApproveSketchDesignEvent(
-                                                design.id,
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                    ],
-                                    Expanded(
-                                      child: CommonButton.outlined(
-                                        height: 34,
-                                        icon: Icons.send,
-                                        label: 'Send Directive',
-                                        onPressed: () =>
-                                            SketchDirectiveDialog.show(
-                                              context,
-                                              design,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+  Widget _buildSketchPlaceholder(JewelleryDesign design) {
+    return Container(
+      color: AppColors.canvas,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.brush_outlined,
+              size: 36,
+              color: AppColors.goldDark.withOpacity(0.7),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '2D Pencil Sketch · ${design.code}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFullSketchImage(BuildContext context, JewelleryDesign design) {
+    final hasImage = design.imageUrl.trim().isNotEmpty;
+    final isApproved =
+        design.isPopular || design.name.contains('(Sketch Approved)');
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.paper,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            design.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                              color: AppColors.ink,
                             ),
-                          );
+                          ),
+                          Text(
+                            'Design Code: ${design.code} · Purity: ${design.purity}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: AppColors.muted),
+                      onPressed: () => Navigator.pop(dialogCtx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.outlineLight),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.6,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: hasImage
+                        ? PresignedSketchImage(
+                            imageUrl: design.imageUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder: () => _buildSketchPlaceholder(design),
+                          )
+                        : _buildSketchPlaceholder(design),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Row(
+                  children: [
+                    if (!isApproved) ...[
+                      Expanded(
+                        child: CommonButton.primary(
+                          backgroundColor: AppColors.emerald,
+                          icon: Icons.check,
+                          label: 'Approve Sketch',
+                          onPressed: () {
+                            context.read<AdminBloc>().add(
+                              ApproveSketchDesignEvent(design.id),
+                            );
+                            Navigator.pop(dialogCtx);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: CommonButton.outlined(
+                        icon: Icons.send,
+                        label: 'Send Directive',
+                        onPressed: () {
+                          Navigator.pop(dialogCtx);
+                          SketchDirectiveDialog.show(context, design);
                         },
                       ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: CommonButton.primary(
-                  onPressed: () => _openNewSketchModal(context),
-                  label: '+ Register New Design Sketch',
-                  icon: Icons.add_photo_alternate_outlined,
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -383,20 +654,41 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
     final name = _nameController.text.trim();
     final code = _codeController.text.trim().toUpperCase();
     final file = _sketchFile;
-    if (file?.bytes == null) {
+
+    Uint8List? bytes = file?.bytes;
+    if (bytes == null && file?.path != null) {
+      final f = File(file!.path!);
+      if (f.existsSync()) {
+        bytes = f.readAsBytesSync();
+      }
+    }
+
+    if (file == null || bytes == null || bytes.isEmpty) {
       CommonSnackbar.error(
         context,
         title: 'Sketch File Required',
-        message: 'Select a PNG, JPG, or WEBP sketch file.',
+        message: 'Select a valid PNG, JPG, or WEBP sketch file.',
       );
       return;
     }
+    final newDesign = JewelleryDesign(
+      id: 'sk-${DateTime.now().millisecondsSinceEpoch}',
+      name: name,
+      code: code,
+      category: _selectedCategory,
+      purity: _selectedPurity,
+      imageUrl: file.path ?? '',
+      description: 'New 2D Pencil Sketch',
+      isPopular: false,
+    );
+    widget.store.addDesign(newDesign);
+
     context.read<AdminBloc>().add(
       UploadSketchEvent(
         designNumber: code,
         title: name,
-        fileName: file!.name,
-        bytes: file.bytes!,
+        fileName: file.name,
+        bytes: bytes,
       ),
     );
     Navigator.pop(context);

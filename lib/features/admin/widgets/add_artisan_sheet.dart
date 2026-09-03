@@ -44,26 +44,51 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
   // ── Mandatory Controllers ─────────────────────────────────────────
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _employeeIdController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   // ── Optional Controllers ──────────────────────────────────────────
-  final _phoneController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _skillController = TextEditingController();
+  final _specialtyController = TextEditingController();
+  final _skillsController = TextEditingController();
 
+  String _selectedRole = 'CRAFTSMAN';
   List<ApiStage> _skillCategories = const [];
   String? _selectedStageId;
-  String? _stageError;
-  bool _isLoadingStages = true;
   bool _isSubmitting = false;
   TeamMember? _pendingMember;
 
-  ApiStage? get _selectedStage {
-    for (final stage in _skillCategories) {
-      if (stage.id == _selectedStageId) return stage;
-    }
-    return null;
-  }
+  static const List<Map<String, String>> _availableRoles = [
+    {
+      'value': 'CRAFTSMAN',
+      'label': 'Craftsman / Karigar',
+      'desc': 'Workshop artisan on production floor',
+    },
+    {
+      'value': 'MANAGER',
+      'label': 'Workshop Manager',
+      'desc': 'Oversees stage lots and assignments',
+    },
+    {
+      'value': 'DESIGNER',
+      'label': '3D CAD Designer',
+      'desc': 'CAD modeler for 3D designs',
+    },
+    {
+      'value': 'SKETCHER',
+      'label': '2D Concept Sketcher',
+      'desc': 'Raw pencil jewelry artist',
+    },
+    {
+      'value': 'FRONTLINER',
+      'label': 'Front Office / Sales',
+      'desc': 'Customer orders and intake',
+    },
+    {
+      'value': 'ADMIN',
+      'label': 'System Administrator',
+      'desc': 'Full system governance',
+    },
+  ];
 
   @override
   void initState() {
@@ -72,82 +97,76 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
   }
 
   Future<void> _loadSkillCategories() async {
-    setState(() {
-      _isLoadingStages = true;
-      _stageError = null;
-    });
     final stages = widget.store.stages.where((stage) => stage.isActive).toList()
       ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
     if (!mounted) return;
     setState(() {
       _skillCategories = stages;
       _selectedStageId = stages.isEmpty ? null : stages.first.id;
-      _stageError = stages.isEmpty
-          ? 'No live production stages are available.'
-          : null;
-      _isLoadingStages = false;
     });
-    if (stages.isNotEmpty) _generateEmployeeId(stages.first);
-  }
-
-  void _generateEmployeeId(ApiStage stage) {
-    final sanitized = stage.name
-        .replaceAll(RegExp(r'[^A-Za-z0-9]'), '')
-        .toUpperCase();
-    final prefix = sanitized.isEmpty
-        ? 'ART'
-        : sanitized.length <= 3
-        ? sanitized
-        : sanitized.substring(0, 3);
-    final count = widget.store.team.length + 1;
-    _employeeIdController.text = '$prefix-${count.toString().padLeft(3, '0')}';
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _employeeIdController.dispose();
     _phoneController.dispose();
-    _addressController.dispose();
-    _skillController.dispose();
+    _passwordController.dispose();
+    _specialtyController.dispose();
+    _skillsController.dispose();
     super.dispose();
   }
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    final stage = _selectedStage;
-    if (stage == null || _isSubmitting) return;
+    if (_isSubmitting) return;
 
     final name = _nameController.text.trim();
-    final empId = _employeeIdController.text.trim();
-    final skillDetail = _skillController.text.trim();
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+    final password = _passwordController.text.trim();
+    final specialty = _specialtyController.text.trim();
+    final skillsRaw = _skillsController.text.trim();
 
-    final craftDisplay = skillDetail.isNotEmpty
-        ? '${stage.name} ($skillDetail)'
-        : stage.name;
+    final skillsList = skillsRaw.isNotEmpty
+        ? skillsRaw
+              .split(',')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList()
+        : <String>[];
 
     final newMember = TeamMember(
-      id: empId,
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
-      craft: craftDisplay,
-      shift: 'Morning Shift',
+      craft: specialty.isNotEmpty ? specialty : _selectedRole,
+      shift: _selectedRole,
       activeLotsCount: 0,
       status: EmployeeStatus.available,
       todayEfficiencyPercent: 100,
       currentAssignment: 'Ready for allocation',
+      email: email,
+      phone: phone,
+      role: _selectedRole,
+      skills: skillsList,
+      specialty: specialty,
     );
 
     setState(() {
       _pendingMember = newMember;
       _isSubmitting = true;
     });
+
     context.read<AdminBloc>().add(
       AddArtisanEvent(
         newMember,
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
-        stageId: stage.id,
+        email: email,
+        phone: phone,
+        role: _selectedRole,
+        password: password.isNotEmpty ? password : null,
+        skills: skillsList,
+        specialty: specialty,
+        stageId: _selectedStageId ?? '',
       ),
     );
   }
@@ -175,31 +194,10 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
     }
   }
 
-  IconData _getStageIcon(String stageName) {
-    final normalized = stageName.toLowerCase();
-    if (normalized.contains('cad') || normalized.contains('wax')) {
-      return Icons.view_in_ar_outlined;
-    }
-    if (normalized.contains('cast') || normalized.contains('melt')) {
-      return Icons.local_fire_department_outlined;
-    }
-    if (normalized.contains('setting')) return Icons.diamond_outlined;
-    if (normalized.contains('polish')) return Icons.auto_awesome;
-    if (normalized.contains('quality') || normalized.contains('qc')) {
-      return Icons.verified_outlined;
-    }
-    return Icons.precision_manufacturing_outlined;
-  }
-
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final canSubmit =
-        !_isLoadingStages &&
-        _stageError == null &&
-        _selectedStageId != null &&
-        _skillCategories.isNotEmpty &&
-        !_isSubmitting;
+    final canSubmit = !_isSubmitting;
 
     return BlocListener<AdminBloc, AdminState>(
       listener: _handleAdminState,
@@ -309,21 +307,23 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
                       CommonTextField(
                         controller: _nameController,
                         label: 'Full Name *',
-                        hintText: 'e.g. Ramesh Chandra Verma',
+                        hintText: 'e.g. Kailash Prajapati',
                         prefixIcon: Icons.badge_outlined,
                         validator: (val) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'Artisan name is required';
-                          }
+                          final str = val?.trim() ?? '';
+                          if (str.isEmpty) return 'Employee name is required';
+                          if (str.length < 2)
+                            return 'Name must be at least 2 characters';
                           return null;
                         },
                       ),
                       const SizedBox(height: 14),
 
+                      // Email (Mandatory)
                       CommonTextField(
                         controller: _emailController,
                         label: 'Email Address *',
-                        hintText: 'artisan@company.com',
+                        hintText: 'e.g. artisan@rkjewellers.com',
                         prefixIcon: Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) {
@@ -339,81 +339,84 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
                       ),
                       const SizedBox(height: 14),
 
-                      _buildSkillCategoryField(),
-                      const SizedBox(height: 14),
-
-                      // Employee ID (Mandatory / Auto-generated from Category)
-                      CommonTextField(
-                        controller: _employeeIdController,
-                        label: 'Employee ID * (Auto-Generated)',
-                        hintText: 'e.g. SET-007',
-                        prefixIcon: Icons.tag_rounded,
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'Employee ID is required';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 24),
-
-                      // ── 2. OPTIONAL SECTION ──────────────────────────
-                      const CommonText.titleMedium('Optional Details'),
-                      const SizedBox(height: 12),
-
-                      // Phone Number
+                      // Phone Number (Mandatory)
                       CommonTextField(
                         controller: _phoneController,
-                        label: 'Phone Number',
-                        hintText: 'e.g. 98290 12345',
+                        label: 'Phone Number *',
+                        hintText: '+91 98290 11006',
                         prefixIcon: Icons.phone_outlined,
                         keyboardType: TextInputType.phone,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Phone number is required';
-                          }
+                          final phone = value?.trim() ?? '';
+                          if (phone.isEmpty) return 'Phone number is required';
+                          if (phone.length < 5)
+                            return 'Enter a valid phone number (min 5 digits)';
                           return null;
                         },
                       ),
+                      const SizedBox(height: 14),
+
+                      // Login Password (Mandatory)
+                      CommonTextField(
+                        controller: _passwordController,
+                        label: 'Login Password *',
+                        hintText: 'Initial password (min 6 characters)',
+                        prefixIcon: Icons.lock_outline,
+                        obscureText: true,
+                        validator: (val) {
+                          final pwd = val?.trim() ?? '';
+                          if (pwd.isEmpty)
+                            return 'Initial password is required';
+                          if (pwd.length < 6)
+                            return 'Password must be at least 6 characters';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Employee Role Dropdown (Mandatory)
+                      _buildRoleSelector(),
+                      const SizedBox(height: 24),
+
+                      // ── 2. CRAFT & SPECIALTY SECTION ───────────
+                      const CommonText.titleMedium('Craft Specialty & Skills'),
                       const SizedBox(height: 12),
 
-                      // Address (Optional)
+                      // Primary Specialty (Optional)
                       CommonTextField(
-                        controller: _addressController,
-                        label: 'Address (Optional)',
-                        hintText: 'e.g. Johari Bazaar, Jaipur',
-                        prefixIcon: Icons.location_on_outlined,
+                        controller: _specialtyController,
+                        label: 'Primary Specialty / Craft (Optional)',
+                        hintText: 'e.g. Stone Setting, Waxing',
+                        prefixIcon: Icons.workspace_premium_outlined,
                       ),
                       const SizedBox(height: 12),
 
-                      // Skill / Specialization (Optional)
+                      // Craft Skills (Optional, comma-separated)
                       CommonTextField(
-                        controller: _skillController,
-                        label: 'Specialized Skill / Notes (Optional)',
-                        hintText: 'e.g. Micro-prong setting, Solitaire bezel',
+                        controller: _skillsController,
+                        label: 'Skills (Optional, comma-separated)',
+                        hintText:
+                            'e.g. Stone Setting, Micro Prong Setting, Waxing',
                         prefixIcon: Icons.military_tech_outlined,
                       ),
                       const SizedBox(height: 20),
 
-                      // Summary Card
+                      // Keycloak Registration Info Card
                       CommonCard(
                         backgroundColor: AppColors.canvas,
                         padding: const EdgeInsets.all(14),
                         child: Row(
                           children: [
                             const Icon(
-                              Icons.info_outline,
+                              Icons.security_outlined,
                               size: 20,
                               color: AppColors.goldDark,
                             ),
                             const SizedBox(width: 12),
-                            Expanded(
+                            const Expanded(
                               child: Text(
-                                'Skill categories are loaded from the live production stages API. The selected stage is saved with the employee.',
-                                style: const TextStyle(
+                                'Employee profile will be stored in PostgreSQL & automatically registered in Keycloak Identity Provider for app login.',
+                                style: TextStyle(
                                   fontSize: 12,
                                   color: AppColors.muted,
                                   height: 1.35,
@@ -438,10 +441,10 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
                   ),
                 ),
                 child: CommonButton.primary(
-                  label: '+ Add Artisan',
-                  icon: Icons.check_circle_outline,
+                  label: '+ Register Employee',
+                  icon: Icons.person_add_alt_1_rounded,
                   isLoading: _isSubmitting,
-                  onPressed: canSubmit ? _submit : null,
+                  onPressed: !_isSubmitting ? _submit : null,
                 ),
               ),
             ],
@@ -451,12 +454,12 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
     );
   }
 
-  Widget _buildSkillCategoryField() {
+  Widget _buildRoleSelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Skill Category *',
+          'Employee Role *',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
@@ -464,107 +467,70 @@ class _AddArtisanSheetState extends State<AddArtisanSheet> {
           ),
         ),
         const SizedBox(height: 6),
-        if (_isLoadingStages)
-          const SizedBox(
-            height: 72,
-            child: Center(
-              child: CommonProgressIndicator.medium(
-                theme: IndicatorTheme.workshop,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.paper,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.outline),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedRole,
+              isExpanded: true,
+              icon: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppColors.ink,
               ),
-            ),
-          )
-        else if (_stageError != null || _skillCategories.isEmpty)
-          CommonCard(
-            backgroundColor: AppColors.dangerLight,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _stageError == null
-                      ? 'No active skill categories returned by the stages API.'
-                      : 'Could not load skill categories from the stages API.',
-                  style: const TextStyle(
-                    color: AppColors.danger,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                CommonButton.outlined(
-                  label: 'Retry',
-                  isFullWidth: false,
-                  height: 34,
-                  onPressed: _loadSkillCategories,
-                ),
-              ],
-            ),
-          )
-        else
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.paper,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.outline),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedStageId,
-                isExpanded: true,
-                icon: const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: AppColors.ink,
-                ),
-                items: _skillCategories.map((stage) {
-                  return DropdownMenuItem<String>(
-                    value: stage.id,
-                    child: Row(
-                      children: [
-                        Icon(
-                          _getStageIcon(stage.name),
-                          size: 18,
-                          color: AppColors.goldDark,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            stage.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.ink,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '#${stage.stageNumber}',
+              items: _availableRoles.map((role) {
+                return DropdownMenuItem<String>(
+                  value: role['value'],
+                  child: Row(
+                    children: [
+                      Icon(
+                        _getRoleIcon(role['value']!),
+                        size: 18,
+                        color: AppColors.goldDark,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          role['label']!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.muted,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.ink,
                           ),
                         ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onChanged: (stageId) {
-                  if (stageId == null) return;
-                  final stage = _skillCategories.firstWhere(
-                    (item) => item.id == stageId,
-                  );
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (newRole) {
+                if (newRole != null) {
                   setState(() {
-                    _selectedStageId = stageId;
-                    _generateEmployeeId(stage);
+                    _selectedRole = newRole;
                   });
-                },
-              ),
+                }
+              },
             ),
           ),
+        ),
       ],
     );
+  }
+
+  IconData _getRoleIcon(String role) {
+    return switch (role.toUpperCase()) {
+      'ADMIN' => Icons.admin_panel_settings_outlined,
+      'MANAGER' => Icons.manage_accounts_outlined,
+      'DESIGNER' => Icons.view_in_ar_outlined,
+      'SKETCHER' => Icons.draw_outlined,
+      'FRONTLINER' => Icons.storefront_outlined,
+      _ => Icons.precision_manufacturing_outlined,
+    };
   }
 }

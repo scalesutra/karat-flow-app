@@ -167,6 +167,11 @@ class AuthenticatedProfileCard extends StatelessWidget {
       'CRAFTSMAN': 'Workshop Artisan (Craftsman)',
       'WORKSHOP_ARTISAN': 'Workshop Artisan',
       'OTHER_EMPLOYEE': 'Workshop Artisan',
+      'WORKER': 'Factory Worker',
+      'BENCH_WORKER': 'Factory Worker (Bench Operator)',
+      'STOCKIST': 'Vault Stockist',
+      'STOCK_MANAGER': 'Vault Stockist (Stock Manager)',
+      'VAULT_KEEPER': 'Vault Stockist',
     };
     final normalized = role.trim().toUpperCase();
     if (normalized.isEmpty) return 'Role unavailable';

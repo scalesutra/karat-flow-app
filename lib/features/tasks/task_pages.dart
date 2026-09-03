@@ -1004,108 +1004,204 @@ class _InstructionListState extends State<_InstructionList> {
                       ],
                     ),
                     if (widget.mode == TaskDisplayMode.admin) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       Container(
-                        padding: const EdgeInsets.all(3),
+                        padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           color: AppColors.canvas,
-                          borderRadius: BorderRadius.circular(
-                            AppDimensions.radiusMedium,
-                          ),
-                          border: Border.all(color: AppColors.outline),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.outlineLight),
                         ),
                         child: Row(
                           children: [
+                            // TAB 1: Directives & Tasks
                             Expanded(
-                              child: InkWell(
+                              child: GestureDetector(
                                 onTap: () =>
                                     setState(() => _adminActiveTab = 0),
-                                borderRadius: BorderRadius.circular(
-                                  AppDimensions.radiusSmall,
-                                ),
-                                child: Container(
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
+                                    vertical: 9,
+                                    horizontal: 8,
                                   ),
                                   decoration: BoxDecoration(
                                     color: _adminActiveTab == 0
                                         ? AppColors.paper
                                         : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(
-                                      AppDimensions.radiusSmall,
-                                    ),
+                                    borderRadius: BorderRadius.circular(9),
+                                    border: _adminActiveTab == 0
+                                        ? Border.all(
+                                            color: AppColors.emerald
+                                                .withOpacity(0.3),
+                                          )
+                                        : null,
                                     boxShadow: _adminActiveTab == 0
                                         ? [
                                             BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.04,
+                                              color: Colors.black.withOpacity(
+                                                0.06,
                                               ),
-                                              blurRadius: 4,
+                                              blurRadius: 6,
                                               offset: const Offset(0, 2),
                                             ),
                                           ]
                                         : null,
                                   ),
-                                  child: Center(
-                                    child: Text(
-                                      'Directives & Tasks (${widget.instructions.length})',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: _adminActiveTab == 0
-                                            ? FontWeight.w800
-                                            : FontWeight.w600,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.assignment_outlined,
+                                        size: 16,
                                         color: _adminActiveTab == 0
                                             ? AppColors.emeraldDark
                                             : AppColors.muted,
                                       ),
-                                    ),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          'Directives & Tasks',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: _adminActiveTab == 0
+                                                ? FontWeight.w800
+                                                : FontWeight.w600,
+                                            color: _adminActiveTab == 0
+                                                ? AppColors.emeraldDark
+                                                : AppColors.ink,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _adminActiveTab == 0
+                                              ? AppColors.emeraldLight
+                                              : AppColors.canvas,
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${widget.instructions.length}',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color: _adminActiveTab == 0
+                                                ? AppColors.emeraldDark
+                                                : AppColors.muted,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
                             ),
+                            const SizedBox(width: 4),
+                            // TAB 2: CAD 3D Approvals
                             Expanded(
-                              child: InkWell(
+                              child: GestureDetector(
                                 onTap: () =>
                                     setState(() => _adminActiveTab = 1),
-                                borderRadius: BorderRadius.circular(
-                                  AppDimensions.radiusSmall,
-                                ),
-                                child: Container(
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
+                                    vertical: 9,
+                                    horizontal: 8,
                                   ),
                                   decoration: BoxDecoration(
                                     color: _adminActiveTab == 1
                                         ? AppColors.paper
                                         : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(
-                                      AppDimensions.radiusSmall,
-                                    ),
+                                    borderRadius: BorderRadius.circular(9),
+                                    border: _adminActiveTab == 1
+                                        ? Border.all(
+                                            color: AppColors.goldDark
+                                                .withOpacity(0.3),
+                                          )
+                                        : null,
                                     boxShadow: _adminActiveTab == 1
                                         ? [
                                             BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.04,
+                                              color: Colors.black.withOpacity(
+                                                0.06,
                                               ),
-                                              blurRadius: 4,
+                                              blurRadius: 6,
                                               offset: const Offset(0, 2),
                                             ),
                                           ]
                                         : null,
                                   ),
-                                  child: Center(
-                                    child: Text(
-                                      'CAD 3D Approvals (${widget.store.pendingCadApprovalsCount > 0 ? '${widget.store.pendingCadApprovalsCount} Pending' : '${cadFiltered.length} Approved'})',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: _adminActiveTab == 1
-                                            ? FontWeight.w800
-                                            : FontWeight.w600,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.view_in_ar_rounded,
+                                        size: 16,
                                         color: _adminActiveTab == 1
-                                            ? AppColors.emeraldDark
+                                            ? AppColors.goldDark
                                             : AppColors.muted,
                                       ),
-                                    ),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          'CAD 3D Approvals',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: _adminActiveTab == 1
+                                                ? FontWeight.w800
+                                                : FontWeight.w600,
+                                            color: _adminActiveTab == 1
+                                                ? AppColors.goldDark
+                                                : AppColors.ink,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              widget
+                                                      .store
+                                                      .pendingCadApprovalsCount >
+                                                  0
+                                              ? AppColors.goldLight
+                                              : AppColors.emeraldLight,
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          widget.store.pendingCadApprovalsCount >
+                                                  0
+                                              ? '${widget.store.pendingCadApprovalsCount} Pending'
+                                              : '${cadFiltered.length}',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color:
+                                                widget
+                                                        .store
+                                                        .pendingCadApprovalsCount >
+                                                    0
+                                                ? AppColors.goldDark
+                                                : AppColors.emeraldDark,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -1136,12 +1232,13 @@ class _InstructionListState extends State<_InstructionList> {
                 const SizedBox(height: 10),
                 Expanded(
                   child: filtered.isEmpty
-                      ? CommonEmptyState(
-                          icon: Icons.task_alt,
-                          title: 'No tasks found',
-                          description:
-                              'No instructions match the selected filters.',
-                          actionLabel: 'Show All Tasks',
+                      ? AnimatedEmptyStateWidget(
+                          icon: Icons.assignment_outlined,
+                          title: 'No Directives & Tasks Found',
+                          subtitle:
+                              'No active instructions or directives match your current filter criteria.',
+                          accentColor: AppColors.emerald,
+                          actionLabel: 'Reset All Filters',
                           onAction: () {
                             setState(() {
                               _selectedFilter = 'All';
@@ -1174,11 +1271,12 @@ class _InstructionListState extends State<_InstructionList> {
               ] else ...[
                 Expanded(
                   child: cadFiltered.isEmpty
-                      ? const CommonEmptyState(
-                          icon: Icons.view_in_ar,
-                          title: 'No CAD models pending',
-                          description:
-                              'All 3D CAD models and sketches have been signed off.',
+                      ? const AnimatedEmptyStateWidget(
+                          icon: Icons.view_in_ar_rounded,
+                          title: 'No CAD Approvals Pending',
+                          subtitle:
+                              'All 3D CAD models and design specs have been signed off for production.',
+                          accentColor: AppColors.goldDark,
                         )
                       : CommonRefreshIndicator(
                           theme: IndicatorTheme.cad,
