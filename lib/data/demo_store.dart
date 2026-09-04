@@ -81,9 +81,7 @@ class DemoStore extends ChangeNotifier {
       artisanName: artisanName,
       stageName: stageName,
       quantity: pcs,
-      goldWeightGrams: (grossWeight != null && grossWeight > 0)
-          ? grossWeight
-          : 0.0,
+      goldWeightGrams: 0.0,
       stones: stones ?? const [],
       stoneSpecs: stoneSpecs ?? const [],
       status: 'PENDING_ISSUE',
@@ -149,7 +147,7 @@ class DemoStore extends ChangeNotifier {
         id: 'PART-$orderId',
         designNumber: designNumber.isNotEmpty ? designNumber : 'DES-GENERIC',
         quantity: quantity > 0 ? quantity : 1,
-        grossWeight: grossWeight ?? 15.0,
+        grossWeight: grossWeight ?? 0.0,
         orderNumber: orderId.isNotEmpty ? orderId : 'ORD-NEW',
       ),
       assignedByManagerName: artisanName,
@@ -219,10 +217,104 @@ class DemoStore extends ChangeNotifier {
     });
   }
 
+  final Set<String> _completedStagePartKeys = {};
+
+  void completeWorkerTask(String taskId) {
+    final tId = taskId.trim().toUpperCase();
+    String completedStage = '';
+    for (int i = 0; i < _workerTasks.length; i++) {
+      final t = _workerTasks[i];
+      if (t.id.toUpperCase() == tId || t.orderPartId.toUpperCase() == tId) {
+        completedStage = t.stage.name.toUpperCase().trim();
+        if (t.orderPartId.isNotEmpty && completedStage.isNotEmpty) {
+          _completedStagePartKeys.add('${t.orderPartId.toUpperCase()}_$completedStage');
+        }
+        if (t.designNumber.isNotEmpty && completedStage.isNotEmpty) {
+          _completedStagePartKeys.add('${t.designNumber.toUpperCase()}_$completedStage');
+        }
+        _workerTasks[i] = ApiWorkerTask(
+          id: t.id,
+          orderPartId: t.orderPartId,
+          stageId: t.stageId,
+          assignedEmployeeId: t.assignedEmployeeId,
+          assignedByManagerId: t.assignedByManagerId,
+          instructions: t.instructions,
+          status: 'COMPLETED',
+          startedAt: t.startedAt,
+          completedAt: DateTime.now().toIso8601String(),
+          failureReason: t.failureReason,
+          createdAt: t.createdAt,
+          isStockIssued: t.isStockIssued,
+          stage: t.stage,
+          orderPart: t.orderPart,
+          assignedByManagerName: t.assignedByManagerName,
+        );
+      }
+    }
+    for (int i = 0; i < _lots.length; i++) {
+      final lot = _lots[i];
+      final lotStage = lot.apiStageName.toUpperCase().trim();
+      final stageMatches = completedStage.isEmpty ||
+          lotStage == completedStage ||
+          lotStage.contains(completedStage) ||
+          completedStage.contains(lotStage);
+      if ((lot.id.toUpperCase() == tId ||
+              _completedStagePartKeys.contains('${lot.designCode.toUpperCase()}_$lotStage')) &&
+          stageMatches) {
+        _lots[i] = lot.copyWith(
+          assignedEmployeeRole: 'COMPLETED',
+        );
+      }
+    }
+    notifyListeners();
+  }
+
   bool isWorkerTaskCompletedForPart(String partId, {String? designNumber, String? stageName, String? artisanName}) {
     final pId = partId.trim().toUpperCase();
     final dNum = (designNumber ?? '').trim().toUpperCase();
     final sName = (stageName ?? '').trim().toUpperCase();
+
+    if (sName.isNotEmpty) {
+      if (pId.isNotEmpty && _completedStagePartKeys.contains('${pId}_$sName')) return true;
+      if (dNum.isNotEmpty && _completedStagePartKeys.contains('${dNum}_$sName')) return true;
+      for (final key in _completedStagePartKeys) {
+        final matchesStage = key.endsWith('_$sName') ||
+            (sName.contains('FIL') && key.endsWith('_FILING')) ||
+            (sName.contains('WAX') && key.endsWith('_WAXING')) ||
+            (sName.contains('SET') && key.contains('SET')) ||
+            (sName.contains('POL') && key.contains('POL')) ||
+            (sName.contains('QC') && key.contains('QC')) ||
+            (sName.contains('PACK') && key.contains('PACK'));
+        if (matchesStage &&
+            ((pId.isNotEmpty && key.startsWith('${pId}_')) ||
+             (dNum.isNotEmpty && key.startsWith('${dNum}_')))) {
+          return true;
+        }
+      }
+    } else {
+      if (pId.isNotEmpty && _completedStagePartKeys.contains(pId)) return true;
+    }
+
+    final matchesLot = _lots.any((l) {
+      final matchesId = (pId.isNotEmpty && (l.id.toUpperCase() == pId || pId.endsWith(l.id.toUpperCase()))) ||
+          (dNum.isNotEmpty && (l.designCode.toUpperCase() == dNum || dNum.contains(l.designCode.toUpperCase())));
+      if (!matchesId) return false;
+      final lotStage = l.apiStageName.toUpperCase();
+      final matchesStg = sName.isEmpty ||
+          lotStage == sName ||
+          lotStage.contains(sName) ||
+          sName.contains(lotStage) ||
+          (lotStage.contains('FIL') && sName.contains('FIL')) ||
+          (lotStage.contains('WAX') && sName.contains('WAX')) ||
+          (lotStage.contains('QC') && sName.contains('QC')) ||
+          (lotStage.contains('PACK') && sName.contains('PACK'));
+      final isDone = l.assignedEmployeeRole.toUpperCase() == 'COMPLETED' ||
+          l.assignedEmployeeRole.toUpperCase() == 'STAGE_COMPLETED' ||
+          l.assignedEmployeeRole.toUpperCase() == 'PASSED' ||
+          lotStage == 'COMPLETED';
+      return matchesStg && isDone;
+    });
+    if (matchesLot) return true;
 
     return _workerTasks.any((t) {
       final isDone = t.status.toUpperCase() == 'COMPLETED' || t.status.toUpperCase() == 'STAGE_COMPLETED';
@@ -233,9 +325,27 @@ class DemoStore extends ChangeNotifier {
       final tDesign = t.designNumber.trim().toUpperCase();
       final tStage = t.stageName.trim().toUpperCase();
 
-      final matchesPart = pId.isNotEmpty && (tPart == pId || tId == pId || pId.endsWith(tPart) || tPart.endsWith(pId));
-      final matchesDesign = dNum.isNotEmpty && (tDesign == dNum || dNum.contains(tDesign) || tDesign.contains(dNum));
-      final matchesStage = sName.isEmpty || (tStage.contains(sName) || sName.contains(tStage) || (tStage.contains('WAX') && sName.contains('WAX')));
+      final matchesPart = pId.isNotEmpty &&
+          (tPart == pId ||
+              tId == pId ||
+              pId.endsWith(tPart) ||
+              tPart.endsWith(pId) ||
+              (tDesign.isNotEmpty && pId == tDesign));
+      final matchesDesign = dNum.isNotEmpty &&
+          (tDesign == dNum ||
+              tDesign.contains(dNum) ||
+              dNum.contains(tDesign));
+      final matchesStage = sName.isEmpty ||
+          tStage == sName ||
+          tStage.contains(sName) ||
+          sName.contains(tStage) ||
+          (tStage.contains('WAX') && sName.contains('WAX')) ||
+          (tStage.contains('FIL') && sName.contains('FIL')) ||
+          (tStage.contains('CAST') && sName.contains('CAST')) ||
+          (tStage.contains('SET') && sName.contains('SET')) ||
+          (tStage.contains('POL') && sName.contains('POL')) ||
+          (tStage.contains('QC') && sName.contains('QC')) ||
+          (tStage.contains('PACK') && sName.contains('PACK'));
 
       return (matchesPart || matchesDesign) && matchesStage;
     });

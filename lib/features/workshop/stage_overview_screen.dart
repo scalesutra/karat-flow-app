@@ -63,6 +63,16 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     if (_requestedLiveData) return;
     _requestedLiveData = true;
     context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent());
+    unawaited(_loadLiveWorkerTasks());
+  }
+
+  Future<void> _loadLiveWorkerTasks() async {
+    try {
+      final tasks = await KaratFlowApiRepository().listWorkerTasks();
+      if (mounted && tasks.isNotEmpty) {
+        DemoStore.instance.setWorkerTasks(tasks);
+      }
+    } catch (_) {}
   }
 
   void _onStoreChanged() {
@@ -269,13 +279,29 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     int? quantity,
     String? nextWorkerName,
   }) {
-    final nextIdx = part.stage.index + 1;
+    final stages = DemoStore.instance.stages
+        .where((stage) => stage.isActive)
+        .toList()
+      ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+
+    final curIdx = stages.indexWhere(
+      (s) =>
+          _domainStage(s) == part.stage ||
+          s.name.trim().toLowerCase() ==
+              (part.stageName ?? '').trim().toLowerCase(),
+    );
+    final ApiStage? nextApiStage =
+        (curIdx != -1 && curIdx + 1 < stages.length)
+            ? stages[curIdx + 1]
+            : null;
+    final WorkshopStage? nextStage =
+        nextApiStage != null ? _domainStage(nextApiStage) : null;
+
     final movingWholePart = quantity == null || quantity >= part.pieces;
     if (movingWholePart) {
-      if (nextIdx < WorkshopStage.values.length) {
-        final nextStage = WorkshopStage.values[nextIdx];
-        widget.orderData['currentStageName'] = nextStage.label;
-        widget.orderData['stage'] = nextStage.label;
+      if (nextStage != null) {
+        widget.orderData['currentStageName'] = nextApiStage?.name ?? nextStage.label;
+        widget.orderData['stage'] = nextApiStage?.name ?? nextStage.label;
       } else {
         widget.orderData['status'] = 'complete';
         widget.orderData['currentStageName'] = 'Completed';
@@ -309,11 +335,13 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       final workerId = selectedMember?.id ?? nextWorkerName;
       final workerDisplayName = selectedMember?.name ?? nextWorkerName;
 
-      final stages =
-          DemoStore.instance.stages.where((stage) => stage.isActive).toList()
-            ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
-      final nextStageIndex = (part.stage.index + 1).clamp(0, stages.length - 1);
-      final targetStage = stages.isNotEmpty ? stages[nextStageIndex] : null;
+      final targetStage = nextApiStage ??
+          (nextStage != null
+              ? stages
+                    .where((stage) => _domainStage(stage) == nextStage)
+                    .firstOrNull
+              : null) ??
+          (stages.isNotEmpty ? stages.last : null);
 
       if (targetStage != null) {
         context.read<WorkshopBloc>().add(
@@ -468,7 +496,11 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
               ? _title
               : (designNum.isNotEmpty ? designNum : 'Jewellery Order'),
           code: _orderId,
-          category: _title.contains('Ring') ? 'Rings' : 'Necklace',
+          category:
+              (widget.orderData['category'] as String?)?.trim().isNotEmpty ==
+                  true
+              ? (widget.orderData['category'] as String).trim()
+              : (_title.isNotEmpty ? _title : 'Jewellery'),
           parts: parts,
         ),
       );
@@ -614,7 +646,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                 widget.orderData['blockReason'] as String? ??
                 widget.orderData['blockedReason'] as String?),
       weight: (widget.orderData['grossWeight'] as num?)?.toDouble() ?? 0.0,
-      isCompleted: isOrderComplete,
+      isCompleted: isOrderComplete || hasCompletedAssignment,
     );
 
     items.add(
@@ -1693,22 +1725,33 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
                   Builder(
                     builder: (context) {
-                      final values = WorkshopStage.values;
-                      final currentIdx = values.indexOf(part.stage);
+                      final activeStages = DemoStore.instance.stages
+                          .where((stage) => stage.isActive)
+                          .toList()
+                        ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+
+                      final currentIdx = activeStages.indexWhere(
+                        (s) =>
+                            _domainStage(s) == part.stage ||
+                            s.name.trim().toLowerCase() ==
+                                (part.stageName ?? '').trim().toLowerCase(),
+                      );
+                      final ApiStage? nextStage =
+                          (currentIdx != -1 && currentIdx + 1 < activeStages.length)
+                              ? activeStages[currentIdx + 1]
+                              : null;
+                      final bool isLast =
+                          currentIdx != -1 && currentIdx >= activeStages.length - 1;
 
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (currentIdx < values.length - 1)
+                          if (!isLast || nextStage != null)
                             CommonButton.primary(
-                              label:
-                                  (currentIdx == values.length - 2 ||
-                                      values[currentIdx + 1] ==
-                                          WorkshopStage.readyForDispatch)
-                                  ? 'Complete Order / Dispatch ($passedPcs Pcs) ✅'
-                                  : 'Move $passedPcs Pcs to Next Stage (${values[currentIdx + 1].label}) →',
+                              label: nextStage != null
+                                  ? 'Move $passedPcs Pcs to Next Stage (${nextStage.name}) →'
+                                  : 'Complete Order / Dispatch ($passedPcs Pcs) ✅',
                               onPressed: () {
-                                final nextStage = values[currentIdx + 1];
                                 final partId = _livePartId(part);
 
                                 if (partId != null) {
@@ -1720,9 +1763,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                       nextWorkerName: selectedNextWorker,
                                     );
                                   }
-                                  if (passedPcs >= totalPcs &&
-                                      nextStage ==
-                                          WorkshopStage.readyForDispatch) {
+                                  if (passedPcs >= totalPcs && nextStage == null) {
                                     widget.orderData['status'] = 'complete';
                                     DemoStore.instance.updateOrderStatus(
                                       _orderId,
@@ -1730,7 +1771,6 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                     );
                                   }
                                 }
-
                                 Navigator.pop(ctx);
                                 setState(() {
                                   _parentItems = _getParentItems();
@@ -1742,8 +1782,10 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                     behavior: SnackBarBehavior.floating,
                                     content: Text(
                                       defectivePcs > 0
-                                          ? 'Moved $passedPcs pcs → ${nextStage.label} (Assigned to $selectedNextWorker). $defectivePcs pcs remaining in ${part.stage.label}!'
-                                          : 'Moved $passedPcs pcs → ${nextStage.label} (Assigned to $selectedNextWorker)!',
+                                          ? 'Moved $passedPcs pcs → ${nextStage?.name ?? "Next Stage"} (Assigned to $selectedNextWorker). $defectivePcs pcs remaining in ${part.stage.label}!'
+                                          : (nextStage != null
+                                              ? 'Moved $passedPcs pcs → ${nextStage.name} (Assigned to $selectedNextWorker)!'
+                                              : 'Completed $passedPcs pcs! Order is ready.'),
                                     ),
                                     backgroundColor: AppColors.emerald,
                                   ),
@@ -2610,13 +2652,16 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       (item) => item.parts.any((p) => p.blockerReason != null),
     );
 
+    final activePart = _parentItems.expand((i) => i.parts).firstOrNull;
+    final currentStageName = activePart != null
+        ? activePart.stage.label
+        : (stageStr.isNotEmpty
+              ? (widget.orderData['stage'] as String? ?? 'In Workshop')
+              : 'In Workshop');
+
     final String displayStatus = isCompleted
         ? 'Completed'
-        : (hasBlockedPart
-              ? 'ON CRITICAL HOLD'
-              : (stageStr.isNotEmpty
-                    ? (widget.orderData['stage'] as String? ?? 'In Workshop')
-                    : 'In Workshop'));
+        : (hasBlockedPart ? 'ON CRITICAL HOLD' : currentStageName);
 
     final Color badgeColor = isCompleted
         ? AppColors.emerald
@@ -2951,6 +2996,44 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         apiStages.add(s);
       }
     }
+    final String statusStr =
+        (widget.orderData['status'] as String? ?? '').toLowerCase();
+    final String stageStr =
+        (widget.orderData['stage'] as String? ?? '').toLowerCase();
+    final bool isEntireOrderCompleted = statusStr == 'complete' ||
+        statusStr == 'completed' ||
+        statusStr == 'ready' ||
+        statusStr == 'delivered' ||
+        stageStr == 'completed' ||
+        stageStr == 'all_stages_completed';
+
+    int highestReachedStageIndex = -1;
+    for (final item in _parentItems) {
+      for (final p in item.parts) {
+        final pIdx = apiStages.indexWhere((s) =>
+            _domainStage(s) == p.stage ||
+            s.name.trim().toLowerCase() ==
+                (p.stageName ?? '').trim().toLowerCase() ||
+            (s.name.toLowerCase().contains('fil') &&
+                p.stage == WorkshopStage.filingAndAssembly) ||
+            (s.name.toLowerCase().contains('wax') &&
+                p.stage == WorkshopStage.cadAndWax) ||
+            (s.name.toLowerCase().contains('cast') &&
+                p.stage == WorkshopStage.casting) ||
+            (s.name.toLowerCase().contains('set') &&
+                p.stage == WorkshopStage.stoneSetting) ||
+            (s.name.toLowerCase().contains('pol') &&
+                p.stage == WorkshopStage.polishing) ||
+            (s.name.toLowerCase().contains('qc') &&
+                p.stage == WorkshopStage.qualityCheck) ||
+            (s.name.toLowerCase().contains('pack') &&
+                p.stage == WorkshopStage.readyForDispatch));
+        if (pIdx > highestReachedStageIndex) {
+          highestReachedStageIndex = pIdx;
+        }
+      }
+    }
+
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -2986,7 +3069,9 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   targetStageName.contains('cast')) ||
               (tStageName.contains('fil') && targetStageName.contains('fil')) ||
               (tStageName.contains('set') && targetStageName.contains('set')) ||
-              (tStageName.contains('pol') && targetStageName.contains('pol'));
+              (tStageName.contains('pol') && targetStageName.contains('pol')) ||
+              (tStageName.contains('qc') && targetStageName.contains('qc')) ||
+              (tStageName.contains('pack') && targetStageName.contains('pack'));
           if (!matchesStage) return false;
 
           final tPartId = t.orderPartId.trim().toUpperCase();
@@ -2994,14 +3079,53 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           final tOrderNumber = t.orderPart.orderNumber.trim().toUpperCase();
           final tDesign = t.designNumber.trim().toUpperCase();
           final targetOrder = _orderId.trim().toUpperCase();
+          final targetApiOrder = _apiOrderId.trim().toUpperCase();
+
+          final matchesDesign = tDesign.isNotEmpty &&
+              (_parentItems.any((item) =>
+                  item.code.toUpperCase() == tDesign ||
+                  item.code.toUpperCase().contains(tDesign) ||
+                  tDesign.contains(item.code.toUpperCase()) ||
+                  item.parts.any((p) =>
+                      p.code.toUpperCase() == tDesign ||
+                      p.name.toUpperCase().contains(tDesign) ||
+                      tDesign.contains(p.code.toUpperCase()))) ||
+               (widget.orderData['designs'] is List &&
+                   (widget.orderData['designs'] as List).any((d) {
+                     final dNum = (d is Map
+                             ? (d['designNumber'] ??
+                                 d['designCode'] ??
+                                 d['code'] ??
+                                 '')
+                             : '')
+                         .toString()
+                         .toUpperCase();
+                     return dNum.isNotEmpty &&
+                         (dNum == tDesign ||
+                             dNum.contains(tDesign) ||
+                             tDesign.contains(dNum));
+                   })));
+
+          final tSeq = tOrderNumber.split('-').last;
+          final targetSeq = targetOrder.split('-').last;
+          final matchesSeq =
+              tSeq.isNotEmpty && targetSeq.isNotEmpty && tSeq == targetSeq;
 
           final matchesOrder =
               targetOrder.isEmpty ||
+              matchesDesign ||
+              matchesSeq ||
               tPartId == targetOrder ||
+              tPartId == targetApiOrder ||
               tOrderId == targetOrder ||
+              tOrderId == targetApiOrder ||
               tOrderNumber == targetOrder ||
-              targetOrder.contains(tDesign) ||
-              tDesign.contains(targetOrder) ||
+              tOrderNumber == targetApiOrder ||
+              (targetApiOrder.isNotEmpty &&
+                  (tOrderId.contains(targetApiOrder) ||
+                      targetApiOrder.contains(tOrderId) ||
+                      tOrderNumber.contains(targetApiOrder) ||
+                      targetApiOrder.contains(tOrderNumber))) ||
               (tOrderNumber.isNotEmpty &&
                   (tOrderNumber.endsWith(targetOrder) ||
                       targetOrder.endsWith(tOrderNumber))) ||
@@ -3012,34 +3136,88 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           return matchesOrder;
         });
 
-        final isStagePassed = _parentItems.any(
-          (parent) => parent.parts.any(
-            (p) => p.stage.index > stage.index || p.isCompleted,
-          ),
+        final isLotStageDone = DemoStore.instance.lots.any((l) {
+          final matchesOrder = l.orderId == _orderId ||
+              (_apiOrderId.isNotEmpty && l.orderId == _apiOrderId) ||
+              _orderId.contains(l.orderId) ||
+              l.orderId.contains(_orderId);
+          final matchesPart = _parentItems.any((item) =>
+              item.code.toUpperCase() == l.designCode.toUpperCase() ||
+              item.parts.any((p) =>
+                  p.code.toUpperCase() == l.designCode.toUpperCase() ||
+                  p.code.toUpperCase() == l.id.toUpperCase()));
+          final matchesStage = l.stage == stage ||
+              l.apiStageName.toLowerCase().trim() ==
+                  apiStage.name.toLowerCase().trim() ||
+              (l.apiStageName.toLowerCase().contains('fil') &&
+                  apiStage.name.toLowerCase().contains('fil')) ||
+              (l.apiStageName.toLowerCase().contains('wax') &&
+                  apiStage.name.toLowerCase().contains('wax')) ||
+              (l.apiStageName.toLowerCase().contains('cast') &&
+                  apiStage.name.toLowerCase().contains('cast')) ||
+              (l.apiStageName.toLowerCase().contains('set') &&
+                  apiStage.name.toLowerCase().contains('set')) ||
+              (l.apiStageName.toLowerCase().contains('pol') &&
+                  apiStage.name.toLowerCase().contains('pol')) ||
+              (l.apiStageName.toLowerCase().contains('qc') &&
+                  apiStage.name.toLowerCase().contains('qc')) ||
+              (l.apiStageName.toLowerCase().contains('pack') &&
+                  apiStage.name.toLowerCase().contains('pack'));
+          final isDone = l.assignedEmployeeRole.toUpperCase() == 'COMPLETED' ||
+              l.assignedEmployeeRole.toUpperCase() == 'STAGE_COMPLETED' ||
+              l.assignedEmployeeRole.toUpperCase() == 'PASSED' ||
+              l.apiStageName.toUpperCase() == 'COMPLETED' ||
+              l.apiStageName.toUpperCase() == 'STAGE_COMPLETED';
+          return (matchesOrder || matchesPart) && matchesStage && isDone;
+        });
+
+        final isWorkerTaskDone =
+            DemoStore.instance.isWorkerTaskCompletedForPart(
+          _orderId,
+          designNumber:
+              _parentItems.firstOrNull?.parts.firstOrNull?.code ??
+                  _parentItems.firstOrNull?.code,
+          stageName: apiStage.name,
         );
 
-        final isCurrentStageCompleted =
-            hasWorkerStageCompleted ||
-            rawOrderPartStatus == 'STAGE_COMPLETED' ||
-            _parentItems.any(
-              (parent) => parent.parts.any(
-                (p) =>
-                    p.stage == stage &&
-                    (hasWorkerStageCompleted ||
-                        rawOrderPartStatus == 'STAGE_COMPLETED' ||
-                        p.isCompleted),
-              ),
-            );
+        final isStagePast =
+            highestReachedStageIndex != -1 && index < highestReachedStageIndex;
+        final isStageFuture = !isEntireOrderCompleted &&
+            highestReachedStageIndex != -1 &&
+            index > highestReachedStageIndex;
+        final isCurrentStage = !isStagePast && !isStageFuture;
 
-        final isStageDone = isStagePassed || isCurrentStageCompleted;
+        final isCurrentStageCompleted = isCurrentStage &&
+            (hasWorkerStageCompleted ||
+                isLotStageDone ||
+                isWorkerTaskDone ||
+                _parentItems.any(
+                  (parent) => parent.parts.any(
+                    (p) =>
+                        p.stage == stage &&
+                        (hasWorkerStageCompleted ||
+                            isLotStageDone ||
+                            isWorkerTaskDone ||
+                            (p.stage == stage &&
+                                (rawOrderPartStatus == 'STAGE_COMPLETED' ||
+                                    rawOrderPartStatus == 'COMPLETED')) ||
+                            p.isCompleted),
+                  ),
+                ));
+
+        final isStageDone =
+            isEntireOrderCompleted || isStagePast || isCurrentStageCompleted;
 
         // Find parts in this stage (or completed for this stage)
         final stageParts = <JewelleryPart>[];
         for (final parent in _parentItems) {
           for (final part in parent.parts) {
-            if (part.stage == stage ||
-                (isStageDone && part.stage.index >= stage.index)) {
-              stageParts.add(part);
+            if (isCurrentStage || (isStagePast && isStageDone)) {
+              if (part.stage == stage ||
+                  (isStagePast && part.stage.index >= stage.index) ||
+                  isCurrentStage) {
+                stageParts.add(part);
+              }
             }
           }
         }
@@ -3138,32 +3316,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                       ),
                                     ),
                                   ),
-                                  if (isStageDone) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 7,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.emeraldLight,
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(
-                                          color: AppColors.emerald.withValues(
-                                            alpha: 0.4,
-                                          ),
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        '✓ STAGE COMPLETED',
-                                        style: TextStyle(
-                                          color: AppColors.emeraldDark,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                    ),
-                                  ] else if (hasBlockedParts) ...[
+                                  if (hasBlockedParts) ...[
                                     const SizedBox(width: 8),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
@@ -3191,7 +3344,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                 hasBlockedParts
                                     ? '⚠️ $blockedPartsCount part(s) blocked / on hold'
                                     : (isStageDone
-                                          ? '✓ Stage work finished · Ready for next stage'
+                                          ? 'Ready for next stage'
                                           : (count > 0
                                                 ? '$count pieces in progress'
                                                 : 'No active pieces')),
@@ -3307,10 +3460,10 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Top Row: Code Badge + Title / Worker + Pieces/Weight
+                                    // Top Row: Code Badge + Title + Pieces/Weight
                                     Row(
                                       crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                          CrossAxisAlignment.center,
                                       children: [
                                         Container(
                                           padding: const EdgeInsets.symmetric(
@@ -3332,111 +3485,227 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 10),
+                                        const SizedBox(width: 8),
                                         Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                part.name,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 13,
-                                                  color: AppColors.ink,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Builder(
-                                                builder: (context) {
-                                                  final isWorkerDone =
-                                                      part.isCompleted ||
-                                                      isStageDone ||
-                                                      hasWorkerStageCompleted ||
-                                                      DemoStore.instance
-                                                          .isWorkerTaskCompletedForPart(
-                                                            part.code,
-                                                            designNumber:
-                                                                part.code,
-                                                            stageName:
-                                                                apiStage.name,
-                                                            artisanName: part
-                                                                .assignedEmployee,
-                                                          );
-                                                  if (isWorkerDone) {
-                                                    return Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 6,
-                                                            vertical: 2,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: AppColors
-                                                            .emeraldLight,
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              4,
-                                                            ),
-                                                        border: Border.all(
-                                                          color: AppColors
-                                                              .emerald
-                                                              .withValues(
-                                                                alpha: 0.4,
-                                                              ),
-                                                        ),
-                                                      ),
-                                                      child: Row(
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
-                                                        children: [
-                                                          const Icon(
-                                                            Icons.check_circle,
-                                                            color: AppColors
-                                                                .emeraldDark,
-                                                            size: 12,
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 4,
-                                                          ),
-                                                          Text(
-                                                            '${part.assignedEmployee ?? "Worker"} · WORK COMPLETED',
-                                                            style: const TextStyle(
-                                                              color: AppColors
-                                                                  .emeraldDark,
-                                                              fontSize: 10.5,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w800,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  }
-                                                  return Text(
-                                                    'Assigned: ${part.assignedEmployee ?? "Unassigned"}',
-                                                    style: const TextStyle(
-                                                      color: AppColors.muted,
-                                                      fontSize: 11,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            ],
+                                          child: Text(
+                                            part.name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                              color: AppColors.ink,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                         const SizedBox(width: 8),
-                                        Text(
-                                          '${part.pieces} pcs${part.weight != null ? " · ${part.weight}g" : ""}',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 12,
-                                            color: AppColors.ink,
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2.5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.paper,
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            border: Border.all(
+                                              color: AppColors.outlineLight,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${part.pieces} pcs${part.weight != null ? " · ${part.weight}g" : ""}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 11,
+                                              color: AppColors.muted,
+                                            ),
                                           ),
                                         ),
                                       ],
+                                    ),
+
+                                    const SizedBox(height: 8),
+
+                                    // Worker Assignment & Status Row (Wrap prevents any overflow)
+                                    Builder(
+                                      builder: (context) {
+                                        final isWorkerDone =
+                                            part.isCompleted ||
+                                            (part.stage.index > stage.index) ||
+                                            hasWorkerStageCompleted ||
+                                            isLotStageDone ||
+                                            isWorkerTaskDone ||
+                                            DemoStore.instance
+                                                .isWorkerTaskCompletedForPart(
+                                                  part.code,
+                                                  designNumber: part.code,
+                                                  stageName: apiStage.name,
+                                                  artisanName:
+                                                      part.assignedEmployee,
+                                                );
+                                        final workerName =
+                                            part.assignedEmployee;
+                                        final isAssigned =
+                                            workerName != null &&
+                                            workerName.trim().isNotEmpty &&
+                                            workerName != 'Unassigned' &&
+                                            workerName !=
+                                                'Unassigned (In Queue)';
+
+                                        return Wrap(
+                                          spacing: 6,
+                                          runSpacing: 4,
+                                          crossAxisAlignment:
+                                              WrapCrossAlignment.center,
+                                          children: [
+                                            // Worker Tag
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 7,
+                                                    vertical: 2.5,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: isAssigned
+                                                    ? AppColors.paper
+                                                    : AppColors.warningLight
+                                                          .withValues(
+                                                            alpha: 0.4,
+                                                          ),
+                                                borderRadius:
+                                                    BorderRadius.circular(5),
+                                                border: Border.all(
+                                                  color: isAssigned
+                                                      ? AppColors.outlineLight
+                                                      : AppColors.warning
+                                                            .withValues(
+                                                              alpha: 0.4,
+                                                            ),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    isAssigned
+                                                        ? Icons.person_outline
+                                                        : Icons
+                                                              .person_off_outlined,
+                                                    size: 12,
+                                                    color: isAssigned
+                                                        ? AppColors.muted
+                                                        : AppColors.warning,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  ConstrainedBox(
+                                                    constraints:
+                                                        const BoxConstraints(
+                                                          maxWidth: 150,
+                                                        ),
+                                                    child: Text(
+                                                      isAssigned
+                                                          ? workerName
+                                                          : 'Unassigned',
+                                                      style: TextStyle(
+                                                        color: isAssigned
+                                                            ? AppColors.ink
+                                                            : AppColors.warning,
+                                                        fontSize: 10.5,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+
+                                            // Status Badge
+                                            if (isWorkerDone)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 7,
+                                                      vertical: 2.5,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.emeraldLight,
+                                                  borderRadius:
+                                                      BorderRadius.circular(5),
+                                                  border: Border.all(
+                                                    color: AppColors.emerald
+                                                        .withValues(alpha: 0.4),
+                                                  ),
+                                                ),
+                                                child: const Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.check_circle,
+                                                      color:
+                                                          AppColors.emeraldDark,
+                                                      size: 11,
+                                                    ),
+                                                    SizedBox(width: 3),
+                                                    Text(
+                                                      'WORK COMPLETED',
+                                                      style: TextStyle(
+                                                        color: AppColors
+                                                            .emeraldDark,
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        letterSpacing: 0.2,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              )
+                                            else if (isAssigned)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 7,
+                                                      vertical: 2.5,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.infoLight,
+                                                  borderRadius:
+                                                      BorderRadius.circular(5),
+                                                  border: Border.all(
+                                                    color: AppColors.info
+                                                        .withValues(alpha: 0.3),
+                                                  ),
+                                                ),
+                                                child: const Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons
+                                                          .hourglass_empty_rounded,
+                                                      color: AppColors.info,
+                                                      size: 11,
+                                                    ),
+                                                    SizedBox(width: 3),
+                                                    Text(
+                                                      'IN PROGRESS',
+                                                      style: TextStyle(
+                                                        color: AppColors.info,
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                          ],
+                                        );
+                                      },
                                     ),
 
                                     if (part.defectivePieces > 0) ...[
@@ -3451,342 +3720,382 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                       ),
                                     ],
 
-                                    // Hold / Blocker Banner
-                                    if (part.blockerReason != null) ...[
-                                      const SizedBox(height: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.dangerLight,
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          border: Border.all(
-                                            color: AppColors.danger.withValues(
-                                              alpha: 0.3,
-                                            ),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.pause_circle_filled_rounded,
-                                              color: AppColors.danger,
-                                              size: 14,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Expanded(
-                                              child: Text(
-                                                'ON CRITICAL HOLD: ${part.blockerReason}',
-                                                style: const TextStyle(
-                                                  color: AppColors.danger,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 11,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-
+                                    // Unified Action Bar for Process Manager
                                     if (_allowStageChange ||
                                         DemoStore.instance.activeRole ==
                                             AppRole.processManager) ...[
                                       const SizedBox(height: 10),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.end,
+                                      const Divider(
+                                        height: 1,
+                                        color: AppColors.outlineLight,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        alignment: WrapAlignment.spaceBetween,
+                                        crossAxisAlignment:
+                                            WrapCrossAlignment.center,
+                                        spacing: 6,
+                                        runSpacing: 6,
                                         children: [
+                                          // Left: Assign / Reassign Worker Button
                                           InkWell(
                                             onTap: () =>
                                                 _showAssignArtisanModal(
                                                   context,
                                                   part,
                                                 ),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
                                             child: Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 5,
+                                                    horizontal: 8,
+                                                    vertical: 4.5,
                                                   ),
                                               decoration: BoxDecoration(
-                                                color: AppColors.emerald,
+                                                color: AppColors.emeraldLight,
                                                 borderRadius:
                                                     BorderRadius.circular(6),
-                                              ),
-                                              child: Text(
-                                                (part.assignedEmployee ==
-                                                            null ||
-                                                        part.assignedEmployee ==
-                                                            'Unassigned' ||
-                                                        part.assignedEmployee ==
-                                                            'Unassigned (In Queue)')
-                                                    ? '+ Assign Worker'
-                                                    : '✏️ Reassign Worker',
-                                                style: const TextStyle(
-                                                  color: AppColors.pureWhite,
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: 11,
+                                                border: Border.all(
+                                                  color: AppColors.emerald
+                                                      .withValues(alpha: 0.4),
                                                 ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    (part.assignedEmployee ==
+                                                                null ||
+                                                            part.assignedEmployee ==
+                                                                'Unassigned' ||
+                                                            part.assignedEmployee ==
+                                                                'Unassigned (In Queue)')
+                                                        ? Icons
+                                                              .person_add_alt_1_outlined
+                                                        : Icons.edit_outlined,
+                                                    size: 12,
+                                                    color:
+                                                        AppColors.emeraldDark,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    (part.assignedEmployee ==
+                                                                null ||
+                                                            part.assignedEmployee ==
+                                                                'Unassigned' ||
+                                                            part.assignedEmployee ==
+                                                                'Unassigned (In Queue)')
+                                                        ? 'Assign Worker'
+                                                        : 'Reassign Worker',
+                                                    style: const TextStyle(
+                                                      color:
+                                                          AppColors.emeraldDark,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontSize: 10.5,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ),
-                                          const SizedBox(width: 8),
-                                        ],
-                                      ),
-                                    ],
 
-                                    // Action Buttons Row (Below Text) - Only visible when _allowStageChange is true (Process Manager)
-                                    if (_allowStageChange) ...[
-                                      const SizedBox(height: 10),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.end,
-                                        children: [
-                                          if (part.blockerReason != null)
-                                            InkWell(
-                                              onTap: () =>
-                                                  _unblockPart(context, part),
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 9,
-                                                      vertical: 4.5,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.emerald,
-                                                  borderRadius:
-                                                      BorderRadius.circular(6),
-                                                ),
-                                                child: const Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      Icons.play_arrow_rounded,
-                                                      color:
-                                                          AppColors.pureWhite,
-                                                      size: 13,
-                                                    ),
-                                                    SizedBox(width: 2),
-                                                    Text(
-                                                      'Resume',
-                                                      style: TextStyle(
-                                                        color:
-                                                            AppColors.pureWhite,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        fontSize: 10.5,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            )
-                                          else ...[
-                                            // Block Stage Button
-                                            InkWell(
-                                              onTap: () =>
-                                                  _showBlockReasonModal(
-                                                    context,
-                                                    part,
-                                                  ),
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 7,
-                                                      vertical: 4,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.dangerLight,
-                                                  borderRadius:
-                                                      BorderRadius.circular(6),
-                                                  border: Border.all(
-                                                    color: AppColors.danger
-                                                        .withValues(alpha: 0.4),
-                                                  ),
-                                                ),
-                                                child: const Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      Icons.pause,
-                                                      color: AppColors.danger,
-                                                      size: 11,
-                                                    ),
-                                                    SizedBox(width: 2),
-                                                    Text(
-                                                      'Hold',
-                                                      style: TextStyle(
-                                                        color: AppColors.danger,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        fontSize: 10.5,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                            if (WorkshopStage.values.indexOf(
-                                                  part.stage,
-                                                ) >
-                                                0) ...[
-                                              const SizedBox(width: 5),
-                                              InkWell(
-                                                onTap: () => _movePartBackStage(
-                                                  context,
-                                                  part,
-                                                ),
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 7,
-                                                        vertical: 4,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.warning
-                                                        .withValues(
-                                                          alpha: 0.15,
-                                                        ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          6,
-                                                        ),
-                                                    border: Border.all(
-                                                      color: AppColors.warning
-                                                          .withValues(
-                                                            alpha: 0.5,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  child: const Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      Icon(
-                                                        Icons.arrow_back,
-                                                        color:
-                                                            AppColors.warning,
-                                                        size: 11,
-                                                      ),
-                                                      SizedBox(width: 2),
-                                                      Text(
-                                                        'Back',
-                                                        style: TextStyle(
-                                                          color:
-                                                              AppColors.warning,
-                                                          fontWeight:
-                                                              FontWeight.w800,
-                                                          fontSize: 10.5,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                            if (part.stage !=
-                                                WorkshopStage
-                                                    .readyForDispatch) ...[
-                                              const SizedBox(width: 5),
-                                              InkWell(
-                                                onTap: () =>
-                                                    _showStageCompletionModal(
+                                          // Right: Stage Actions (Hold / Back / Next Stage)
+                                          if (_allowStageChange)
+                                            Wrap(
+                                              spacing: 5,
+                                              runSpacing: 4,
+                                              crossAxisAlignment:
+                                                  WrapCrossAlignment.center,
+                                              children: [
+                                                if (part.blockerReason != null)
+                                                  InkWell(
+                                                    onTap: () => _unblockPart(
                                                       context,
                                                       part,
                                                     ),
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.ink,
                                                     borderRadius:
                                                         BorderRadius.circular(
                                                           6,
                                                         ),
-                                                  ),
-                                                  child: const Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      Text(
-                                                        'Next Stage',
-                                                        style: TextStyle(
-                                                          color: AppColors
-                                                              .pureWhite,
-                                                          fontWeight:
-                                                              FontWeight.w800,
-                                                          fontSize: 10.5,
-                                                        ),
-                                                      ),
-                                                      SizedBox(width: 2),
-                                                      Icon(
-                                                        Icons.arrow_forward,
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 4.5,
+                                                          ),
+                                                      decoration: BoxDecoration(
                                                         color:
-                                                            AppColors.pureWhite,
-                                                        size: 10,
+                                                            AppColors.emerald,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              6,
+                                                            ),
                                                       ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            ] else ...[
-                                              const SizedBox(width: 5),
-                                              InkWell(
-                                                onTap: () => _advanceLivePart(
-                                                  context,
-                                                  part,
-                                                ),
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
+                                                      child: const Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          Icon(
+                                                            Icons
+                                                                .play_arrow_rounded,
+                                                            color: AppColors
+                                                                .pureWhite,
+                                                            size: 13,
+                                                          ),
+                                                          SizedBox(width: 2),
+                                                          Text(
+                                                            'Resume',
+                                                            style: TextStyle(
+                                                              color: AppColors
+                                                                  .pureWhite,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w800,
+                                                              fontSize: 10.5,
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.emerald,
+                                                    ),
+                                                  )
+                                                else ...[
+                                                  // Hold button
+                                                  InkWell(
+                                                    onTap: () =>
+                                                        _showBlockReasonModal(
+                                                          context,
+                                                          part,
+                                                        ),
                                                     borderRadius:
                                                         BorderRadius.circular(
                                                           6,
                                                         ),
-                                                  ),
-                                                  child: const Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      Icon(
-                                                        Icons
-                                                            .check_circle_outline,
-                                                        color:
-                                                            AppColors.pureWhite,
-                                                        size: 11,
-                                                      ),
-                                                      SizedBox(width: 3),
-                                                      Text(
-                                                        'Complete Stage',
-                                                        style: TextStyle(
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 7,
+                                                            vertical: 4.5,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: AppColors
+                                                            .dangerLight,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              6,
+                                                            ),
+                                                        border: Border.all(
                                                           color: AppColors
-                                                              .pureWhite,
-                                                          fontWeight:
-                                                              FontWeight.w800,
-                                                          fontSize: 10.5,
+                                                              .danger
+                                                              .withValues(
+                                                                alpha: 0.4,
+                                                              ),
                                                         ),
                                                       ),
-                                                    ],
+                                                      child: const Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          Icon(
+                                                            Icons.pause,
+                                                            color: AppColors
+                                                                .danger,
+                                                            size: 11,
+                                                          ),
+                                                          SizedBox(width: 2),
+                                                          Text(
+                                                            'Hold',
+                                                            style: TextStyle(
+                                                              color: AppColors
+                                                                  .danger,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w800,
+                                                              fontSize: 10.5,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
                                                   ),
-                                                ),
-                                              ),
-                                            ],
-                                          ],
+
+                                                  // Back Button
+                                                  if (WorkshopStage.values
+                                                          .indexOf(part.stage) >
+                                                      0) ...[
+                                                    InkWell(
+                                                      onTap: () =>
+                                                          _movePartBackStage(
+                                                            context,
+                                                            part,
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            6,
+                                                          ),
+                                                      child: Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 7,
+                                                              vertical: 4.5,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: AppColors
+                                                              .warning
+                                                              .withValues(
+                                                                alpha: 0.15,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                6,
+                                                              ),
+                                                          border: Border.all(
+                                                            color: AppColors
+                                                                .warning
+                                                                .withValues(
+                                                                  alpha: 0.5,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                        child: const Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
+                                                          children: [
+                                                            Icon(
+                                                              Icons.arrow_back,
+                                                              color: AppColors
+                                                                  .warning,
+                                                              size: 11,
+                                                            ),
+                                                            SizedBox(width: 2),
+                                                            Text(
+                                                              'Back',
+                                                              style: TextStyle(
+                                                                color: AppColors
+                                                                    .warning,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                                fontSize: 10.5,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+
+                                                  // Next Stage Button
+                                                  if (part.stage !=
+                                                      WorkshopStage
+                                                          .readyForDispatch)
+                                                    InkWell(
+                                                      onTap: () =>
+                                                          _showStageCompletionModal(
+                                                            context,
+                                                            part,
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            6,
+                                                          ),
+                                                      child: Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 4.5,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: AppColors.ink,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                6,
+                                                              ),
+                                                        ),
+                                                        child: const Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
+                                                          children: [
+                                                            Text(
+                                                              'Next Stage',
+                                                              style: TextStyle(
+                                                                color: AppColors
+                                                                    .pureWhite,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                                fontSize: 10.5,
+                                                              ),
+                                                            ),
+                                                            SizedBox(width: 3),
+                                                            Icon(
+                                                              Icons
+                                                                  .arrow_forward,
+                                                              color: AppColors
+                                                                  .pureWhite,
+                                                              size: 10,
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    )
+                                                  else
+                                                    InkWell(
+                                                      onTap: () =>
+                                                          _advanceLivePart(
+                                                            context,
+                                                            part,
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            6,
+                                                          ),
+                                                      child: Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 4.5,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color:
+                                                              AppColors.emerald,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                6,
+                                                              ),
+                                                        ),
+                                                        child: const Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
+                                                          children: [
+                                                            Icon(
+                                                              Icons
+                                                                  .check_circle_outline,
+                                                              color: AppColors
+                                                                  .pureWhite,
+                                                              size: 11,
+                                                            ),
+                                                            SizedBox(width: 3),
+                                                            Text(
+                                                              'Complete Stage',
+                                                              style: TextStyle(
+                                                                color: AppColors
+                                                                    .pureWhite,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                                fontSize: 10.5,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ],
+                                            ),
                                         ],
                                       ),
                                     ],

@@ -143,12 +143,9 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
       );
       final currentStage = data?['currentStage'] as String?;
       final isComplete = data?['isComplete'] as bool? ?? false;
-      if (event.quantity == null &&
-          (isComplete || currentStage == 'ALL_STAGES_COMPLETED')) {
+      if (isComplete || currentStage == 'ALL_STAGES_COMPLETED') {
         _store.updateLotStage(event.lotId, WorkshopStage.readyForDispatch);
-      } else if (event.quantity == null &&
-          currentStage != null &&
-          currentStage.isNotEmpty) {
+      } else if (currentStage != null && currentStage.isNotEmpty) {
         _store.updateLotStage(event.lotId, ApiDomainMapper.stage(currentStage));
       }
       emit(const WorkshopStageUpdated('Part advanced successfully.'));

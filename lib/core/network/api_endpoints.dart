@@ -41,6 +41,7 @@ abstract final class ApiEndpoints {
   static String reviewThreeD(String id) => '/three-d-designs/$id/review';
   static String updateThreeDProduct(String designId) =>
       '/three-d-designs/$designId/product';
+  static const String directCreateThreeD = '/three-d-designs/direct-create';
 
   // ── SECTION 7: Orders & Multi-Design Tracking (/orders) ──────────
   static const String orders = '/orders';

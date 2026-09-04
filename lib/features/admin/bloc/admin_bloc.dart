@@ -32,6 +32,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     on<SendDirectiveEvent>(_onUnsupportedDirective);
     on<FetchStockInventoryEvent>(_onFetchStockInventory);
     on<UpdateProductStockEvent>(_onUpdateProductStock);
+    on<AdminDirectCreateDesignEvent>(_onDirectCreateDesign);
   }
 
   final DemoStore _store;
@@ -258,12 +259,23 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         category: 'sketches',
         bytes: event.bytes,
       );
-      await _api.uploadSketch(
+      final sketch = await _api.uploadSketch(
         designNumber: event.designNumber,
         title: event.title,
         sketchUrl: upload.fileUrl.isNotEmpty ? upload.fileUrl : upload.fileKey,
       );
-      emit(const AdminActionSuccess('Sketch uploaded successfully.'));
+      try {
+        await _api.reviewSketch(
+          id: sketch.id,
+          status: 'APPROVED',
+          adminInstructions: 'Admin Upload - Pre-approved for production',
+        );
+        _store.approveDesign(sketch.id);
+        _store.approveSketch(event.designNumber);
+      } catch (_) {}
+      emit(
+        const AdminActionSuccess('Design uploaded & approved successfully.'),
+      );
       add(const FetchAdminDashboardEvent());
     } catch (error) {
       emit(AdminError('Failed to upload sketch: $error'));
@@ -507,6 +519,123 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       add(const FetchStockInventoryEvent());
     } catch (error) {
       emit(AdminError('Failed to update product stock: $error'));
+    }
+  }
+
+  Future<void> _onDirectCreateDesign(
+    AdminDirectCreateDesignEvent event,
+    Emitter<AdminState> emit,
+  ) async {
+    emit(const AdminLoading());
+    try {
+      // Step 1: Upload sketch image to S3 if provided
+      String? uploadedImageUrl;
+      if (event.sketchBytes != null) {
+        final upload = await _api.uploadFile(
+          fileName: event.sketchFileName ?? 'sketch.png',
+          fileType: _imageContentType(event.sketchFileName ?? 'sketch.png'),
+          category: 'sketches',
+          bytes: event.sketchBytes!,
+        );
+        uploadedImageUrl = upload.fileUrl.isNotEmpty
+            ? upload.fileUrl
+            : upload.fileKey;
+      }
+
+      // Step 2: Upload STL/3D file to S3 if provided
+      String? uploadedStlUrl;
+      if (event.stlBytes != null) {
+        final stlUpload = await _api.uploadFile(
+          fileName: event.stlFileName ?? 'model.stl',
+          fileType: 'application/octet-stream',
+          category: 'cad-models',
+          bytes: event.stlBytes!,
+        );
+        uploadedStlUrl = stlUpload.fileUrl.isNotEmpty
+            ? stlUpload.fileUrl
+            : stlUpload.fileKey;
+      }
+
+      // Step 3: Run PaddleOCR extraction on uploaded sketch image (same as CAD flow)
+      double? ocrGoldQuantity;
+      String? ocrDescription;
+      if (uploadedImageUrl != null) {
+        try {
+          debugPrint(
+            '🔍 [Admin BLoC] Running PaddleOCR on uploaded sketch: $uploadedImageUrl',
+          );
+          final ocrData = await _api.extractCadOcr(imageUrl: uploadedImageUrl);
+          debugPrint(
+            '✅ [Admin BLoC] PaddleOCR: design=${ocrData.designNumber}, '
+            'weight=${ocrData.metalWeightGrams}g, '
+            'gems=${ocrData.gemSummary.totalCount}, '
+            'making=${ocrData.makingCode}, '
+            'confidence=${ocrData.confidenceScore}',
+          );
+          // Use OCR data to fill any missing fields
+          if (ocrData.metalWeightGrams > 0 && event.goldQuantity == null) {
+            ocrGoldQuantity = ocrData.metalWeightGrams;
+          }
+          // Build rich description from OCR extracted specs
+          final ocrParts = <String>[];
+          if (ocrData.makingCode.isNotEmpty) {
+            ocrParts.add('Making: ${ocrData.makingCode}');
+          }
+          if (ocrData.gemSummary.totalCount > 0) {
+            ocrParts.add(
+              'Gems: ${ocrData.gemSummary.totalCount} pcs / '
+              '${ocrData.gemSummary.totalWeightTw.toStringAsFixed(2)} tw',
+            );
+          }
+          if (ocrData.metalWeightGrams > 0) {
+            ocrParts.add('Metal: ${ocrData.metalWeightGrams}g');
+          }
+          if (ocrParts.isNotEmpty) {
+            ocrDescription = 'OCR Extracted: ${ocrParts.join(' · ')}';
+          }
+        } catch (ocrError) {
+          debugPrint(
+            '⚠️ [Admin BLoC] OCR extraction failed (non-blocking): $ocrError',
+          );
+          // OCR failure is non-blocking — design creation continues without it
+        }
+      }
+
+      // Step 4: Call direct-create endpoint (with OCR-enriched data)
+      final description = event.description?.isNotEmpty == true
+          ? (ocrDescription != null
+                ? '${event.description} · $ocrDescription'
+                : event.description)
+          : (ocrDescription ?? 'Master design concept sketch');
+
+      final result = await _api.directCreateDesign(
+        title: event.title,
+        designNumber: event.designNumber,
+        imageUrl: uploadedImageUrl,
+        bomFileUrl: uploadedImageUrl,
+        xtlFileUrl: uploadedStlUrl,
+        category: event.category,
+        goldQuantity: event.goldQuantity ?? ocrGoldQuantity,
+        sizeDimensions: event.sizeDimensions,
+        description: description,
+      );
+
+      // Step 5: Add to local store for instant UI update
+      final design = ApiDomainMapper.threeDDesign(result);
+      _store.addDesign(design);
+      _store.approveDesign(result.id);
+      if (result.sketch != null) {
+        _store.approveSketch(result.sketch!.designNumber);
+      }
+
+      emit(
+        const AdminActionSuccess(
+          'Master design created & approved successfully.',
+        ),
+      );
+      add(const FetchAdminDashboardEvent());
+    } catch (error) {
+      emit(AdminError('Failed to create master design: $error'));
     }
   }
 

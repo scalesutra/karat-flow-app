@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:jewellery_ops_mobile/domain/models.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -110,12 +111,18 @@ class _AdminReviewSketchesSheetState extends State<AdminReviewSketchesSheet> {
             final allDesigns = widget.store.designs;
             final pendingDesigns = allDesigns
                 .where(
-                  (d) => !d.isPopular && !d.name.contains('(Sketch Approved)'),
+                  (d) =>
+                      !d.isPopular &&
+                      !d.name.contains('(Sketch Approved)') &&
+                      !d.name.contains('(Admin Approved)'),
                 )
                 .toList();
             final approvedDesigns = allDesigns
                 .where(
-                  (d) => d.isPopular || d.name.contains('(Sketch Approved)'),
+                  (d) =>
+                      d.isPopular ||
+                      d.name.contains('(Sketch Approved)') ||
+                      d.name.contains('(Admin Approved)'),
                 )
                 .toList();
 
@@ -242,10 +249,12 @@ class _AdminReviewSketchesSheetState extends State<AdminReviewSketchesSheet> {
                                         const SizedBox(height: 10),
                                     itemBuilder: (ctx, index) {
                                       final design = designs[index];
-                                      final isApproved =
-                                          design.isPopular ||
+                                      final isApproved = design.isPopular ||
                                           design.name.contains(
                                             '(Sketch Approved)',
+                                          ) ||
+                                          design.name.contains(
+                                            '(Admin Approved)',
                                           );
 
                                       return CommonCard(
@@ -634,8 +643,6 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
   @override
   void initState() {
     super.initState();
-    final count = widget.store.designs.length + 1;
-    _codeController.text = 'DSG-${count.toString().padLeft(3, '0')}';
   }
 
   @override
@@ -694,7 +701,204 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
     Navigator.pop(context);
   }
 
-  Future<void> _pickSketch() async {
+  PlatformFile? _stlFile;
+  final ImagePicker _imagePicker = ImagePicker();
+
+  Future<void> _showAttachmentPicker({
+    required String title,
+    required bool isStl,
+  }) async {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.paper,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.outline,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.emeraldLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.photo_library_outlined,
+                      color: AppColors.emeraldDark,
+                    ),
+                  ),
+                  title: const Text(
+                    'Choose from Gallery',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    isStl
+                        ? 'Select 3D render, CAD screenshot, or photo from gallery'
+                        : 'Select sketch photo from gallery',
+                    style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    if (isStl) {
+                      _pickStlFromImage(ImageSource.gallery);
+                    } else {
+                      _pickSketchFromImage(ImageSource.gallery);
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.goldLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_outlined,
+                      color: AppColors.goldDark,
+                    ),
+                  ),
+                  title: const Text(
+                    'Take Photo with Camera',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Capture sketch or wax model directly with camera',
+                    style: TextStyle(fontSize: 11, color: AppColors.muted),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    if (isStl) {
+                      _pickStlFromImage(ImageSource.camera);
+                    } else {
+                      _pickSketchFromImage(ImageSource.camera);
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.canvas,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.folder_open_rounded,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  title: Text(
+                    isStl
+                        ? 'Browse 3D Files (.stl, .obj, .step)'
+                        : 'Browse Files / Documents',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    isStl
+                        ? 'Select 3D mesh file (.stl, .3ds, .obj, .step, .stp)'
+                        : 'Select PNG, JPG, or WEBP document',
+                    style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    if (isStl) {
+                      _pickStlFile();
+                    } else {
+                      _pickSketchFile();
+                    }
+                  },
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickSketchFromImage(ImageSource source) async {
+    try {
+      final file = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 90,
+      );
+      if (file == null || !mounted) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _sketchFile = PlatformFile(
+          name: file.name,
+          size: bytes.length,
+          bytes: bytes,
+          path: file.path,
+        );
+      });
+    } catch (e) {
+      if (!mounted) return;
+      CommonSnackbar.error(
+        context,
+        title: 'Selection Failed',
+        message: 'Could not attach image: $e',
+      );
+    }
+  }
+
+  Future<void> _pickStlFromImage(ImageSource source) async {
+    try {
+      final file = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 90,
+      );
+      if (file == null || !mounted) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _stlFile = PlatformFile(
+          name: file.name,
+          size: bytes.length,
+          bytes: bytes,
+          path: file.path,
+        );
+      });
+    } catch (e) {
+      if (!mounted) return;
+      CommonSnackbar.error(
+        context,
+        title: 'Selection Failed',
+        message: 'Could not attach image: $e',
+      );
+    }
+  }
+
+  Future<void> _pickSketchFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
@@ -702,6 +906,16 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
     );
     if (result == null || result.files.isEmpty || !mounted) return;
     setState(() => _sketchFile = result.files.first);
+  }
+
+  Future<void> _pickStlFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['stl', '3ds', 'obj', 'step', 'stp', 'png', 'jpg', 'jpeg', 'webp'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty || !mounted) return;
+    setState(() => _stlFile = result.files.first);
   }
 
   @override
@@ -913,14 +1127,34 @@ class _RegisterNewSketchSheetState extends State<_RegisterNewSketchSheet> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CommonButton.outlined(
-                    label: _sketchFile?.name ?? 'Select Sketch File',
-                    icon: Icons.attach_file,
-                    onPressed: _pickSketch,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CommonButton.outlined(
+                          label: _sketchFile?.name ?? 'Sketch Image *',
+                          icon: Icons.photo_library_outlined,
+                          onPressed: () => _showAttachmentPicker(
+                            title: 'Select Sketch Image',
+                            isStl: false,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: CommonButton.outlined(
+                          label: _stlFile?.name ?? 'STL 3D File (Optional)',
+                          icon: Icons.view_in_ar_outlined,
+                          onPressed: () => _showAttachmentPicker(
+                            title: 'Select 3D Model or Render Asset',
+                            isStl: true,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   CommonButton.primary(
-                    label: 'Upload Design Sketch',
+                    label: 'Upload Design & Assets',
                     icon: Icons.cloud_upload_outlined,
                     onPressed: _saveSketch,
                   ),

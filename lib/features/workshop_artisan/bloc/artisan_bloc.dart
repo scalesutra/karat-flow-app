@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../data/demo_store.dart';
 import '../../../data/repositories/karatflow_api_repository.dart';
 import 'artisan_event.dart';
 import 'artisan_state.dart';
@@ -26,6 +27,7 @@ class ArtisanBloc extends Bloc<ArtisanEvent, ArtisanState> {
     emit(const ArtisanLoading());
     try {
       final all = await _api.listWorkerTasks();
+      DemoStore.instance.setWorkerTasks(all);
       final tasks = event.status.isEmpty
           ? all
           : all
@@ -59,6 +61,11 @@ class ArtisanBloc extends Bloc<ArtisanEvent, ArtisanState> {
   ) async {
     try {
       await _api.completeWorkerTask(event.taskId);
+      DemoStore.instance.completeWorkerTask(event.taskId);
+      try {
+        final refreshed = await _api.listWorkerTasks();
+        DemoStore.instance.setWorkerTasks(refreshed);
+      } catch (_) {}
       emit(const ArtisanActionSuccess('Task completed successfully.'));
       add(const FetchArtisanTasksEvent());
     } catch (error) {

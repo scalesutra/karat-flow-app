@@ -1434,12 +1434,17 @@ class StoneSpec {
 class VaultRequisition {
   const VaultRequisition({
     required this.id,
+    this.orderPartId = '',
     required this.designNumber,
     required this.orderId,
+    this.customerName = '',
+    this.dueDate = '',
     required this.artisanName,
     required this.stageName,
     required this.quantity,
     required this.goldWeightGrams,
+    this.gemWeightTw = 0.0,
+    this.sizeDimensions = '',
     required this.stones,
     this.stoneSpecs = const [],
     required this.status,
@@ -1447,26 +1452,44 @@ class VaultRequisition {
   });
 
   final String id;
+  final String orderPartId;
   final String designNumber;
   final String orderId;
+  final String customerName;
+  final String dueDate;
   final String artisanName;
   final String stageName;
   final int quantity;
   final double goldWeightGrams;
+  final double gemWeightTw;
+  final String sizeDimensions;
   final List<String> stones;
   final List<StoneSpec> stoneSpecs;
   final String status; // 'PENDING_ISSUE', 'ISSUED'
   final String timestamp;
 
-  VaultRequisition copyWith({String? status, List<StoneSpec>? stoneSpecs}) {
+  VaultRequisition copyWith({
+    String? status,
+    List<StoneSpec>? stoneSpecs,
+    String? customerName,
+    String? dueDate,
+    double? gemWeightTw,
+    String? sizeDimensions,
+    String? orderPartId,
+  }) {
     return VaultRequisition(
       id: id,
+      orderPartId: orderPartId ?? this.orderPartId,
       designNumber: designNumber,
       orderId: orderId,
+      customerName: customerName ?? this.customerName,
+      dueDate: dueDate ?? this.dueDate,
       artisanName: artisanName,
       stageName: stageName,
       quantity: quantity,
       goldWeightGrams: goldWeightGrams,
+      gemWeightTw: gemWeightTw ?? this.gemWeightTw,
+      sizeDimensions: sizeDimensions ?? this.sizeDimensions,
       stones: stones,
       stoneSpecs: stoneSpecs ?? this.stoneSpecs,
       status: status ?? this.status,

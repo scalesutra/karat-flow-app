@@ -2,17 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../data/models/api_models.dart';
 import '../../data/repositories/karatflow_api_repository.dart';
 import '../inventory/bloc/inventory_bloc.dart';
 import '../materials/bloc/materials_bloc.dart';
+import 'widgets/bom_bill_print_dialog.dart';
 
 class StockistDashboardPage extends StatefulWidget {
-  const StockistDashboardPage({super.key, this.store, this.initialTab = 'ALL'});
+  const StockistDashboardPage({
+    super.key,
+    this.store,
+    this.storeName,
+    this.initialTab = 'ALL',
+  });
 
   final DemoStore? store;
+  final String? storeName;
   final String initialTab;
 
   @override
@@ -20,6 +28,11 @@ class StockistDashboardPage extends StatefulWidget {
 }
 
 class _StockistDashboardPageState extends State<StockistDashboardPage> {
+  String get _effectiveStoreName =>
+      widget.storeName?.trim().isNotEmpty == true
+          ? widget.storeName!.trim()
+          : AppStrings.appName.trClean;
+
   late String _selectedCategory;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -80,8 +93,6 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
-        final requisitions = store.vaultRequisitions;
-
         return BlocBuilder<InventoryBloc, InventoryState>(
           builder: (context, state) {
             if (state is InventoryLoading &&
@@ -156,57 +167,6 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                       }).toList();
                     }
 
-                    final matchedDesign = DemoStore.instance.designs
-                        .where(
-                          (d) =>
-                              d.code.toUpperCase() ==
-                                  p.designNumber.toUpperCase() ||
-                              d.id == p.orderPartId ||
-                              d.id == p.designNumber,
-                        )
-                        .firstOrNull;
-
-                    if (specsList.isEmpty || goldWt <= 0) {
-                      if (goldWt <= 0) {
-                        final matchedLot = DemoStore.instance.lots
-                            .where(
-                              (l) =>
-                                  l.id == p.orderPartId ||
-                                  l.orderId == p.orderId ||
-                                  (p.orderNumber.isNotEmpty &&
-                                      l.orderId == p.orderNumber),
-                            )
-                            .firstOrNull;
-                        if (matchedLot != null &&
-                            matchedLot.issueWeightGrams > 0) {
-                          goldWt = matchedLot.issueWeightGrams;
-                        } else if (matchedDesign != null &&
-                            matchedDesign.grossWeightGrams > 0) {
-                          goldWt = matchedDesign.grossWeightGrams;
-                        }
-                      }
-                      if (matchedDesign != null) {
-                        if (specsList.isEmpty &&
-                            matchedDesign.gemBreakdown.isNotEmpty) {
-                          specsList = matchedDesign.gemBreakdown
-                              .map(
-                                (b) => StoneSpec(
-                                  name: b.shape.isNotEmpty
-                                      ? '${b.shape} Stone'
-                                      : 'Gemstone',
-                                  count: b.count,
-                                  size: b.dimensions,
-                                  shape: b.shape,
-                                  color: b.color,
-                                  clarity: 'BOM Grade',
-                                ),
-                              )
-                              .where((s) => s.count > 0)
-                              .toList();
-                        }
-                      }
-                    }
-
                     final stonesList = specsList
                         .map(
                           (s) =>
@@ -219,27 +179,26 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                         ? issueNum
                         : p.orderPartId;
 
-                    String displayDesignNumber = p.designNumber;
-                    if (matchedDesign != null &&
-                        matchedDesign.code.isNotEmpty) {
-                      displayDesignNumber = matchedDesign.code;
-                    } else if (displayDesignNumber.length > 20 &&
-                        displayDesignNumber.contains('-')) {
-                      displayDesignNumber =
-                          'DSG-${displayDesignNumber.substring(0, 6).toUpperCase()}';
-                    }
+                    final displayDesignNumber = p.designNumber.isNotEmpty
+                        ? p.designNumber
+                        : 'DES-${p.orderPartId}';
 
                     return VaultRequisition(
                       id: reqId,
+                      orderPartId: p.orderPartId,
                       designNumber: displayDesignNumber,
                       orderId: p.orderNumber.isNotEmpty
                           ? p.orderNumber
                           : p.orderId,
+                      customerName: p.customerName,
+                      dueDate: p.dueDate,
                       artisanName:
                           p.assignedCraftsman?.name ?? 'Assigned Craftsman',
                       stageName: p.currentStage,
                       quantity: specsList.fold(0, (sum, s) => sum + s.count),
                       goldWeightGrams: goldWt,
+                      gemWeightTw: p.cadSpecs.gemWeightTw,
+                      sizeDimensions: p.cadSpecs.sizeDimensions,
                       stones: stonesList,
                       stoneSpecs: specsList,
                       status: p.isStockIssued ? 'ISSUED' : 'PENDING_ISSUE',
@@ -265,10 +224,6 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
             final double totalVaultGold = rawSummary.totalVaultGold > 0
                 ? rawSummary.totalVaultGold
                 : allItems.fold(0.0, (sum, i) => sum + i.totalStock);
-
-            final double totalReservedWip = rawSummary.totalReservedWip > 0
-                ? rawSummary.totalReservedWip
-                : allItems.fold(0.0, (sum, i) => sum + i.reservedWip);
 
             final double totalFreeBalance = rawSummary.totalFreeBalance > 0
                 ? rawSummary.totalFreeBalance
@@ -304,7 +259,7 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.emerald.withOpacity(0.2),
+                            color: AppColors.emerald.withValues(alpha: 0.2),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -500,25 +455,24 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                           final req = filteredReqs[i];
                           return _RequisitionCard(
                             requisition: req,
+                            storeName: _effectiveStoreName,
                             onIssue: () async {
                               final repo = KaratFlowApiRepository();
                               try {
                                 final items = <Map<String, dynamic>>[
                                   if (req.goldWeightGrams > 0)
                                     {
-                                      'code': 'GOLD-22K',
-                                      'name': '22KT Gold Bullion',
+                                      'code': 'GOLD-ISSUED',
+                                      'name': 'Gold Metal',
                                       'category': 'METAL',
                                       'quantity': req.goldWeightGrams,
                                       'unit': 'g',
                                     },
                                   ...req.stoneSpecs.map(
                                     (s) => {
-                                      'code': s.name.contains('MAT-')
-                                          ? s.name
-                                          : 'MAT-DIA-RND-120',
+                                      'code': s.name,
                                       'name': s.name,
-                                      'category': 'DIAMOND',
+                                      'category': 'STONE',
                                       'color': s.color,
                                       'quantity': s.count.toDouble(),
                                       'unit': 'pc',
@@ -686,10 +640,15 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _RequisitionCard extends StatelessWidget {
-  const _RequisitionCard({required this.requisition, required this.onIssue});
+  const _RequisitionCard({
+    required this.requisition,
+    required this.onIssue,
+    this.storeName = '',
+  });
 
   final VaultRequisition requisition;
   final VoidCallback onIssue;
+  final String storeName;
 
   @override
   Widget build(BuildContext context) {
@@ -706,13 +665,13 @@ class _RequisitionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isPending
-              ? AppColors.warning.withOpacity(0.5)
+              ? AppColors.warning.withValues(alpha: 0.5)
               : AppColors.outlineLight,
           width: isPending ? 1.5 : 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: statusColor.withOpacity(0.1),
+            color: statusColor.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -721,8 +680,12 @@ class _RequisitionCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () =>
-              _showRequisitionDetailsSheet(context, requisition, onIssue),
+          onTap: () => _showRequisitionDetailsSheet(
+            context,
+            requisition,
+            onIssue,
+            storeName: storeName,
+          ),
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -953,6 +916,7 @@ class _RequisitionCard extends StatelessWidget {
                           context,
                           requisition,
                           onIssue,
+                          storeName: storeName,
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.emeraldDark,
@@ -962,22 +926,54 @@ class _RequisitionCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        icon: const Icon(Icons.list_alt_rounded, size: 16),
+                        icon: const Icon(Icons.list_alt_rounded, size: 15),
                         label: const Text(
-                          'Inspect Stones & Metals',
+                          'Inspect Stones',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
+                    OutlinedButton.icon(
+                      onPressed: () => _showBomBillPrintModal(
+                        context,
+                        requisition,
+                        storeName: storeName,
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.ink,
+                        side: const BorderSide(color: AppColors.outline),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.print_outlined,
+                        size: 16,
+                        color: AppColors.ink,
+                      ),
+                      label: const Text(
+                        'Print Bill',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: isPending
                           ? CommonButton.primary(
                               height: 40,
-                              label: 'Issue Materials',
+                              label: 'Issue',
                               icon: Icons.output_rounded,
                               onPressed: onIssue,
                             )
@@ -994,12 +990,12 @@ class _RequisitionCard extends StatelessWidget {
                                 children: [
                                   Icon(
                                     Icons.check_circle_rounded,
-                                    size: 16,
+                                    size: 15,
                                     color: AppColors.emeraldDark,
                                   ),
-                                  SizedBox(width: 6),
+                                  SizedBox(width: 4),
                                   Text(
-                                    'Materials Issued',
+                                    'Issued',
                                     style: TextStyle(
                                       color: AppColors.emeraldDark,
                                       fontWeight: FontWeight.w900,
@@ -1023,8 +1019,9 @@ class _RequisitionCard extends StatelessWidget {
   void _showRequisitionDetailsSheet(
     BuildContext context,
     VaultRequisition requisition,
-    VoidCallback onIssue,
-  ) {
+    VoidCallback onIssue, {
+    String storeName = 'JEWELLERY VAULT',
+  }) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1153,10 +1150,10 @@ class _RequisitionCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.goldLight.withOpacity(0.5),
+                      color: AppColors.goldLight.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: AppColors.gold.withOpacity(0.4),
+                        color: AppColors.gold.withValues(alpha: 0.4),
                       ),
                     ),
                     child: Row(
@@ -1303,16 +1300,52 @@ class _RequisitionCard extends StatelessWidget {
                       const SizedBox(height: 8),
                     ],
                   const SizedBox(height: 20),
-                  if (requisition.status == 'PENDING_ISSUE')
-                    CommonButton.primary(
-                      height: 44,
-                      label: 'Confirm & Hand Over Materials to Artisan',
-                      icon: Icons.output_rounded,
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        onIssue();
-                      },
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            _showBomBillPrintModal(
+                              context,
+                              requisition,
+                              storeName: storeName,
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.ink,
+                            side: const BorderSide(color: AppColors.ink),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.print_outlined, size: 18),
+                          label: const Text(
+                            'Print BOM Slip',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (requisition.status == 'PENDING_ISSUE') ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: CommonButton.primary(
+                            height: 44,
+                            label: 'Hand Over Materials',
+                            icon: Icons.output_rounded,
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              onIssue();
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1321,6 +1354,20 @@ class _RequisitionCard extends StatelessWidget {
       },
     );
   }
+
+void _showBomBillPrintModal(
+  BuildContext context,
+  VaultRequisition requisition, {
+  String storeName = 'JEWELLERY VAULT',
+}) {
+  BomBillPrintDialog.show(
+    context,
+    requisition: requisition,
+    storeName: storeName,
+  );
+}
+
+
 
   Widget _detailRow(String label, String value, IconData icon) {
     return Row(
@@ -1397,12 +1444,12 @@ class _StockistItemCard extends StatelessWidget {
         border: Border.all(color: AppColors.outlineLight),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
           BoxShadow(
-            color: Colors.white.withOpacity(0.8),
+            color: Colors.white.withValues(alpha: 0.8),
             blurRadius: 1,
             offset: const Offset(0, -1),
           ),

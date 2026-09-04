@@ -121,7 +121,7 @@ class _WorkerDashboardPageState extends State<WorkerDashboardPage> {
           try {
             LiveDataBlocCoordinator.refreshForRole(
               context,
-              AppRole.processManager,
+              AppRole.worker,
             );
           } catch (_) {}
         }

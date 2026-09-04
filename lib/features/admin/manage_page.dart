@@ -9,6 +9,7 @@ import '../auth/widgets/authenticated_profile_card.dart';
 import '../directives/bloc/directives_bloc.dart';
 import '../instructions/directive_audio.dart';
 import 'widgets/add_artisan_sheet.dart';
+import 'widgets/admin_create_design_dialog.dart';
 import 'widgets/admin_manage_item.dart';
 import 'widgets/admin_review_cad_sheet.dart';
 import 'widgets/admin_review_sketches_sheet.dart';
@@ -121,6 +122,14 @@ class _AdminManagePageState extends State<AdminManagePage> {
             AdminManageSection(
               title: '4. Design Review & Creative Governance',
               items: [
+                ManageItemData(
+                  icon: Icons.add_photo_alternate_outlined,
+                  title: 'Create New Design & Upload Sketch / STL',
+                  subtitle:
+                      'Upload sketch screenshot with optional 3D STL file for production',
+                  badge: 'New Design',
+                  onTap: () => AdminCreateDesignDialog.show(context, store),
+                ),
                 ManageItemData(
                   icon: Icons.brush_outlined,
                   title: 'Review Client Sketch Designs',

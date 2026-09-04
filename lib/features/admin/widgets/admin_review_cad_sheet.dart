@@ -12,6 +12,8 @@ import '../../../../data/demo_store.dart';
 import '../../../../domain/models.dart';
 import '../bloc/admin_bloc.dart';
 import '../../cad_designer/bloc/cad_bloc.dart';
+import '../../../../core/widgets/presigned_sketch_image.dart';
+import 'admin_create_design_dialog.dart';
 
 /// Modal bottom sheet for Admin Review of 3D CAD Models & Stock Management
 class AdminReviewCadSheet extends StatelessWidget {
@@ -51,11 +53,7 @@ class AdminReviewCadSheet extends StatelessWidget {
   }
 
   void _openDirectCadBriefModal(BuildContext context) {
-    CommonSnackbar.error(
-      context,
-      title: 'CAD Brief API Unavailable',
-      message: 'The backend does not expose a direct CAD brief endpoint.',
-    );
+    AdminCreateDesignDialog.show(context, store);
   }
 
   void _openUpdateStockModal(BuildContext context, CadDesignTask task) {
@@ -250,7 +248,12 @@ class AdminReviewCadSheet extends StatelessWidget {
       animation: store,
       builder: (context, _) {
         final pendingTasks = store.cadTasks
-            .where((task) => task.hasStlFile)
+            .where((task) =>
+                task.hasStlFile &&
+                task.specs != 'Approved 2D Sketch · Pending 3D Wax STL Modeling' &&
+                task.assignedTo != 'Admin Direct Concept' &&
+                task.clientName != 'Admin Direct Concept' &&
+                !task.orderId.contains('ORD-ADM-'))
             .toList();
 
         return Padding(
@@ -419,6 +422,126 @@ class AdminReviewCadSheet extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 10),
+
+                                Builder(
+                                  builder: (ctx) {
+                                    final taskImage = task.imageUrl.isNotEmpty
+                                        ? task.imageUrl
+                                        : (store.designs
+                                            .where((d) => d.code == task.designCode && d.imageUrl.isNotEmpty)
+                                            .firstOrNull
+                                            ?.imageUrl ?? '');
+
+                                    if (taskImage.isEmpty && !task.hasSketchImage) {
+                                      return const SizedBox.shrink();
+                                    }
+
+                                    return Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(10),
+                                          child: Container(
+                                            height: 140,
+                                            width: double.infinity,
+                                            decoration: BoxDecoration(
+                                              color: AppColors.canvas,
+                                              borderRadius: BorderRadius.circular(10),
+                                              border: Border.all(
+                                                color: AppColors.outline.withValues(alpha: 0.5),
+                                              ),
+                                            ),
+                                            child: Stack(
+                                              children: [
+                                                if (taskImage.isNotEmpty)
+                                                  Positioned.fill(
+                                                    child: PresignedSketchImage(
+                                                      imageUrl: taskImage,
+                                                      fit: BoxFit.contain,
+                                                    ),
+                                                  )
+                                                else
+                                                  const Center(
+                                                    child: Icon(
+                                                      Icons.image_outlined,
+                                                      color: AppColors.muted,
+                                                      size: 36,
+                                                    ),
+                                                  ),
+                                                Positioned(
+                                                  bottom: 8,
+                                                  left: 8,
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 3,
+                                                    ),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.black.withValues(alpha: 0.65),
+                                                      borderRadius: BorderRadius.circular(6),
+                                                    ),
+                                                    child: const Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Icon(Icons.image, size: 12, color: Colors.white),
+                                                        SizedBox(width: 4),
+                                                        Text(
+                                                          'Design Concept / Sketch',
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 10,
+                                                            fontWeight: FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (task.hasStlFile)
+                                                  Positioned(
+                                                    bottom: 8,
+                                                    right: 8,
+                                                    child: Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 3,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: AppColors.emerald.withValues(alpha: 0.9),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                      ),
+                                                      child: Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          const Icon(
+                                                            Icons.view_in_ar,
+                                                            size: 12,
+                                                            color: Colors.white,
+                                                          ),
+                                                          const SizedBox(width: 4),
+                                                          Text(
+                                                            task.modelFileUrl != null && task.modelFileUrl!.isNotEmpty
+                                                                ? '3D STL Ready'
+                                                                : '3D STL Attached',
+                                                            style: const TextStyle(
+                                                              color: Colors.white,
+                                                              fontSize: 10,
+                                                              fontWeight: FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                      ],
+                                    );
+                                  },
+                                ),
 
                                 // 1. Metal & Gem Specifications Card
                                 Container(

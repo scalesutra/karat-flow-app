@@ -529,6 +529,41 @@ class KaratFlowApiRepository {
     return ApiThreeDDesign.fromJson(_dataMap(response.data));
   }
 
+  /// POST /three-d-designs/direct-create - Admin single-step design creation
+  /// Creates both sketch & 3D design as APPROVED in one call
+  Future<ApiThreeDDesign> directCreateDesign({
+    required String title,
+    required String designNumber,
+    String? imageUrl,
+    String? bomFileUrl,
+    String? xtlFileUrl,
+    String? category,
+    double? price,
+    double? goldQuantity,
+    String? sizeDimensions,
+    String? description,
+  }) async {
+    final payload = <String, dynamic>{
+      'title': title,
+      'designNumber': designNumber,
+      if (imageUrl?.isNotEmpty == true) 'imageUrl': imageUrl,
+      if (bomFileUrl?.isNotEmpty == true) 'bomFileUrl': bomFileUrl,
+      if (xtlFileUrl?.isNotEmpty == true) 'xtlFileUrl': xtlFileUrl,
+      if (category?.isNotEmpty == true) 'category': category,
+      if (price != null && price > 0) 'price': price,
+      if (goldQuantity != null && goldQuantity > 0)
+        'goldQuantity': goldQuantity,
+      if (sizeDimensions?.isNotEmpty == true) 'sizeDimensions': sizeDimensions,
+      if (description?.isNotEmpty == true) 'description': description,
+    };
+    final response = await _api.post(
+      ApiEndpoints.directCreateThreeD,
+      data: payload,
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    return ApiThreeDDesign.fromJson(data);
+  }
+
   // ── SECTION 7: Orders (/orders) ───────────────────────────────────
   Future<List<ApiOrder>> listOrders({
     String status = '',

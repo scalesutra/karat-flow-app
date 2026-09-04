@@ -80,7 +80,8 @@ enum AppRole {
     AppRole.rawDesigner => 'Pencil sketch creation, review and revisions',
     AppRole.workshopArtisan => 'Assigned bench work and task completion',
     AppRole.worker => 'Bench operations, job sheet execution & piece tracking',
-    AppRole.stockist => 'Safe vault inventory, raw gold bullion & material control',
+    AppRole.stockist =>
+      'Safe vault inventory, raw gold bullion & material control',
   };
 }
 
@@ -321,8 +322,8 @@ class JewelleryDesign {
     required this.id,
     required this.name,
     required this.code,
-    required this.category,
-    required this.purity,
+    this.category = JewelleryCategory.all,
+    this.purity = '',
     double? grossWeightGrams,
     double? defaultGrossWeightGrams,
     this.netGoldWeightGrams = 0.0,
@@ -337,6 +338,7 @@ class JewelleryDesign {
     this.priceBreakdown,
     this.gemBreakdown = const [],
     this.gemQuantity = 0,
+    this.customCategory,
   }) : grossWeightGrams = grossWeightGrams ?? defaultGrossWeightGrams ?? 0.0,
        defaultGrossWeightGrams =
            defaultGrossWeightGrams ?? grossWeightGrams ?? 0.0,
@@ -346,6 +348,7 @@ class JewelleryDesign {
   final String name;
   final String code;
   final JewelleryCategory category;
+  final String? customCategory;
   final String purity;
   final double grossWeightGrams;
   final double defaultGrossWeightGrams;
@@ -361,6 +364,9 @@ class JewelleryDesign {
   final ApiPriceBreakdown? priceBreakdown;
   final List<GemBreakdownItem> gemBreakdown;
   final int gemQuantity;
+
+  String get displayCategory =>
+      customCategory?.isNotEmpty == true ? customCategory! : category.label;
 
   bool get hasBackendPrice => _estimatedPrice != null && _estimatedPrice > 0;
 
@@ -593,7 +599,8 @@ class WorkshopLot {
   final String apiStageName;
 
   bool get isOnHold => blockerReason?.trim().isNotEmpty == true;
-  String get status => apiStageName.isNotEmpty ? apiStageName : assignedEmployeeRole;
+  String get status =>
+      apiStageName.isNotEmpty ? apiStageName : assignedEmployeeRole;
 
   WorkshopLot copyWith({
     WorkshopStage? stage,
@@ -783,12 +790,14 @@ class CadDesignTask {
     this.sizeDimensions = '',
     this.gemBreakdown = const [],
     this.sketchId = '',
+    this.imageUrl = '',
     this.calculatedPrice,
     this.priceBreakdown,
   });
 
   final String id;
   final String sketchId;
+  final String imageUrl;
   final String orderId;
   final String designCode;
   final String productTitle;
@@ -829,6 +838,7 @@ class CadDesignTask {
     String? specs,
     String? modelFileUrl,
     String? bomFileUrl,
+    String? imageUrl,
     double? goldQuantity,
     int? gemQuantity,
     double? gemWeightTw,
@@ -859,6 +869,7 @@ class CadDesignTask {
       volumeCubicMm: volumeCubicMm ?? this.volumeCubicMm,
       modelFileUrl: modelFileUrl ?? this.modelFileUrl,
       bomFileUrl: bomFileUrl ?? this.bomFileUrl,
+      imageUrl: imageUrl ?? this.imageUrl,
       goldQuantity: goldQuantity ?? this.goldQuantity,
       gemQuantity: gemQuantity ?? this.gemQuantity,
       gemWeightTw: gemWeightTw ?? this.gemWeightTw,

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../data/repositories/karatflow_api_repository.dart';
@@ -55,6 +56,18 @@ class _PresignedSketchImageState extends State<PresignedSketchImage> {
         setState(() {
           _isLoading = false;
           _hasError = true;
+        });
+      }
+      return;
+    }
+
+    // Support base64 data URI directly
+    if (url.startsWith('data:image')) {
+      if (mounted) {
+        setState(() {
+          _resolvedUrl = url;
+          _isLoading = false;
+          _hasError = false;
         });
       }
       return;
@@ -172,6 +185,23 @@ class _PresignedSketchImageState extends State<PresignedSketchImage> {
     }
 
     final targetUrl = _resolvedUrl!;
+    if (targetUrl.startsWith('data:image')) {
+      final comma = targetUrl.indexOf(',');
+      if (comma != -1) {
+        try {
+          final bytes = base64Decode(targetUrl.substring(comma + 1));
+          return Image.memory(
+            bytes,
+            width: widget.width,
+            height: widget.height,
+            fit: widget.fit,
+            errorBuilder: (_, __, ___) =>
+                widget.errorBuilder?.call() ?? const Icon(Icons.broken_image),
+          );
+        } catch (_) {}
+      }
+    }
+
     if (targetUrl.startsWith('/') ||
         targetUrl.startsWith('file://') ||
         targetUrl.contains(':\\')) {

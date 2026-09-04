@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:jewellery_ops_mobile/core/network/token_storage_service.dart';
+import '../../../core/network/token_storage_service.dart';
 import '../../../data/demo_store.dart';
 import '../../../data/mappers/api_domain_mapper.dart';
 import '../../../data/repositories/karatflow_api_repository.dart';
@@ -31,11 +33,28 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
 
   final DemoStore _store;
   final KaratFlowApiRepository _api;
+  final TokenStorageService _tokenStorage = TokenStorageService();
 
   Future<void> _onFetchOrders(
     FetchOrdersEvent event,
     Emitter<OrdersState> emit,
   ) async {
+    final tokenRole = (await _tokenStorage.getUserRole())?.toUpperCase() ?? '';
+    final isWorkerRole =
+        _store.activeRole == AppRole.worker ||
+        _store.activeRole == AppRole.workshopArtisan ||
+        tokenRole == 'CRAFTSMAN' ||
+        tokenRole == 'WORKER' ||
+        tokenRole == 'ARTISAN';
+
+    if (isWorkerRole) {
+      debugPrint(
+        'ℹ️ [OrdersBloc] Skipping GET /orders for craftsman/artisan role ($tokenRole / ${_store.activeRole.name}).',
+      );
+      emit(OrdersLoaded(orders: _store.orders, filteredOrders: _store.orders));
+      return;
+    }
+
     emit(const OrdersLoading());
     debugPrint(
       '📦 [OrdersBloc] Fetching orders from GET /orders?status=${event.statusFilter ?? 'IN_PRODUCTION'}...',
@@ -53,6 +72,15 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
       emit(OrdersLoaded(orders: mappedOrders, filteredOrders: mappedOrders));
     } catch (e) {
       debugPrint('❌ [OrdersBloc] Failed to fetch orders: $e');
+      if (e.toString().contains('403') || e.toString().contains('Forbidden')) {
+        debugPrint(
+          'ℹ️ [OrdersBloc] 403 Forbidden encountered on /orders. Current role does not have permission; maintaining existing orders cache.',
+        );
+        emit(
+          OrdersLoaded(orders: _store.orders, filteredOrders: _store.orders),
+        );
+        return;
+      }
       emit(
         OrdersError('Failed to fetch orders from live API: ${e.toString()}'),
       );

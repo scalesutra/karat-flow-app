@@ -625,7 +625,7 @@ class _DesignDetailModal extends StatelessWidget {
                     'Metal & Purity',
                     design.purity.isNotEmpty
                         ? design.purity
-                        : '22K Yellow Gold',
+                        : 'Not Specified',
                     isBold: true,
                   ),
                   const Divider(height: 14),

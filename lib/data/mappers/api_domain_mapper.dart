@@ -332,7 +332,7 @@ abstract final class ApiDomainMapper {
       name: value.title.isNotEmpty ? value.title : 'Custom Sketch',
       code: code,
       category: categoryEnum,
-      purity: '22KT',
+      purity: '',
       grossWeightGrams: 0,
       estimatedPrice: parsePrice(value.price, value.adminInstructions),
       imageUrl: value.sketchUrl,
@@ -357,7 +357,7 @@ abstract final class ApiDomainMapper {
         ? value.priceBreakdown!.purity
         : (value.sizeDimensions.isNotEmpty
               ? value.sizeDimensions
-              : '22K Yellow Gold');
+              : '');
 
     final displayPurity = rawPurity.contains('K') || rawPurity.contains('Gold')
         ? rawPurity
@@ -467,6 +467,7 @@ abstract final class ApiDomainMapper {
       },
       hasSketchImage: value.sketch?.sketchUrl.isNotEmpty ?? true,
       hasStlFile: value.xtlFileUrl?.isNotEmpty ?? false,
+      imageUrl: value.sketch?.sketchUrl ?? '',
       modelFileUrl: value.xtlFileUrl ?? value.sketch?.sketchUrl,
       bomFileUrl: value.bomFileUrl,
       assignedTo: value.designer?.name ?? 'CAD Designer',

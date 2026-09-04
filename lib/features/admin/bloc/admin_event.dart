@@ -244,3 +244,30 @@ final class UpdateProductStockEvent extends AdminEvent {
   final String? description;
   final String? imageUrl;
 }
+
+/// Admin single-step design creation via POST /three-d-designs/direct-create
+final class AdminDirectCreateDesignEvent extends AdminEvent {
+  const AdminDirectCreateDesignEvent({
+    required this.designNumber,
+    required this.title,
+    this.category,
+    this.goldQuantity,
+    this.sizeDimensions,
+    this.description,
+    this.sketchFileName,
+    this.sketchBytes,
+    this.stlFileName,
+    this.stlBytes,
+  });
+
+  final String designNumber;
+  final String title;
+  final String? category;
+  final double? goldQuantity;
+  final String? sizeDimensions;
+  final String? description;
+  final String? sketchFileName;
+  final Uint8List? sketchBytes;
+  final String? stlFileName;
+  final Uint8List? stlBytes;
+}

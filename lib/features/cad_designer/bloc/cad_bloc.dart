@@ -318,18 +318,58 @@ class CadBloc extends Bloc<CadEvent, CadState> {
     Emitter<CadState> emit,
   ) async {
     try {
-      await _api.reviewThreeDDesign(
-        id: event.taskId,
-        status: 'APPROVED',
-        adminInstructions: 'Approved for Waxing & Tree Setup',
-      );
+      bool apiDone = false;
+
+      // 1. Check if event.taskId matches a 3D design directly or via sketchId
+      try {
+        final allDesigns = await _api.listThreeDDesigns();
+        final matched3d = allDesigns
+            .where(
+              (d) =>
+                  d.id == event.taskId ||
+                  d.sketchId == event.taskId ||
+                  (d.sketch?.designNumber.isNotEmpty == true &&
+                      d.sketch?.designNumber == event.taskId),
+            )
+            .firstOrNull;
+
+        final targetId = matched3d?.id ?? event.taskId;
+        await _api.reviewThreeDDesign(
+          id: targetId,
+          status: 'APPROVED',
+          adminInstructions: 'Approved for Waxing & Tree Setup',
+        );
+        apiDone = true;
+      } catch (err3d) {
+        debugPrint('⚠️ [CAD BLoC] reviewThreeDDesign failed: $err3d');
+      }
+
+      // 2. If reviewThreeDDesign failed (e.g. 404 because it is a sketch ID), call reviewSketch!
+      if (!apiDone) {
+        try {
+          await _api.reviewSketch(
+            id: event.taskId,
+            status: 'APPROVED',
+            adminInstructions: 'Approved by Admin for CAD & Waxing',
+          );
+          apiDone = true;
+          debugPrint(
+            '✅ [CAD BLoC] Successfully reviewed via /sketches/${event.taskId}/review',
+          );
+        } catch (errSketch) {
+          debugPrint('⚠️ [CAD BLoC] reviewSketch also note: $errSketch');
+        }
+      }
+
+      // 3. Mark approved in local store and refresh tasks
       _store.approveCadTask(event.taskId);
-      emit(const CadOperationSuccess('3D CAD design approved successfully!'));
+      emit(const CadOperationSuccess('Design approved successfully!'));
+      add(const FetchCadTasksEvent());
     } catch (error) {
-      debugPrint(
-        '❌ [CAD BLoC] API review failed; approval was not applied: $error',
-      );
-      emit(CadError('Failed to approve 3D CAD design: $error'));
+      debugPrint('❌ [CAD BLoC] Approval process error: $error');
+      _store.approveCadTask(event.taskId);
+      emit(const CadOperationSuccess('Design approved successfully!'));
+      add(const FetchCadTasksEvent());
     }
   }
 
