@@ -21,28 +21,67 @@ class CartPage extends StatefulWidget {
 
 class _CartPageState extends State<CartPage> {
   ClientInfo? _selectedClient;
-  String _promiseOption = 'Due Tomorrow · 6 PM';
+  final _clientController = TextEditingController();
+  DateTime _selectedDueDate = DateTime.now().add(const Duration(days: 2));
   final _notesController = TextEditingController();
   bool _isSubmitting = false;
 
-  final List<String> _promiseOptions = const [
-    'Due Today · Urgent',
-    'Due Tomorrow · 6 PM',
-    'Due in 3 Days',
-    'Due Next Monday',
-    'Custom Date',
-  ];
+  String _formatDate(DateTime dt) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  Future<void> _pickDueDate(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDueDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.emerald,
+              onPrimary: AppColors.pureWhite,
+              surface: AppColors.paper,
+              onSurface: AppColors.ink,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _selectedDueDate = picked);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     if (widget.store.clients.isNotEmpty) {
       _selectedClient = widget.store.clients.first;
+      _clientController.text =
+          '${_selectedClient!.firmName} · ${_selectedClient!.city}';
     }
   }
 
   @override
   void dispose() {
+    _clientController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -130,60 +169,145 @@ class _CartPageState extends State<CartPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // 1. Client Selection Card
-                const _SectionHeader(
-                  title: '1. Select Client Firm',
-                  icon: Icons.storefront,
+                // 1. Client Search & Input
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const _SectionHeader(
+                      title: '1. Client Firm',
+                      icon: Icons.storefront,
+                    ),
+                    if (_selectedClient != null)
+                      Text(
+                        'Assigned: ${_selectedClient!.firmName}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.emerald,
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
-                CommonCard(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  onTap: () => _openClientPicker(context),
-                  child: Row(
-                    children: [
-                      const CircleAvatar(
-                        backgroundColor: AppColors.emeraldLight,
-                        radius: 20,
-                        child: Icon(
-                          Icons.business,
-                          color: AppColors.emerald,
-                          size: 20,
-                        ),
+                CommonTextField(
+                  controller: _clientController,
+                  hintText: 'Type client name, firm or phone number...',
+                  prefixIcon: Icons.storefront_outlined,
+                  suffixIcon: _clientController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 16),
+                          onPressed: () {
+                            setState(() {
+                              _clientController.clear();
+                              _selectedClient = null;
+                            });
+                          },
+                        )
+                      : null,
+                  onChanged: (val) {
+                    setState(() {
+                      final query = val.trim().toLowerCase();
+                      final matched = widget.store.clients.where((c) {
+                        return c.firmName.toLowerCase().contains(query) ||
+                            c.city.toLowerCase().contains(query) ||
+                            c.contactPerson.toLowerCase().contains(query) ||
+                            c.phone.contains(query);
+                      }).firstOrNull;
+
+                      if (matched != null &&
+                          query == matched.firmName.toLowerCase()) {
+                        _selectedClient = matched;
+                      } else {
+                        _selectedClient = ClientInfo(
+                          id: matched?.id ??
+                              'CUSTOM-${DateTime.now().millisecondsSinceEpoch}',
+                          firmName: val.trim().isNotEmpty
+                              ? val.trim()
+                              : 'Custom Client',
+                          city: matched?.city ?? '',
+                          contactPerson: matched?.contactPerson ?? '',
+                          phone: matched?.phone ?? '',
+                          creditLimitLakhs: 0,
+                          outstandingBalance: 0,
+                          activeOrdersCount: 0,
+                        );
+                      }
+                    });
+                  },
+                ),
+                Builder(
+                  builder: (context) {
+                    final q = _clientController.text.trim().toLowerCase();
+                    if (q.isEmpty) return const SizedBox.shrink();
+                    final suggestions = widget.store.clients.where((c) {
+                      return c.firmName.toLowerCase().contains(q) ||
+                          c.city.toLowerCase().contains(q);
+                    }).toList();
+                    if (suggestions.isEmpty ||
+                        (suggestions.length == 1 &&
+                            suggestions.first.firmName.toLowerCase() == q)) {
+                      return const SizedBox.shrink();
+                    }
+                    return Container(
+                      margin: const EdgeInsets.only(top: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _selectedClient?.firmName ?? 'Select Client',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
+                      decoration: BoxDecoration(
+                        color: AppColors.canvas,
+                        borderRadius: BorderRadius.circular(
+                          AppDimensions.radiusSmall,
+                        ),
+                        border: Border.all(color: AppColors.outlineLight),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: suggestions.take(3).map((c) {
+                          return InkWell(
+                            onTap: () {
+                              setState(() {
+                                _selectedClient = c;
+                                _clientController.text =
+                                    '${c.firmName} · ${c.city}';
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 6,
+                                horizontal: 4,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.business,
+                                    size: 14,
+                                    color: AppColors.emerald,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    c.firmName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '(${c.city})',
+                                    style: const TextStyle(
+                                      color: AppColors.muted,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _selectedClient != null
-                                  ? '${_selectedClient!.city} · ${_selectedClient!.contactPerson}'
-                                  : 'Tap to assign this order to a client',
-                              style: const TextStyle(
-                                color: AppColors.muted,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
+                          );
+                        }).toList(),
                       ),
-                      const Icon(
-                        Icons.keyboard_arrow_down,
-                        color: AppColors.muted,
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 20),
@@ -217,64 +341,78 @@ class _CartPageState extends State<CartPage> {
                   icon: Icons.event_available,
                 ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _promiseOptions.map((opt) {
-                    final isSelected = _promiseOption == opt;
-                    return InkWell(
-                      onTap: () => setState(() => _promiseOption = opt),
+                InkWell(
+                  onTap: () => _pickDueDate(context),
+                  borderRadius: BorderRadius.circular(
+                    AppDimensions.radiusSmall,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.paper,
                       borderRadius: BorderRadius.circular(
-                        AppDimensions.radiusFull,
+                        AppDimensions.radiusSmall,
                       ),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 7,
+                      border: Border.all(color: AppColors.outline),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.calendar_month,
+                          color: AppColors.emerald,
+                          size: 20,
                         ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.emeraldLight
-                              : AppColors.paper,
-                          borderRadius: BorderRadius.circular(
-                            AppDimensions.radiusFull,
-                          ),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.emerald
-                                : AppColors.outline,
-                            width: isSelected ? 1.5 : 1.0,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (isSelected) ...[
-                              const Icon(
-                                Icons.check_circle,
-                                size: 14,
-                                color: AppColors.emerald,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Delivery / Due Date',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.muted,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(height: 2),
+                              Text(
+                                _formatDate(_selectedDueDate),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.ink,
+                                ),
+                              ),
                             ],
-                            Text(
-                              opt,
-                              style: TextStyle(
-                                color: isSelected
-                                    ? AppColors.emeraldDark
-                                    : AppColors.ink,
-                                fontWeight: isSelected
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.emeraldLight,
+                            borderRadius: BorderRadius.circular(
+                              AppDimensions.radiusSmall,
+                            ),
+                          ),
+                          child: const Text(
+                            'Select Date',
+                            style: TextStyle(
+                              color: AppColors.emeraldDark,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 CommonTextField(
@@ -311,24 +449,6 @@ class _CartPageState extends State<CartPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const CommonText.bodyMedium(
-                            'Total Gross Weight',
-                            color: Colors.white70,
-                          ),
-                          Text(
-                            '${widget.store.cartTotalGrossWeight.toStringAsFixed(2)} g',
-                            style: const TextStyle(
-                              color: Color(0xFFFFD18A),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Divider(color: Colors.white12, height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const CommonText.bodyMedium(
                             'Est. Total Value',
                             color: Colors.white70,
                           ),
@@ -353,196 +473,6 @@ class _CartPageState extends State<CartPage> {
                   icon: Icons.check_circle_outline,
                   label: 'Commit & Place Order',
                   onPressed: _placeOrder,
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _openClientPicker(BuildContext context) {
-    final searchCtrl = TextEditingController();
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.paper,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) {
-          final query = searchCtrl.text.trim().toLowerCase();
-          final filtered = widget.store.clients.where((c) {
-            if (query.isEmpty) return true;
-            return c.firmName.toLowerCase().contains(query) ||
-                c.city.toLowerCase().contains(query) ||
-                c.contactPerson.toLowerCase().contains(query) ||
-                c.phone.contains(query);
-          }).toList();
-
-          return Container(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.8,
-            ),
-            padding: EdgeInsets.fromLTRB(
-              20,
-              16,
-              20,
-              MediaQuery.of(context).viewInsets.bottom + 24,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.outline,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: CommonText.headlineMedium(
-                        'Select or Enter Client',
-                      ),
-                    ),
-                    if (searchCtrl.text.trim().isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      TextButton(
-                        onPressed: () {
-                          final manualName = searchCtrl.text.trim();
-                          if (manualName.isNotEmpty) {
-                            setState(() {
-                              _selectedClient = ClientInfo(
-                                id: 'CUSTOM-${DateTime.now().millisecondsSinceEpoch}',
-                                firmName: manualName,
-                                city: 'Manual Entry',
-                                contactPerson: manualName,
-                                phone: '',
-                                creditLimitLakhs: 0,
-                                outstandingBalance: 0,
-                                activeOrdersCount: 0,
-                              );
-                            });
-                            Navigator.pop(ctx);
-                          }
-                        },
-                        child: const Text('Use Custom Name'),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 12),
-                CommonTextField(
-                  controller: searchCtrl,
-                  hintText: 'Search or type manual client name...',
-                  prefixIcon: Icons.storefront_outlined,
-                  suffixIcon: searchCtrl.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, size: 16),
-                          onPressed: () {
-                            setModalState(() {
-                              searchCtrl.clear();
-                            });
-                          },
-                        )
-                      : null,
-                  onChanged: (_) => setModalState(() {}),
-                ),
-                const SizedBox(height: 12),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: [
-                      if (searchCtrl.text.trim().isNotEmpty)
-                        ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                          ),
-                          leading: const CircleAvatar(
-                            backgroundColor: AppColors.emeraldLight,
-                            child: Icon(
-                              Icons.edit_note,
-                              color: AppColors.emerald,
-                            ),
-                          ),
-                          title: Text(
-                            'Use manual client name: "${searchCtrl.text.trim()}"',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.emerald,
-                            ),
-                          ),
-                          subtitle: const Text(
-                            'Tap to set this custom client name for the order',
-                            style: TextStyle(fontSize: 11),
-                          ),
-                          onTap: () {
-                            final manualName = searchCtrl.text.trim();
-                            setState(() {
-                              _selectedClient = ClientInfo(
-                                id: 'CUSTOM-${DateTime.now().millisecondsSinceEpoch}',
-                                firmName: manualName,
-                                city: 'Manual Entry',
-                                contactPerson: manualName,
-                                phone: '',
-                                creditLimitLakhs: 0,
-                                outstandingBalance: 0,
-                                activeOrdersCount: 0,
-                              );
-                            });
-                            Navigator.pop(ctx);
-                          },
-                        ),
-                      if (filtered.isEmpty && searchCtrl.text.trim().isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Center(
-                            child: Text(
-                              'No clients available. Type a manual name above.',
-                              style: TextStyle(color: AppColors.muted),
-                            ),
-                          ),
-                        ),
-                      for (final client in filtered)
-                        ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                          ),
-                          leading: const CircleAvatar(
-                            backgroundColor: AppColors.canvas,
-                            child: Icon(Icons.business, color: AppColors.ink),
-                          ),
-                          title: Text(
-                            client.firmName,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Text(
-                            '${client.city} · ${client.contactPerson}',
-                          ),
-                          trailing: _selectedClient?.id == client.id
-                              ? const Icon(
-                                  Icons.check_circle,
-                                  color: AppColors.emerald,
-                                )
-                              : null,
-                          onTap: () {
-                            setState(() => _selectedClient = client);
-                            Navigator.pop(ctx);
-                          },
-                        ),
-                    ],
-                  ),
                 ),
               ],
             ),
@@ -601,167 +531,10 @@ class _CartPageState extends State<CartPage> {
     context.read<OrdersBloc>().add(
       CreateAndCheckoutOrderEvent(
         customerId: client.id,
-        dueDate: _apiDueDate().toUtc().toIso8601String(),
+        dueDate: _selectedDueDate.toUtc().toIso8601String(),
         specialInstructions: notes,
         parts: parts,
         clearCart: true,
-      ),
-    );
-  }
-
-  DateTime _apiDueDate() {
-    final now = DateTime.now();
-    if (_promiseOption.startsWith('Due Today')) {
-      return DateTime(now.year, now.month, now.day, 23, 59);
-    }
-    if (_promiseOption.startsWith('Due Tomorrow')) {
-      final tomorrow = now.add(const Duration(days: 1));
-      return DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 18);
-    }
-    if (_promiseOption == 'Due in 3 Days') {
-      return now.add(const Duration(days: 3));
-    }
-    if (_promiseOption == 'Due Next Monday') {
-      final days = (DateTime.monday - now.weekday + 7) % 7;
-      return now.add(Duration(days: days == 0 ? 7 : days));
-    }
-    return now.add(const Duration(days: 7));
-  }
-
-  void _showOrderSuccessDialog(CustomerOrder order) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: const BoxDecoration(
-                  color: AppColors.emeraldLight,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check,
-                  color: AppColors.emerald,
-                  size: 36,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Order ${order.id} Committed!',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Assigned to ${_selectedClient?.firmName}',
-                style: const TextStyle(color: AppColors.muted, fontSize: 12),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.canvas,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        const Text(
-                          'Items Selected',
-                          style: TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 11,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${order.itemsCount} Items (${order.itemsSummary})',
-                            maxLines: 1,
-                            textAlign: TextAlign.end,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Text(
-                          'Gross Weight',
-                          style: TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 11,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${order.totalGrossGrams.toStringAsFixed(2)} g',
-                            textAlign: TextAlign.end,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Text(
-                          'Delivery Target',
-                          style: TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 11,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            order.promiseDate,
-                            textAlign: TextAlign.end,
-                            style: const TextStyle(
-                              color: AppColors.emeraldDark,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: CommonButton.primary(
-                  label: 'Done & Back to Catalogue',
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    widget.onBrowseDesigns?.call();
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -858,9 +631,7 @@ class _CartItemCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 CommonText.bodySmall(
-                  item.totalGrossWeight > 0
-                      ? '${item.totalGrossWeight.toStringAsFixed(1)}g GW · ₹${item.totalEstimatedPrice.toStringAsFixed(0)}'
-                      : '₹${item.totalEstimatedPrice.toStringAsFixed(0)}',
+                  '₹${item.totalEstimatedPrice.toStringAsFixed(0)}',
                   color: AppColors.muted,
                 ),
               ],

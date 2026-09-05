@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/localization/localization.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
-import '../../data/repositories/karatflow_api_repository.dart';
 import '../../domain/models.dart';
 import 'bloc/orders_bloc.dart';
 import 'widgets/front_office_order_card.dart';

@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get/get.dart';
 import '../../domain/models.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
-import '../../features/auth/bloc/auth_state.dart';
+import '../../features/instructions/directives_notification_button.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_dimensions.dart';
 import 'common_logout_dialog.dart';
@@ -88,6 +88,8 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       actions: [
         if (actions != null) ...actions!,
+        // Notification bell with unread directives badge for all dashboards
+        DirectivesNotificationButton(currentRole: currentRole),
         // Strict Role Display Badge (Only Admin can switch roles)
         if (currentRole != null)
           Padding(

@@ -5,10 +5,11 @@ abstract final class DirectiveRecipients {
 
   static const List<String> options = [
     allTeams,
+    'Front Office',
+    '@Owais Choudhary (Front Office)',
     'Process Manager',
     'Product Manager',
     'CAD Designer',
-    'Front Office',
     'Raw Designer',
     'Workshop Artisan',
     'Karigar (Artisans)',
@@ -41,7 +42,13 @@ abstract final class DirectiveRecipients {
         'process',
         'manager',
       ],
-      AppRole.frontOffice => const ['front office', 'sales & orders', 'sales'],
+      AppRole.frontOffice => const [
+        'front office',
+        'sales & orders',
+        'sales',
+        'owais',
+        'owais choudhary',
+      ],
       AppRole.rawDesigner => const [
         'raw designer',
         'sketch designer',

@@ -34,19 +34,54 @@ class NewOrderSheet extends StatefulWidget {
 class _NewOrderSheetState extends State<NewOrderSheet> {
   ClientInfo? _selectedClient;
   final Map<String, int> _selectedQuantities = {};
-  String _dueDate = 'Due Today · 6:00 PM';
+  DateTime _selectedDueDate = DateTime.now().add(const Duration(days: 2));
   final _notesController = TextEditingController();
   final _clientSearchController = TextEditingController();
   final _designSearchController = TextEditingController();
   bool _isClientDropdownOpen = false;
 
-  final List<String> _dueDatePresets = const [
-    'Due Today · 6:00 PM',
-    'Due Tomorrow · 12:00 PM',
-    'Due in 3 Days',
-    'Due Friday',
-    'Due next Monday',
-  ];
+  String _formatDate(DateTime dt) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  Future<void> _pickDueDate(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDueDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.emerald,
+              onPrimary: AppColors.pureWhite,
+              surface: AppColors.paper,
+              onSurface: AppColors.ink,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _selectedDueDate = picked);
+    }
+  }
 
   @override
   void initState() {
@@ -81,23 +116,22 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
     }).toList();
 
     final designQuery = _designSearchController.text.trim().toLowerCase();
-    final filteredDesigns = designs.where((d) {
-      if (designQuery.isEmpty) return true;
-      return d.name.toLowerCase().contains(designQuery) ||
-          d.code.toLowerCase().contains(designQuery) ||
-          d.purity.toLowerCase().contains(designQuery);
+    final searchedDesigns = designQuery.isEmpty
+        ? <JewelleryDesign>[]
+        : designs.where((d) {
+            return d.name.toLowerCase().contains(designQuery) ||
+                d.code.toLowerCase().contains(designQuery) ||
+                d.purity.toLowerCase().contains(designQuery);
+          }).toList();
+
+    final selectedDesignsList = designs.where((d) {
+      return (_selectedQuantities[d.code] ?? 0) > 0;
     }).toList();
 
     int totalPcs = 0;
-    double totalWeight = 0.0;
     for (final entry in _selectedQuantities.entries) {
       if (entry.value > 0) {
-        final d = designs.firstWhere(
-          (item) => item.code == entry.key,
-          orElse: () => designs.first,
-        );
         totalPcs += entry.value;
-        totalWeight += d.grossWeightGrams * entry.value;
       }
     }
 
@@ -139,7 +173,7 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                   borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
                 ),
                 child: Text(
-                  '$totalPcs pcs · ${totalWeight.toStringAsFixed(1)}g',
+                  '$totalPcs pcs',
                   style: const TextStyle(
                     color: AppColors.emerald,
                     fontWeight: FontWeight.w800,
@@ -357,9 +391,9 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                 ],
                 const SizedBox(height: 16),
 
-                // 2. SELECT DESIGNS & QUANTITIES (Searchable & Filterable)
+                // 2. SEARCH & SELECT DESIGNS (Clean Search & Checkbox)
                 const Text(
-                  '2. Select Designs & Quantity for Each Design',
+                  '2. Search & Select Designs',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
@@ -384,138 +418,35 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                   onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 8),
-                if (filteredDesigns.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    alignment: Alignment.center,
+                if (designQuery.isNotEmpty) ...[
+                  if (searchedDesigns.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'No designs match "${_designSearchController.text.trim()}"',
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    )
+                  else
+                    ...searchedDesigns.map((design) => _buildDesignItem(design)),
+                ] else if (selectedDesignsList.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6, top: 4),
                     child: Text(
-                      'No designs match "${_designSearchController.text.trim()}"',
+                      'Selected Designs (${selectedDesignsList.length}):',
                       style: const TextStyle(
-                        color: AppColors.muted,
                         fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.emeraldDark,
                       ),
                     ),
                   ),
-                ...filteredDesigns.map((design) {
-                  final qty = _selectedQuantities[design.code] ?? 0;
-                  final isSelected = qty > 0;
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppColors.paper : AppColors.canvas,
-                      borderRadius: BorderRadius.circular(
-                        AppDimensions.radiusSmall,
-                      ),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.emerald
-                            : AppColors.outlineLight,
-                        width: isSelected ? 1.5 : 1.0,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Checkbox(
-                          value: isSelected,
-                          activeColor: AppColors.emerald,
-                          onChanged: (val) {
-                            setState(() {
-                              if (val == true) {
-                                _selectedQuantities[design.code] = 1;
-                              } else {
-                                _selectedQuantities.remove(design.code);
-                              }
-                            });
-                          },
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                design.name,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: isSelected
-                                      ? AppColors.ink
-                                      : AppColors.muted,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${design.code} Â· ${design.purity} Â· ${design.grossWeightGrams}g/pc',
-                                style: const TextStyle(
-                                  color: AppColors.muted,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (isSelected)
-                          Row(
-                            children: [
-                              InkWell(
-                                onTap: () {
-                                  setState(() {
-                                    if (qty > 1) {
-                                      _selectedQuantities[design.code] =
-                                          qty - 1;
-                                    } else {
-                                      _selectedQuantities.remove(design.code);
-                                    }
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.outlineLight,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Icon(Icons.remove, size: 14),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                ),
-                                child: Text(
-                                  '$qty',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                              InkWell(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedQuantities[design.code] = qty + 1;
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.emeraldLight,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Icon(
-                                    Icons.add,
-                                    size: 14,
-                                    color: AppColors.emerald,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  );
-                }),
+                  ...selectedDesignsList.map((design) => _buildDesignItem(design)),
+                ],
 
                 const SizedBox(height: 16),
 
@@ -528,44 +459,78 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                     color: AppColors.ink,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: _dueDatePresets.map((preset) {
-                    final isSel = _dueDate == preset;
-                    return InkWell(
-                      onTap: () => setState(() => _dueDate = preset),
+                InkWell(
+                  onTap: () => _pickDueDate(context),
+                  borderRadius: BorderRadius.circular(
+                    AppDimensions.radiusSmall,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.canvas,
                       borderRadius: BorderRadius.circular(
-                        AppDimensions.radiusFull,
+                        AppDimensions.radiusSmall,
                       ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
+                      border: Border.all(color: AppColors.outline),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.calendar_month,
+                          color: AppColors.emerald,
+                          size: 20,
                         ),
-                        decoration: BoxDecoration(
-                          color: isSel ? AppColors.ink : AppColors.canvas,
-                          borderRadius: BorderRadius.circular(
-                            AppDimensions.radiusFull,
-                          ),
-                          border: Border.all(
-                            color: isSel ? AppColors.ink : AppColors.outline,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Delivery / Due Date',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.muted,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _formatDate(_selectedDueDate),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: Text(
-                          preset,
-                          style: TextStyle(
-                            color: isSel ? AppColors.pureWhite : AppColors.ink,
-                            fontWeight: isSel
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            fontSize: 11,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.emeraldLight,
+                            borderRadius: BorderRadius.circular(
+                              AppDimensions.radiusSmall,
+                            ),
+                          ),
+                          child: const Text(
+                            'Select Date',
+                            style: TextStyle(
+                              color: AppColors.emeraldDark,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                      ],
+                    ),
+                  ),
                 ),
 
                 const SizedBox(height: 14),
@@ -586,7 +551,7 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
           // CONFIRM BUTTON
           CommonButton.primary(
             label: totalPcs > 0
-                ? 'Confirm Order ($totalPcs pcs Â· ${totalWeight.toStringAsFixed(1)}g)'
+                ? 'Confirm Order ($totalPcs pcs)'
                 : 'Select at least 1 design',
             onPressed: totalPcs > 0 && _selectedClient != null
                 ? () {
@@ -608,7 +573,7 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
                     context.read<OrdersBloc>().add(
                       CreateAndCheckoutOrderEvent(
                         customerId: _selectedClient!.id,
-                        dueDate: _apiDueDate().toUtc().toIso8601String(),
+                        dueDate: _selectedDueDate.toUtc().toIso8601String(),
                         specialInstructions: _notesController.text.trim(),
                         parts: apiParts,
                       ),
@@ -622,23 +587,115 @@ class _NewOrderSheetState extends State<NewOrderSheet> {
     );
   }
 
-  DateTime _apiDueDate() {
-    final now = DateTime.now();
-    if (_dueDate.startsWith('Due Today')) {
-      return DateTime(now.year, now.month, now.day, 18);
-    }
-    if (_dueDate.startsWith('Due Tomorrow')) {
-      final tomorrow = now.add(const Duration(days: 1));
-      return DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 12);
-    }
-    if (_dueDate == 'Due in 3 Days') {
-      return now.add(const Duration(days: 3));
-    }
-    if (_dueDate == 'Due Friday') {
-      final days = (DateTime.friday - now.weekday + 7) % 7;
-      return now.add(Duration(days: days == 0 ? 7 : days));
-    }
-    final days = (DateTime.monday - now.weekday + 7) % 7;
-    return now.add(Duration(days: days == 0 ? 7 : days));
+  Widget _buildDesignItem(JewelleryDesign design) {
+    final qty = _selectedQuantities[design.code] ?? 0;
+    final isSelected = qty > 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isSelected ? AppColors.paper : AppColors.canvas,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+        border: Border.all(
+          color: isSelected ? AppColors.emerald : AppColors.outlineLight,
+          width: isSelected ? 1.5 : 1.0,
+        ),
+      ),
+      child: Row(
+        children: [
+          Checkbox(
+            value: isSelected,
+            activeColor: AppColors.emerald,
+            onChanged: (val) {
+              setState(() {
+                if (val == true) {
+                  _selectedQuantities[design.code] = 1;
+                } else {
+                  _selectedQuantities.remove(design.code);
+                }
+              });
+            },
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  design.name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: isSelected ? AppColors.ink : AppColors.muted,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${design.code} · ${design.purity}',
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (isSelected)
+            Row(
+              children: [
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      if (qty > 1) {
+                        _selectedQuantities[design.code] = qty - 1;
+                      } else {
+                        _selectedQuantities.remove(design.code);
+                      }
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppColors.outlineLight,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(Icons.remove, size: 14),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    '$qty',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedQuantities[design.code] = qty + 1;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppColors.emeraldLight,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(
+                      Icons.add,
+                      size: 14,
+                      color: AppColors.emerald,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
   }
 }

@@ -130,7 +130,7 @@ class FrontOfficeOrderCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${order.promiseDate.isEmpty ? '' : 'Due: ${order.promiseDate} · '}${order.itemsCount} pcs${order.totalGrossGrams > 0 ? ' · ${order.totalGrossGrams}g' : ''}',
+            '${order.promiseDate.isEmpty ? '' : 'Due: ${order.promiseDate} · '}${order.itemsCount} pcs',
             style: const TextStyle(color: AppColors.muted, fontSize: 12),
           ),
           const SizedBox(height: 8),

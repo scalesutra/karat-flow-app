@@ -381,19 +381,6 @@ class _DesignCard extends StatelessWidget {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            if (design.grossWeightGrams > 0) ...[
-                              const Icon(
-                                Icons.scale,
-                                size: 12,
-                                color: AppColors.muted,
-                              ),
-                              const SizedBox(width: 4),
-                              CommonText.bodySmall(
-                                '${design.grossWeightGrams.toStringAsFixed(1)}g GW',
-                                fontSize: 11,
-                                color: AppColors.muted,
-                              ),
-                            ],
                             if (design.sizeDimensions != null &&
                                 design.sizeDimensions!.trim().isNotEmpty) ...[
                               const SizedBox(width: 6),
@@ -630,10 +617,6 @@ class _DesignDetailModal extends StatelessWidget {
                         : 'Not Specified',
                     isBold: true,
                   ),
-                  if (design.grossWeightGrams > 0) ...[
-                    const Divider(height: 14),
-                    _specRow('Gross Weight', '${design.grossWeightGrams} g'),
-                  ],
                   if (design.sizeDimensions != null &&
                       design.sizeDimensions!.trim().isNotEmpty) ...[
                     const Divider(height: 14),
@@ -641,10 +624,6 @@ class _DesignDetailModal extends StatelessWidget {
                       'Size / Dimensions',
                       design.sizeDimensions!.trim(),
                     ),
-                  ],
-                  if (design.netGoldWeightGrams > 0) ...[
-                    const Divider(height: 14),
-                    _specRow('Net Gold Weight', '${design.netGoldWeightGrams} g'),
                   ],
                   const Divider(height: 14),
                   _specRow(

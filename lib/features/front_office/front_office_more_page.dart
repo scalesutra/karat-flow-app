@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
-import '../../domain/models.dart';
 import '../auth/widgets/authenticated_profile_card.dart';
-import '../instructions/role_directives_section.dart';
+import '../materials/bloc/materials_bloc.dart';
 
 class FrontOfficeMorePage extends StatefulWidget {
   const FrontOfficeMorePage({super.key, required this.store});
@@ -20,13 +20,25 @@ class _FrontOfficeMorePageState extends State<FrontOfficeMorePage> {
   final _calcWeight = TextEditingController(text: '24.5');
   final _calcMaking = TextEditingController(text: '550');
   final _calcDiamondCts = TextEditingController(text: '0.00');
+  final _calcDiamondRate = TextEditingController();
   String _calcPurity = '22KT';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<MaterialsBloc>().add(const FetchMaterialsEvent());
+      }
+    });
+  }
 
   @override
   void dispose() {
     _calcWeight.dispose();
     _calcMaking.dispose();
     _calcDiamondCts.dispose();
+    _calcDiamondRate.dispose();
     super.dispose();
   }
 
@@ -38,6 +50,29 @@ class _FrontOfficeMorePageState extends State<FrontOfficeMorePage> {
     final making = double.tryParse(_calcMaking.text) ?? 0.0;
     final diamondCts = double.tryParse(_calcDiamondCts.text) ?? 0.0;
 
+    // Dynamically fetch Diamond rate from /materials API
+    double backendDiamondRate = 45000.0;
+    try {
+      final materialsState = context.watch<MaterialsBloc>().state;
+      if (materialsState is MaterialsLoaded) {
+        for (final m in materialsState.materials) {
+          final cat = m.category.toUpperCase();
+          final name = m.name.toLowerCase();
+          final code = m.code.toLowerCase();
+          if ((cat.contains('DIAMOND') ||
+                  name.contains('diamond') ||
+                  code.contains('dia')) &&
+              m.presetPricePerUnit > 0) {
+            backendDiamondRate = m.presetPricePerUnit;
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    final enteredDiamondRate = double.tryParse(_calcDiamondRate.text);
+    final effectiveDiamondRate = enteredDiamondRate ?? backendDiamondRate;
+
     final ratePerGram = _calcPurity == '18KT'
         ? goldRates.gold18KPerGram
         : (_calcPurity == '24KT'
@@ -46,8 +81,7 @@ class _FrontOfficeMorePageState extends State<FrontOfficeMorePage> {
 
     final goldCost = weight * ratePerGram;
     final makingCost = weight * making;
-    final diamondCost =
-        diamondCts * 45000.0; // ₹45,000 / ct average wholesale diamond rate
+    final diamondCost = diamondCts * effectiveDiamondRate;
     final subtotal = goldCost + makingCost + diamondCost;
     final gst = subtotal * 0.03; // 3% GST on jewellery in India
     final total = subtotal + gst;
@@ -66,9 +100,6 @@ class _FrontOfficeMorePageState extends State<FrontOfficeMorePage> {
           const SizedBox(height: 10),
 
           const AuthenticatedProfileCard(),
-          const SizedBox(height: 14),
-
-          RoleDirectivesSection(store: widget.store, role: AppRole.frontOffice),
           const SizedBox(height: 14),
 
           // 1. LIVE GOLD & SILVER TICKER
@@ -256,68 +287,75 @@ class _FrontOfficeMorePageState extends State<FrontOfficeMorePage> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: CommonTextField(
+                        controller: _calcDiamondRate,
+                        label: 'Diamond Rate (₹/ct)',
+                        hintText: '₹${backendDiamondRate.toStringAsFixed(0)} (Live API)',
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Purity Selection',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.paper,
+                        borderRadius: BorderRadius.circular(
+                          AppDimensions.radiusSmall,
+                        ),
+                        border: Border.all(color: AppColors.outline),
+                      ),
+                      child: Row(
                         children: [
-                          const Text(
-                            'Purity Selection',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.muted,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.paper,
-                              borderRadius: BorderRadius.circular(
-                                AppDimensions.radiusSmall,
-                              ),
-                              border: Border.all(color: AppColors.outline),
-                            ),
-                            child: Row(
-                              children: [
-                                for (final p in ['18KT', '22KT', '24KT'])
-                                  Expanded(
-                                    child: InkWell(
-                                      onTap: () =>
-                                          setState(() => _calcPurity = p),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: _calcPurity == p
-                                              ? AppColors.emerald
-                                              : Colors.transparent,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          p,
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            color: _calcPurity == p
-                                                ? Colors.white
-                                                : AppColors.ink,
-                                            fontWeight: _calcPurity == p
-                                                ? FontWeight.w800
-                                                : FontWeight.w600,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ),
+                          for (final p in ['18KT', '22KT', '24KT'])
+                            Expanded(
+                              child: InkWell(
+                                onTap: () => setState(() => _calcPurity = p),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _calcPurity == p
+                                        ? AppColors.emerald
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(
+                                      4,
                                     ),
                                   ),
-                              ],
+                                  child: Text(
+                                    p,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: _calcPurity == p
+                                          ? Colors.white
+                                          : AppColors.ink,
+                                      fontWeight: _calcPurity == p
+                                          ? FontWeight.w800
+                                          : FontWeight.w600,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),
@@ -340,7 +378,7 @@ class _FrontOfficeMorePageState extends State<FrontOfficeMorePage> {
                           ),
                           if (diamondCost > 0)
                             Text(
-                              'Diamond (${diamondCts}ct): ₹${diamondCost.toStringAsFixed(0)}',
+                              'Diamond (${diamondCts}ct @ ₹${effectiveDiamondRate.toStringAsFixed(0)}/ct): ₹${diamondCost.toStringAsFixed(0)}',
                               style: const TextStyle(
                                 fontSize: 11,
                                 color: AppColors.muted,

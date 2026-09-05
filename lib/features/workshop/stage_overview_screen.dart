@@ -2858,6 +2858,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                     builder: (ctx) => Common3DViewer(
                                       designCode: task.designCode,
                                       productTitle: task.productTitle,
+                                      modelUrl: task.modelFileUrl,
                                     ),
                                   );
                                 },

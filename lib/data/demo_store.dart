@@ -459,6 +459,7 @@ class DemoStore extends ChangeNotifier {
         'WORKSHOP' ||
         'PROCESS' => 'Process Manager',
         'FRONT_OFFICE' || 'SALES' => 'Front Office',
+        'STORE_KEEPER' || 'STOCKIST' || 'STORE' => 'Store Keeper',
         'ALL' || 'ALL_TEAMS' => DirectiveRecipients.allTeams,
         _ => targetType.replaceAll('_', ' '),
       };

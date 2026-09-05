@@ -669,15 +669,38 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
 
   String _directiveTargetType(String recipient) {
     final normalized = recipient.toLowerCase();
+    if (normalized.contains('front') ||
+        normalized.contains('sales') ||
+        normalized.contains('owais')) {
+      return 'FRONT_OFFICE';
+    }
+    if (normalized.contains('all') || normalized.contains('team')) {
+      return 'ALL_TEAMS';
+    }
     if (normalized.contains('cad') || normalized.contains('3d')) {
       return 'THREE_D_DESIGNER';
     }
     if (normalized.contains('sketch') || normalized.contains('raw')) {
       return 'SKETCHER';
     }
-    if (normalized.contains('artisan') || normalized.contains('goldsmith')) {
+    if (normalized.contains('process') ||
+        normalized.contains('product') ||
+        normalized.contains('workshop manager') ||
+        normalized.contains('manager')) {
+      return 'PROCESS_MANAGER';
+    }
+    if (normalized.contains('store') ||
+        normalized.contains('vault') ||
+        normalized.contains('stock')) {
+      return 'STORE_KEEPER';
+    }
+    if (normalized.contains('artisan') ||
+        normalized.contains('goldsmith') ||
+        normalized.contains('karigar') ||
+        normalized.contains('qc') ||
+        normalized.contains('worker')) {
       return 'ALL_ARTISANS';
     }
-    return 'ALL_ARTISANS';
+    return 'ALL_TEAMS';
   }
 }

@@ -82,9 +82,9 @@ class OrderDetailSheet extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _statColumn('Gross Wt', '${order.totalGrossGrams} g'),
-                _statColumn('Pieces', '${order.itemsCount}'),
+                _statColumn('Pieces', '${order.itemsCount} pcs'),
                 _statColumn('Due Date', order.promiseDate),
+                _statColumn('Status', order.status.label),
               ],
             ),
           ),
