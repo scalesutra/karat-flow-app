@@ -255,94 +255,100 @@ class _DesignLibraryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${task.designCode} · ${task.specs}',
+                  task.specs.trim().isNotEmpty
+                      ? '${task.designCode} · ${task.specs}'
+                      : task.designCode,
                   style: const TextStyle(color: AppColors.muted, fontSize: 11),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Text(
-                      '${task.estimatedWeightGrams} g',
-                      style: const TextStyle(
-                        color: AppColors.ink,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (task.hasStlFile)
-                      const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            size: 12,
-                            color: AppColors.success,
+                if (task.estimatedWeightGrams > 0 || task.hasStlFile) ...[
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      if (task.estimatedWeightGrams > 0) ...[
+                        Text(
+                          '${task.estimatedWeightGrams} g',
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
                           ),
-                          SizedBox(width: 3),
-                          Text(
-                            'STL ready',
-                            style: TextStyle(
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      if (task.hasStlFile)
+                        const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 12,
                               color: AppColors.success,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 10,
                             ),
-                          ),
-                        ],
-                      )
-                    else
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          InkWell(
-                            onTap: () {
-                              store.markCadTaskStlUploaded(task.id);
-                              onChanged();
-                              CommonSnackbar.success(
-                                context,
-                                title: 'STL Uploaded',
-                                message:
-                                    '${task.designCode.toLowerCase()}_v1.stl attached.',
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(6),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
+                            SizedBox(width: 3),
+                            Text(
+                              'STL ready',
+                              style: TextStyle(
+                                color: AppColors.success,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 10,
                               ),
-                              decoration: BoxDecoration(
-                                color: AppColors.canvas,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: AppColors.outline),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.upload_file,
-                                    size: 11,
-                                    color: AppColors.muted,
-                                  ),
-                                  SizedBox(width: 3),
-                                  Text(
-                                    'Upload STL',
-                                    style: TextStyle(
+                            ),
+                          ],
+                        )
+                      else
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                store.markCadTaskStlUploaded(task.id);
+                                onChanged();
+                                CommonSnackbar.success(
+                                  context,
+                                  title: 'STL Uploaded',
+                                  message:
+                                      '${task.designCode.toLowerCase()}_v1.stl attached.',
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.canvas,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: AppColors.outline),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.upload_file,
+                                      size: 11,
                                       color: AppColors.muted,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 10,
                                     ),
-                                  ),
-                                ],
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'Upload STL',
+                                      style: TextStyle(
+                                        color: AppColors.muted,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

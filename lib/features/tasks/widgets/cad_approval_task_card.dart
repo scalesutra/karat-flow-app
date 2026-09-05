@@ -112,39 +112,49 @@ class CadApprovalTaskCard extends StatelessWidget {
           ),
           const SizedBox(height: 3),
           Text(
-            'Client: ${task.clientName} · Order: ${task.orderId}',
+            task.orderId.isNotEmpty &&
+                    task.orderId.toLowerCase() !=
+                        task.designCode.toLowerCase() &&
+                    !task.orderId.toUpperCase().startsWith('CAD-') &&
+                    !task.orderId.toUpperCase().startsWith('SKETCH-')
+                ? 'Client: ${task.clientName} · Order: ${task.orderId}'
+                : (task.designCode.isNotEmpty
+                      ? 'Client: ${task.clientName} · Code: ${task.designCode}'
+                      : 'Client: ${task.clientName}'),
             style: const TextStyle(color: AppColors.muted, fontSize: 12),
           ),
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.canvas,
-              borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-              border: Border.all(color: AppColors.outline),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: AppColors.muted,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    task.specs,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.ink,
+          if (task.specs.trim().isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.canvas,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                border: Border.all(color: AppColors.outline),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: AppColors.muted,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      task.specs,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.ink,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
+            const SizedBox(height: 10),
+          ],
           Wrap(
             spacing: 8,
             runSpacing: 6,

@@ -2824,7 +2824,10 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                '${task.designCode}: ${task.productTitle} (${task.status.label})',
+                                task.productTitle.trim().toLowerCase() ==
+                                        task.designCode.trim().toLowerCase()
+                                    ? '${task.designCode} (${task.status.label})'
+                                    : '${task.designCode}: ${task.productTitle} (${task.status.label})',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: task.hasStlFile

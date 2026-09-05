@@ -11,6 +11,7 @@ import '../instructions/directive_audio.dart';
 import 'widgets/add_artisan_sheet.dart';
 import 'widgets/admin_create_design_dialog.dart';
 import 'widgets/admin_manage_item.dart';
+import 'widgets/admin_production_stages_sheet.dart';
 import 'widgets/admin_review_cad_sheet.dart';
 import 'widgets/admin_review_sketches_sheet.dart';
 import 'widgets/send_directive_dialog.dart';
@@ -748,66 +749,7 @@ class _AdminManagePageState extends State<AdminManagePage> {
   // 5. PRODUCTION ROUTES & SEQUENCES MODAL
   // ==========================================
   void _showRoutesModal(BuildContext context) {
-    final stages = store.stages
-        .map((stage) => {'step': '${stage.stageNumber}', 'name': stage.name})
-        .toList();
-
-    _openSheet(
-      context: context,
-      title: 'Standard Production Routing',
-      subtitle: '${stages.length} backend-configured production stages',
-      child: stages.isEmpty
-          ? const AnimatedEmptyStateWidget(
-              icon: Icons.alt_route,
-              title: 'No Standard Routes',
-              subtitle:
-                  'No manufacturing routing sequences configured in backend.',
-              accentColor: AppColors.emerald,
-            )
-          : ListView.separated(
-              shrinkWrap: true,
-              itemCount: stages.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (ctx, i) {
-                final s = stages[i];
-                return CommonCard(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 14,
-                        backgroundColor: AppColors.ink,
-                        child: Text(
-                          s['step']!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              s['name']!,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-    );
+    AdminProductionStagesSheet.show(context, store: store);
   }
 
   // ==========================================

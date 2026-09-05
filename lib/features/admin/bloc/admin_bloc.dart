@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/api_error_handler.dart';
 import '../../../data/demo_store.dart';
 import '../../../data/mappers/api_domain_mapper.dart';
 import '../../../data/repositories/karatflow_api_repository.dart';
@@ -210,10 +211,16 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         stageNumber: event.stageNumber,
         description: event.description,
       );
-      emit(const AdminActionSuccess('Production stage created.'));
+      final stages = await _api.listStages();
+      _store.setStages(stages);
+      emit(const AdminActionSuccess('Production stage created successfully.'));
       add(const FetchAdminDashboardEvent());
     } catch (error) {
-      emit(AdminError('Failed to create stage: $error'));
+      final msg = ApiErrorHandler.parseMessage(
+        error,
+        fallback: 'Failed to create stage. Please try again.',
+      );
+      emit(AdminError(msg));
     }
   }
 
@@ -227,10 +234,16 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         name: event.name,
         isActive: event.isActive,
       );
-      emit(const AdminActionSuccess('Production stage updated.'));
+      final stages = await _api.listStages();
+      _store.setStages(stages);
+      emit(const AdminActionSuccess('Production stage updated successfully.'));
       add(const FetchAdminDashboardEvent());
     } catch (error) {
-      emit(AdminError('Failed to update stage: $error'));
+      final msg = ApiErrorHandler.parseMessage(
+        error,
+        fallback: 'Failed to update stage. Please try again.',
+      );
+      emit(AdminError(msg));
     }
   }
 
@@ -240,10 +253,16 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
   ) async {
     try {
       await _api.deleteStage(event.stageId);
-      emit(const AdminActionSuccess('Production stage deleted.'));
+      final stages = await _api.listStages();
+      _store.setStages(stages);
+      emit(const AdminActionSuccess('Production stage deleted successfully.'));
       add(const FetchAdminDashboardEvent());
     } catch (error) {
-      emit(AdminError('Failed to delete stage: $error'));
+      final msg = ApiErrorHandler.parseMessage(
+        error,
+        fallback: 'Failed to delete stage. Please try again.',
+      );
+      emit(AdminError(msg));
     }
   }
 

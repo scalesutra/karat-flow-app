@@ -282,14 +282,15 @@ class KaratFlowApiRepository {
   Future<ApiStage> createStage({
     required String name,
     required int stageNumber,
-    String description = '',
+    String? description,
   }) async {
     final response = await _api.post(
       ApiEndpoints.stages,
       data: {
-        'name': name,
+        'name': name.trim(),
         'stageNumber': stageNumber,
-        'description': description,
+        if (description != null && description.trim().isNotEmpty)
+          'description': description.trim(),
       },
     );
     final data = response.data['data'] as Map<String, dynamic>;
@@ -298,12 +299,19 @@ class KaratFlowApiRepository {
 
   Future<ApiStage> updateStage({
     required String id,
-    required String name,
-    bool isActive = true,
+    String? name,
+    int? stageNumber,
+    String? description,
+    bool? isActive,
   }) async {
+    final body = <String, dynamic>{};
+    if (name != null) body['name'] = name.trim();
+    if (stageNumber != null) body['stageNumber'] = stageNumber;
+    if (description != null) body['description'] = description.trim();
+    if (isActive != null) body['isActive'] = isActive;
     final response = await _api.patch(
       ApiEndpoints.stageDetails(id),
-      data: {'name': name, 'isActive': isActive},
+      data: body,
     );
     final data = response.data['data'] as Map<String, dynamic>;
     return ApiStage.fromJson(data);

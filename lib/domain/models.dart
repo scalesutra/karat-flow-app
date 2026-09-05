@@ -445,6 +445,7 @@ class OrderDesignProgress {
   const OrderDesignProgress({
     required this.partId,
     required this.designNumber,
+    this.designName = '',
     required this.quantity,
     required this.grossWeight,
     required this.currentStage,
@@ -455,12 +456,16 @@ class OrderDesignProgress {
 
   final String partId;
   final String designNumber;
+  final String designName;
   final int quantity;
   final double grossWeight;
   final String currentStage;
   final String status;
   final bool isBlocked;
   final String? blockReason;
+
+  String get displayName =>
+      designName.trim().isNotEmpty ? designName.trim() : designNumber.trim();
 }
 
 class CustomerOrder {

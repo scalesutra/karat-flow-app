@@ -11,6 +11,7 @@ import '../../../../core/widgets/common_button.dart';
 import '../../../../core/widgets/common_card.dart';
 import '../../../../data/demo_store.dart';
 import '../bloc/cad_bloc.dart';
+import 'cad_tag_print_dialog.dart';
 
 /// Modular CAD Designer Task Card
 class CadTaskCard extends StatelessWidget {
@@ -33,6 +34,37 @@ class CadTaskCard extends StatelessWidget {
   };
 
   String get _statusLabel => task.status.label;
+
+  String get _cardSubtitle {
+    final cleanCode = task.designCode.trim();
+    final cleanClient = task.clientName.trim();
+    final rawOrder = task.orderId.trim();
+
+    final parts = <String>[];
+
+    // Only show order if it's a real, distinct order ID (not equal to design code or fallback CAD/SKETCH)
+    final hasRealOrder = rawOrder.isNotEmpty &&
+        rawOrder.toLowerCase() != cleanCode.toLowerCase() &&
+        !rawOrder.toUpperCase().startsWith('CAD-') &&
+        !rawOrder.toUpperCase().startsWith('SKETCH-');
+
+    if (hasRealOrder) {
+      parts.add(
+        rawOrder.toUpperCase().startsWith('ORD') ? rawOrder : 'Order #$rawOrder',
+      );
+    }
+
+    if (cleanCode.isNotEmpty) {
+      parts.add(cleanCode);
+    }
+
+    if (cleanClient.isNotEmpty &&
+        cleanClient.toLowerCase() != cleanCode.toLowerCase()) {
+      parts.add(cleanClient);
+    }
+
+    return parts.join(' · ');
+  }
 
   void _showDualFileUploadModal(BuildContext context) {
     PlatformFile? stlFile;
@@ -81,7 +113,10 @@ class CadTaskCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${task.productTitle} (${task.designCode})',
+                          task.productTitle.trim().toLowerCase() ==
+                                  task.designCode.trim().toLowerCase()
+                              ? task.productTitle
+                              : '${task.productTitle} (${task.designCode})',
                           style: const TextStyle(
                             color: AppColors.muted,
                             fontSize: 12,
@@ -380,31 +415,35 @@ class CadTaskCard extends StatelessWidget {
 
             const SizedBox(height: 6),
 
-            // Order + Client
-            Text(
-              '${task.orderId} · ${task.designCode} · ${task.clientName}',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-                color: AppColors.ink,
+            // Order + Client (clean subtitle without duplicate codes)
+            if (_cardSubtitle.isNotEmpty)
+              Text(
+                _cardSubtitle,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  color: AppColors.ink,
+                ),
               ),
-            ),
-
-            const SizedBox(height: 3),
 
             // Specs
-            Text(
-              task.specs,
-              style: const TextStyle(color: AppColors.muted, fontSize: 11),
-            ),
+            if (task.specs.trim().isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(
+                task.specs,
+                style: const TextStyle(color: AppColors.muted, fontSize: 11),
+              ),
+            ],
 
-            const SizedBox(height: 2),
-
-            // Weight
-            Text(
-              'Est. weight: ${task.estimatedWeightGrams} g',
-              style: const TextStyle(color: AppColors.muted, fontSize: 11),
-            ),
+            if (task.estimatedWeightGrams > 0 &&
+                !task.specs.contains('${task.estimatedWeightGrams}g') &&
+                !task.specs.contains('${task.estimatedWeightGrams} g')) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Est. weight: ${task.estimatedWeightGrams} g',
+                style: const TextStyle(color: AppColors.muted, fontSize: 11),
+              ),
+            ],
 
             const SizedBox(height: 8),
 
@@ -441,7 +480,7 @@ class CadTaskCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                 ],
-                if (task.volumeCubicMm != null)
+                if (task.volumeCubicMm != null && task.volumeCubicMm! > 0)
                   _indicatorChip(
                     icon: Icons.calculate_outlined,
                     label: '${task.volumeCubicMm!.toStringAsFixed(1)} mm³',
@@ -633,13 +672,14 @@ class CadTaskCard extends StatelessWidget {
                           color: AppColors.ink,
                         ),
                       ),
-                      Text(
-                        '${task.orderId} · ${task.clientName}',
-                        style: const TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 12,
+                      if (_cardSubtitle.isNotEmpty)
+                        Text(
+                          _cardSubtitle,
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -800,20 +840,22 @@ class CadTaskCard extends StatelessWidget {
                       fontSize: 13,
                     ),
                   ),
-                  Text(
-                    '• ${task.specs}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
+                  if (task.specs.trim().isNotEmpty)
+                    Text(
+                      '• ${task.specs}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '• Estimated Weight: ${task.estimatedWeightGrams} g',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
+                  if (task.estimatedWeightGrams > 0)
+                    Text(
+                      '• Estimated Weight: ${task.estimatedWeightGrams} g',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
                   if (task.volumeCubicMm != null)
                     Text(
                       '• Mesh volume: ${task.volumeCubicMm!.toStringAsFixed(1)} mm³',
@@ -992,31 +1034,11 @@ class CadTaskCard extends StatelessWidget {
                 Expanded(
                   child: CommonButton.primary(
                     height: 40,
-                    icon: Icons.print,
+                    icon: Icons.print_rounded,
                     label: 'Print Tag',
                     onPressed: () {
-                      final messenger = ScaffoldMessenger.of(context);
                       Navigator.pop(ctx);
-                      if (messenger.mounted) {
-                        messenger.clearSnackBars();
-                        messenger.showSnackBar(
-                          SnackBar(
-                            duration: const Duration(seconds: 3),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            backgroundColor: AppColors.ink,
-                            content: Text(
-                              'Printed Zebra tag for ${task.id} · ${task.designCode}.',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.pureWhite,
-                              ),
-                            ),
-                          ),
-                        );
-                      }
+                      CadTagPrintDialog.show(context, task: task);
                     },
                   ),
                 ),

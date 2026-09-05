@@ -70,16 +70,34 @@ class CadBloc extends Bloc<CadEvent, CadState> {
             seenKeys.add(sketch.designNumber);
           }
 
+          String resolvedOrderId = '';
+          for (final order in _store.orders) {
+            final matches = order.designs.any(
+              (d) =>
+                  d.designNumber.trim().toLowerCase() ==
+                      sketch.designNumber.trim().toLowerCase() ||
+                  (sketch.designNumber.isNotEmpty &&
+                      d.designNumber
+                          .trim()
+                          .toLowerCase()
+                          .endsWith(sketch.designNumber.trim().toLowerCase())),
+            );
+            if (matches) {
+              resolvedOrderId = order.id;
+              break;
+            }
+          }
+
           tasks.add(
             CadDesignTask(
               id: sketch.id,
-              orderId: sketch.designNumber.isNotEmpty
-                  ? sketch.designNumber
-                  : 'SKETCH-${sketch.id.substring(0, 6)}',
+              orderId: resolvedOrderId,
               designCode: sketch.designNumber,
               productTitle: sketch.title.isNotEmpty
                   ? sketch.title
-                  : 'Approved 2D Sketch',
+                  : (sketch.designNumber.isNotEmpty
+                        ? 'Design #${sketch.designNumber}'
+                        : 'Approved 2D Sketch'),
               clientName: sketch.designer?.name ?? 'Client Design',
               specs: 'Approved 2D Sketch · Pending 3D Wax STL Modeling',
               notes: sketch.adminInstructions ?? 'Approved by Admin',

@@ -225,22 +225,67 @@ class ApiStage {
     required this.id,
     required this.name,
     required this.stageNumber,
+    this.description,
     this.isActive = true,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory ApiStage.fromJson(Map<String, dynamic> json) {
     return ApiStage(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
-      stageNumber: json['stageNumber'] as int? ?? 0,
+      stageNumber: (json['stageNumber'] is num)
+          ? (json['stageNumber'] as num).toInt()
+          : int.tryParse(json['stageNumber']?.toString() ?? '0') ?? 0,
+      description: json['description'] as String?,
       isActive: json['isActive'] as bool? ?? true,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'] as String)
+          : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String)
+          : null,
     );
   }
 
   final String id;
   final String name;
   final int stageNumber;
+  final String? description;
   final bool isActive;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'stageNumber': stageNumber,
+    if (description != null) 'description': description,
+    'isActive': isActive,
+    if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+    if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
+  };
+
+  ApiStage copyWith({
+    String? id,
+    String? name,
+    int? stageNumber,
+    String? description,
+    bool? isActive,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return ApiStage(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      stageNumber: stageNumber ?? this.stageNumber,
+      description: description ?? this.description,
+      isActive: isActive ?? this.isActive,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }
 
 // ── 5. Raw 2D Sketch Models ─────────────────────────────────────────
@@ -516,6 +561,7 @@ class ApiOrderPart {
   const ApiOrderPart({
     required this.id,
     required this.designNumber,
+    this.designName = '',
     this.quantity = 0,
     this.grossWeight = 0.0,
     this.currentStage = '',
@@ -531,9 +577,43 @@ class ApiOrderPart {
     } else if (json['currentStage'] is String) {
       stgName = json['currentStage'] as String;
     }
+
+    String dNum = json['designNumber'] as String? ?? '';
+    String dName = '';
+
+    if (json['design'] is Map) {
+      final d = json['design'] as Map;
+      dName = d['title'] as String? ?? d['name'] as String? ?? '';
+      if (dNum.isEmpty) {
+        dNum = d['designNumber'] as String? ?? d['code'] as String? ?? '';
+      }
+    } else if (json['threeDDesign'] is Map) {
+      final t = json['threeDDesign'] as Map;
+      dName = t['title'] as String? ?? t['name'] as String? ?? '';
+      if (dNum.isEmpty) {
+        dNum = t['designNumber'] as String? ?? t['code'] as String? ?? '';
+      }
+    } else if (json['sketch'] is Map) {
+      final s = json['sketch'] as Map;
+      dName = s['title'] as String? ?? s['name'] as String? ?? '';
+      if (dNum.isEmpty) {
+        dNum = s['designNumber'] as String? ?? '';
+      }
+    }
+
+    if (dName.isEmpty) {
+      dName = json['designName'] as String? ??
+          json['designTitle'] as String? ??
+          json['productTitle'] as String? ??
+          json['title'] as String? ??
+          json['name'] as String? ??
+          '';
+    }
+
     return ApiOrderPart(
       id: json['id'] as String? ?? '',
-      designNumber: json['designNumber'] as String? ?? '',
+      designNumber: dNum,
+      designName: dName,
       quantity: json['quantity'] as int? ?? 0,
       grossWeight: (json['grossWeight'] as num?)?.toDouble() ?? 0.0,
       currentStage: stgName,
@@ -545,6 +625,7 @@ class ApiOrderPart {
 
   final String id;
   final String designNumber;
+  final String designName;
   final int quantity;
   final double grossWeight;
   final String currentStage;

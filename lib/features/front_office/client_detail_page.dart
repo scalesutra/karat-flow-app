@@ -751,14 +751,15 @@ class _ClientOrderTile extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '${order.totalGrossGrams} g GW',
-                style: const TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+              if (order.totalGrossGrams > 0)
+                Text(
+                  '${order.totalGrossGrams} g GW',
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(

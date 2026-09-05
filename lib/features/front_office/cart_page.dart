@@ -858,7 +858,9 @@ class _CartItemCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 CommonText.bodySmall(
-                  '${item.totalGrossWeight.toStringAsFixed(1)}g GW · ₹${item.totalEstimatedPrice.toStringAsFixed(0)}',
+                  item.totalGrossWeight > 0
+                      ? '${item.totalGrossWeight.toStringAsFixed(1)}g GW · ₹${item.totalEstimatedPrice.toStringAsFixed(0)}'
+                      : '₹${item.totalEstimatedPrice.toStringAsFixed(0)}',
                   color: AppColors.muted,
                 ),
               ],

@@ -381,17 +381,19 @@ class _DesignCard extends StatelessWidget {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            const Icon(
-                              Icons.scale,
-                              size: 12,
-                              color: AppColors.muted,
-                            ),
-                            const SizedBox(width: 4),
-                            CommonText.bodySmall(
-                              '${design.grossWeightGrams.toStringAsFixed(1)}g GW',
-                              fontSize: 11,
-                              color: AppColors.muted,
-                            ),
+                            if (design.grossWeightGrams > 0) ...[
+                              const Icon(
+                                Icons.scale,
+                                size: 12,
+                                color: AppColors.muted,
+                              ),
+                              const SizedBox(width: 4),
+                              CommonText.bodySmall(
+                                '${design.grossWeightGrams.toStringAsFixed(1)}g GW',
+                                fontSize: 11,
+                                color: AppColors.muted,
+                              ),
+                            ],
                             if (design.sizeDimensions != null &&
                                 design.sizeDimensions!.trim().isNotEmpty) ...[
                               const SizedBox(width: 6),
@@ -628,8 +630,10 @@ class _DesignDetailModal extends StatelessWidget {
                         : 'Not Specified',
                     isBold: true,
                   ),
-                  const Divider(height: 14),
-                  _specRow('Gross Weight', '${design.grossWeightGrams} g'),
+                  if (design.grossWeightGrams > 0) ...[
+                    const Divider(height: 14),
+                    _specRow('Gross Weight', '${design.grossWeightGrams} g'),
+                  ],
                   if (design.sizeDimensions != null &&
                       design.sizeDimensions!.trim().isNotEmpty) ...[
                     const Divider(height: 14),
@@ -638,8 +642,10 @@ class _DesignDetailModal extends StatelessWidget {
                       design.sizeDimensions!.trim(),
                     ),
                   ],
-                  const Divider(height: 14),
-                  _specRow('Net Gold Weight', '${design.netGoldWeightGrams} g'),
+                  if (design.netGoldWeightGrams > 0) ...[
+                    const Divider(height: 14),
+                    _specRow('Net Gold Weight', '${design.netGoldWeightGrams} g'),
+                  ],
                   const Divider(height: 14),
                   _specRow(
                     'Gem Summary',
@@ -660,7 +666,10 @@ class _DesignDetailModal extends StatelessWidget {
             ),
 
             // ── Detailed Price Breakdown (If available from API) ────────────────
-            if (design.priceBreakdown != null) ...[
+            if (design.priceBreakdown != null &&
+                (design.priceBreakdown!.finalPrice > 0 ||
+                 design.priceBreakdown!.totalGoldCost > 0 ||
+                 design.priceBreakdown!.totalGemCost > 0)) ...[
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(14),

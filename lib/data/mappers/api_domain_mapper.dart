@@ -156,6 +156,86 @@ abstract final class ApiDomainMapper {
     return '$prefix-$numPart';
   }
 
+  static String formatDesignDisplayName({
+    required String rawDesignNumber,
+    String rawTitle = '',
+    String category = '',
+  }) {
+    final title = rawTitle.trim();
+    final code = rawDesignNumber.trim();
+
+    final isCodeUuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    ).hasMatch(code) || (code.length >= 24 && RegExp(r'^[0-9a-fA-F\-]+$').hasMatch(code));
+
+    final isTitleUuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    ).hasMatch(title) || (title.length >= 24 && RegExp(r'^[0-9a-fA-F\-]+$').hasMatch(title));
+
+    // 1. If clean title is already present, use it
+    if (title.isNotEmpty && !isTitleUuid) {
+      return title;
+    }
+
+    // 2. Search in DemoStore designs
+    final matchedDesign = DemoStore.instance.designs
+        .where(
+          (d) =>
+              d.id.toLowerCase() == code.toLowerCase() ||
+              d.code.toLowerCase() == code.toLowerCase() ||
+              (title.isNotEmpty && d.name.toLowerCase() == title.toLowerCase()),
+        )
+        .firstOrNull;
+
+    if (matchedDesign != null && matchedDesign.name.trim().isNotEmpty) {
+      return matchedDesign.name.trim();
+    }
+
+    // 3. Search in CAD Tasks
+    final matchedCad = DemoStore.instance.cadTasks
+        .where(
+          (c) =>
+              c.id.toLowerCase() == code.toLowerCase() ||
+              c.designCode.toLowerCase() == code.toLowerCase() ||
+              (title.isNotEmpty && c.productTitle.toLowerCase() == title.toLowerCase()),
+        )
+        .firstOrNull;
+
+    if (matchedCad != null && matchedCad.productTitle.trim().isNotEmpty) {
+      return matchedCad.productTitle.trim();
+    }
+
+    // 4. Search in Stock
+    final matchedStock = DemoStore.instance.stock
+        .where(
+          (s) =>
+              s.id.toLowerCase() == code.toLowerCase() ||
+              s.name.toLowerCase() == code.toLowerCase(),
+        )
+        .firstOrNull;
+
+    if (matchedStock != null && matchedStock.name.trim().isNotEmpty) {
+      return matchedStock.name.trim();
+    }
+
+    // 5. If it's a UUID, format cleanly so raw hex isn't shown
+    if (isCodeUuid) {
+      final clean = code.replaceAll('-', '');
+      final shortHex = clean.length >= 6 ? clean.substring(0, 6).toUpperCase() : clean.toUpperCase();
+      return 'Custom Design ($shortHex)';
+    }
+
+    // 6. Clean numeric design code (e.g. 000244 -> Design #000244)
+    if (code.isNotEmpty) {
+      if (RegExp(r'^\d+$').hasMatch(code)) {
+        return 'Design #$code';
+      }
+      return code;
+    }
+
+    return 'Custom Design';
+  }
+
   static ClientInfo customer(ApiCustomer value) => ClientInfo(
     id: value.id,
     firmName: value.name,
@@ -212,16 +292,23 @@ abstract final class ApiDomainMapper {
       itemsSummary: value.parts.isEmpty
           ? ''
           : value.parts
-                .map(
-                  (part) =>
-                      '${part.quantity}x ${formatCleanDesignCode(part.designNumber)}',
-                )
+                .map((part) {
+                  final name = formatDesignDisplayName(
+                    rawDesignNumber: part.designNumber,
+                    rawTitle: part.designName,
+                  );
+                  return '${part.quantity} pcs · $name';
+                })
                 .join(', '),
       designs: value.parts
           .map(
             (part) => OrderDesignProgress(
               partId: part.id,
-              designNumber: formatCleanDesignCode(part.designNumber),
+              designNumber: part.designNumber,
+              designName: formatDesignDisplayName(
+                rawDesignNumber: part.designNumber,
+                rawTitle: part.designName,
+              ),
               quantity: part.quantity,
               grossWeight: part.grossWeight,
               currentStage:
@@ -261,6 +348,10 @@ abstract final class ApiDomainMapper {
         if (part.isEmpty) continue;
         if (part.contains(':')) {
           final key = part.split(':').first.trim().toLowerCase();
+          final val = part.split(':').sublist(1).join(':').trim().toLowerCase();
+          if (key == 'price' && (val == '₹0' || val == '0' || val == '₹0.0' || val == '0.0')) {
+            continue;
+          }
           if (seenMetaKeys.contains(key)) {
             continue;
           } else {
@@ -425,27 +516,61 @@ abstract final class ApiDomainMapper {
   }
 
   static CadDesignTask cadTask(ApiThreeDDesign value) {
-    final sketchTitle = (value.sketch?.title.isNotEmpty == true)
-        ? value.sketch!.title
-        : ((value.sketch?.designNumber.isNotEmpty == true)
-              ? value.sketch!.designNumber
-              : (value.sizeDimensions.isNotEmpty
-                    ? value.sizeDimensions
-                    : '3D CAD Design'));
+    final rawTitle = value.sketch?.title?.trim() ?? '';
+    final sketchTitle = rawTitle.isNotEmpty
+        ? rawTitle
+        : (value.sizeDimensions.isNotEmpty
+              ? value.sizeDimensions
+              : (value.category?.isNotEmpty == true
+                    ? '${value.category} Design'
+                    : 'Custom 3D Design'));
 
     final code = (value.sketch?.designNumber.isNotEmpty == true)
         ? value.sketch!.designNumber
         : 'CAD-${value.id.substring(0, value.id.length > 6 ? 6 : value.id.length)}';
 
-    final specsStr =
-        'Gold: ${value.goldQuantity}g · Gems: ${value.gemQuantity} Pcs (${value.gemWeightTw} Tw) · Total: ${value.totalWeight}g';
+    final specParts = <String>[];
+    if (value.goldQuantity > 0) {
+      specParts.add('Gold: ${value.goldQuantity}g');
+    }
+    if (value.gemQuantity > 0 || value.gemWeightTw > 0) {
+      if (value.gemQuantity > 0 && value.gemWeightTw > 0) {
+        specParts.add('Gems: ${value.gemQuantity} Pcs (${value.gemWeightTw} Tw)');
+      } else if (value.gemQuantity > 0) {
+        specParts.add('Gems: ${value.gemQuantity} Pcs');
+      } else {
+        specParts.add('Gems: ${value.gemWeightTw} Tw');
+      }
+    }
+    if (value.totalWeight > 0) {
+      specParts.add('Total: ${value.totalWeight}g');
+    }
+    final specsStr = specParts.join(' · ');
+
+    // Resolve orderId if this design is part of an active order in DemoStore
+    String resolvedOrderId = '';
+    for (final order in DemoStore.instance.orders) {
+      final matches = order.designs.any(
+        (d) =>
+            d.designNumber.trim().toLowerCase() == code.trim().toLowerCase() ||
+            (code.isNotEmpty &&
+                d.designNumber
+                    .trim()
+                    .toLowerCase()
+                    .endsWith(code.trim().toLowerCase())),
+      );
+      if (matches) {
+        resolvedOrderId = order.id;
+        break;
+      }
+    }
 
     return CadDesignTask(
       id: value.id,
       sketchId: value.sketchId.isNotEmpty
           ? value.sketchId
           : (value.sketch?.id ?? ''),
-      orderId: code,
+      orderId: resolvedOrderId,
       designCode: code,
       productTitle: sketchTitle,
       clientName:
