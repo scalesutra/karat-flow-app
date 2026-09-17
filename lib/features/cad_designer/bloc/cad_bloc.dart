@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../data/demo_store.dart';
@@ -77,10 +75,9 @@ class CadBloc extends Bloc<CadEvent, CadState> {
                   d.designNumber.trim().toLowerCase() ==
                       sketch.designNumber.trim().toLowerCase() ||
                   (sketch.designNumber.isNotEmpty &&
-                      d.designNumber
-                          .trim()
-                          .toLowerCase()
-                          .endsWith(sketch.designNumber.trim().toLowerCase())),
+                      d.designNumber.trim().toLowerCase().endsWith(
+                        sketch.designNumber.trim().toLowerCase(),
+                      )),
             );
             if (matches) {
               resolvedOrderId = order.id;
@@ -175,10 +172,6 @@ class CadBloc extends Bloc<CadEvent, CadState> {
   ) async {
     emit(const CadLoading());
     try {
-      debugPrint(
-        '🚀 [CAD BLoC] Starting S3 upload for STL (${event.stlFileName}) & BOM (${event.bomFileName})...',
-      );
-
       final stl = await _api.uploadFile(
         fileName: event.stlFileName,
         fileType: 'model/stl',
@@ -186,7 +179,6 @@ class CadBloc extends Bloc<CadEvent, CadState> {
         bytes: event.stlBytes,
       );
       final stlUrl = stl.fileUrl;
-      debugPrint('✅ [CAD BLoC] STL uploaded to S3: $stlUrl');
 
       final bom = await _api.uploadFile(
         fileName: event.bomFileName,
@@ -195,14 +187,9 @@ class CadBloc extends Bloc<CadEvent, CadState> {
         bytes: event.bomBytes,
       );
       final bomUrl = bom.fileUrl;
-      debugPrint('✅ [CAD BLoC] BOM uploaded to S3: $bomUrl');
 
       final weight = event.goldQuantity ?? event.volumeCubicMm * 0.0155;
       final totalWeight = double.parse(weight.toStringAsFixed(2));
-
-      debugPrint(
-        '🌐 [CAD BLoC] Hitting backend API POST /three-d-designs for sketchId: ${event.taskId}...',
-      );
 
       if (event.isRevision) {
         await _api.reuploadThreeDDesign(
@@ -224,9 +211,6 @@ class CadBloc extends Bloc<CadEvent, CadState> {
             sizeDimensions: event.specsNote,
           );
         } catch (uploadError) {
-          debugPrint(
-            '⚠️ [CAD BLoC] Initial upload error ($uploadError), attempting reupload for existing CAD ID...',
-          );
           try {
             await _api.reuploadThreeDDesign(
               id: event.taskId,
@@ -234,17 +218,11 @@ class CadBloc extends Bloc<CadEvent, CadState> {
               bomFileUrl: bomUrl,
               totalWeight: totalWeight,
             );
-          } catch (reuploadError) {
-            debugPrint(
-              '⚠️ [CAD BLoC] Reupload API fallback completed: updating local store state.',
-            );
+          } catch (_) {
+            // Continue with the existing fallback when this optional operation fails.
           }
         }
       }
-
-      debugPrint(
-        '🎉 [CAD BLoC] 3D Design successfully created on backend API!',
-      );
 
       // Update local store so CAD task is marked Completed with STL file, volume & specs
       _store.uploadStlFile(
@@ -256,7 +234,6 @@ class CadBloc extends Bloc<CadEvent, CadState> {
       emit(const CadOperationSuccess('CAD files uploaded successfully.'));
       add(const FetchCadTasksEvent());
     } catch (error) {
-      debugPrint('🚨 [CAD BLoC] Upload process error: $error');
       emit(CadError('Failed to upload CAD files: $error'));
     }
   }
@@ -267,15 +244,9 @@ class CadBloc extends Bloc<CadEvent, CadState> {
   ) async {
     emit(const CadOcrExtracting());
     try {
-      debugPrint(
-        '🔍 [CAD BLoC] Running PaddleOCR on screenshot URL: ${event.imageUrl}...',
-      );
       final extractedData = await _api.extractCadOcr(
         imageUrl: event.imageUrl,
         asyncMode: event.asyncMode,
-      );
-      debugPrint(
-        '✅ [CAD BLoC] PaddleOCR completed: design=${extractedData.designNumber}, weight=${extractedData.metalWeightGrams}g, gems=${extractedData.gemSummary.totalCount}',
       );
       emit(
         CadOcrExtracted(
@@ -284,7 +255,6 @@ class CadBloc extends Bloc<CadEvent, CadState> {
         ),
       );
     } catch (error) {
-      debugPrint('🚨 [CAD BLoC] PaddleOCR extraction error: $error');
       emit(CadError('Failed to extract CAD specs via PaddleOCR: $error'));
     }
   }
@@ -295,9 +265,6 @@ class CadBloc extends Bloc<CadEvent, CadState> {
   ) async {
     emit(const CadLoading());
     try {
-      debugPrint(
-        '🌐 [CAD BLoC] Submitting 3D design to POST /three-d-designs/upload...',
-      );
       if (event.isRevision) {
         await _api.reuploadThreeDDesign(
           id: event.sketchId,
@@ -317,7 +284,6 @@ class CadBloc extends Bloc<CadEvent, CadState> {
           sizeDimensions: event.sizeDimensions,
         );
       }
-      debugPrint('🎉 [CAD BLoC] 3D CAD design submitted successfully!');
       _store.uploadStlFile(
         event.sketchId,
         1200.0,
@@ -326,7 +292,6 @@ class CadBloc extends Bloc<CadEvent, CadState> {
       emit(const CadOperationSuccess('3D CAD design submitted successfully!'));
       add(const FetchCadTasksEvent());
     } catch (error) {
-      debugPrint('🚨 [CAD BLoC] Submission error: $error');
       emit(CadError('Failed to submit 3D design: $error'));
     }
   }
@@ -358,8 +323,8 @@ class CadBloc extends Bloc<CadEvent, CadState> {
           adminInstructions: 'Approved for Waxing & Tree Setup',
         );
         apiDone = true;
-      } catch (err3d) {
-        debugPrint('⚠️ [CAD BLoC] reviewThreeDDesign failed: $err3d');
+      } catch (_) {
+        // Continue with the existing fallback when this optional operation fails.
       }
 
       // 2. If reviewThreeDDesign failed (e.g. 404 because it is a sketch ID), call reviewSketch!
@@ -371,11 +336,8 @@ class CadBloc extends Bloc<CadEvent, CadState> {
             adminInstructions: 'Approved by Admin for CAD & Waxing',
           );
           apiDone = true;
-          debugPrint(
-            '✅ [CAD BLoC] Successfully reviewed via /sketches/${event.taskId}/review',
-          );
-        } catch (errSketch) {
-          debugPrint('⚠️ [CAD BLoC] reviewSketch also note: $errSketch');
+        } catch (_) {
+          // Continue with the existing fallback when this optional operation fails.
         }
       }
 
@@ -384,7 +346,6 @@ class CadBloc extends Bloc<CadEvent, CadState> {
       emit(const CadOperationSuccess('Design approved successfully!'));
       add(const FetchCadTasksEvent());
     } catch (error) {
-      debugPrint('❌ [CAD BLoC] Approval process error: $error');
       _store.approveCadTask(event.taskId);
       emit(const CadOperationSuccess('Design approved successfully!'));
       add(const FetchCadTasksEvent());

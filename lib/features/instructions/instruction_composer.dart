@@ -229,8 +229,8 @@ class __InstructionComposerSheetState extends State<_InstructionComposerSheet> {
         _selectedImage = file;
         _selectedImageBytes = bytes;
       });
-    } catch (error) {
-      debugPrint('Could not recover interrupted image selection: $error');
+    } catch (_) {
+      // Allow manual image selection if interrupted selection cannot be recovered.
     }
   }
 

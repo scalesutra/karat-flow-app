@@ -173,8 +173,6 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       AppRole.cadDesigner,
       AppRole.rawDesigner,
       AppRole.stockist,
-      AppRole.workshopArtisan,
-      AppRole.worker,
     ];
 
     showModalBottomSheet<void>(
@@ -312,12 +310,13 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   static String _roleSubtitle(AppRole role) => switch (role) {
     AppRole.admin => 'Master Control & Analytics Portal',
+    AppRole.frontOffice => 'Client Orders, Catalog & Cart Management',
     AppRole.processManager => 'Workshop Stage & Lot Management',
     AppRole.cadDesigner => '3D Design & CAD Render Submissions',
     AppRole.rawDesigner => '2D Hand Sketches & Order Concept Uploads',
     AppRole.stockist => 'Gold, Diamonds & Vault Inventory Management',
     AppRole.workshopArtisan => 'Bench Assembly & Production Tasks',
-    _ => '',
+    AppRole.worker => 'Job Sheet Execution & Piece Tracking',
   };
 
   static IconData _roleIcon(AppRole role) => switch (role) {

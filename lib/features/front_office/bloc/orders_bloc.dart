@@ -1,6 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:jewellery_ops_mobile/core/network/token_storage_service.dart';
+import 'package:jewellery_ops_mobile/core/services/app_local_cache_service.dart';
+import 'package:jewellery_ops_mobile/data/models/api_models.dart';
 import '../../../core/network/token_storage_service.dart';
 import '../../../data/demo_store.dart';
 import '../../../data/mappers/api_domain_mapper.dart';
@@ -12,7 +13,7 @@ import 'orders_state.dart';
 export 'orders_event.dart';
 export 'orders_state.dart';
 
-/// Orders BLoC with Strict Live Backend Order APIs (/orders) & Debug Logs
+/// Orders BLoC with Strict Live Backend Order APIs (/orders)
 class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
   OrdersBloc({required DemoStore store, KaratFlowApiRepository? apiRepository})
     : _store = store,
@@ -48,34 +49,20 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
         tokenRole == 'ARTISAN';
 
     if (isWorkerRole) {
-      debugPrint(
-        'ℹ️ [OrdersBloc] Skipping GET /orders for craftsman/artisan role ($tokenRole / ${_store.activeRole.name}).',
-      );
       emit(OrdersLoaded(orders: _store.orders, filteredOrders: _store.orders));
       return;
     }
 
     emit(const OrdersLoading());
-    debugPrint(
-      '📦 [OrdersBloc] Fetching orders from GET /orders?status=${event.statusFilter ?? 'IN_PRODUCTION'}...',
-    );
     try {
       final apiOrders = await _api.listOrders(status: event.statusFilter ?? '');
-
-      debugPrint(
-        '✅ [OrdersBloc] Received ${apiOrders.length} orders from live API.',
-      );
 
       final mappedOrders = apiOrders.map(ApiDomainMapper.order).toList();
 
       _store.setOrders(mappedOrders);
       emit(OrdersLoaded(orders: mappedOrders, filteredOrders: mappedOrders));
     } catch (e) {
-      debugPrint('❌ [OrdersBloc] Failed to fetch orders: $e');
       if (e.toString().contains('403') || e.toString().contains('Forbidden')) {
-        debugPrint(
-          'ℹ️ [OrdersBloc] 403 Forbidden encountered on /orders. Current role does not have permission; maintaining existing orders cache.',
-        );
         emit(
           OrdersLoaded(orders: _store.orders, filteredOrders: _store.orders),
         );
@@ -91,53 +78,54 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     FetchFrontOfficeDataEvent event,
     Emitter<OrdersState> emit,
   ) async {
-    emit(const OrdersLoading());
+    // ── 0. Stale-While-Revalidate: Instant Local Cache Load ─────────
     try {
-      final orders = await _api.listOrders(status: '', limit: 100);
-      final customers = await _api.listCustomers(limit: 100);
-      final sketches = await _api.listSketches(status: 'APPROVED', limit: 100);
-      final threeD = await _api.listThreeDDesigns(
-        status: 'APPROVED',
-        limit: 100,
-      );
-      final seenDesignKeys = <String>{};
-      final catalogueDesigns = <JewelleryDesign>[];
+      final cachedThreeD = await AppLocalCacheService.instance
+          .getCachedThreeDDesigns();
+      final cachedSketches = await AppLocalCacheService.instance
+          .getCachedSketches();
+      final cachedCustomers = await AppLocalCacheService.instance
+          .getCachedCustomers();
+      final cachedOrders = await AppLocalCacheService.instance
+          .getCachedOrders();
 
-      // 1. Add finished 3D CAD designs (ONLY APPROVED)
-      for (final t in threeD) {
-        final isApproved =
-            t.status.isEmpty ||
-            t.status.toUpperCase() == 'APPROVED' ||
-            t.status.toUpperCase() == 'COMPLETED' ||
-            t.status.toUpperCase() == 'READY';
-        if (isApproved) {
-          catalogueDesigns.add(ApiDomainMapper.threeDDesign(t));
-          if (t.sketchId.isNotEmpty) seenDesignKeys.add(t.sketchId);
-          if (t.sketch?.id.isNotEmpty == true) {
-            seenDesignKeys.add(t.sketch!.id);
-          }
-          if (t.sketch?.designNumber.isNotEmpty == true) {
-            seenDesignKeys.add(t.sketch!.designNumber.toLowerCase().trim());
-          }
-          if (t.id.isNotEmpty) seenDesignKeys.add(t.id);
+      if (cachedThreeD.isNotEmpty ||
+          cachedSketches.isNotEmpty ||
+          cachedCustomers.isNotEmpty ||
+          cachedOrders.isNotEmpty) {
+        if (cachedCustomers.isNotEmpty) {
+          _store.setClients(
+            cachedCustomers.map(ApiDomainMapper.customer).toList(),
+          );
         }
+        if (cachedThreeD.isNotEmpty || cachedSketches.isNotEmpty) {
+          final cachedCatalogue = _buildCatalogue(cachedThreeD, cachedSketches);
+          _store.setDesigns(cachedCatalogue);
+        }
+        if (cachedOrders.isNotEmpty) {
+          final mapped = cachedOrders.map(ApiDomainMapper.order).toList();
+          _store.setOrders(mapped);
+          emit(OrdersLoaded(orders: mapped, filteredOrders: mapped));
+        } else if (_store.designs.isNotEmpty) {
+          emit(
+            OrdersLoaded(orders: _store.orders, filteredOrders: _store.orders),
+          );
+        }
+      } else {
+        emit(const OrdersLoading());
       }
+    } catch (_) {
+      emit(const OrdersLoading());
+    }
 
-      // 2. Add all 2D Sketches that do NOT already have a 3D CAD design (ONLY APPROVED)
-      for (final s in sketches) {
-        final isApproved =
-            s.status.isEmpty || s.status.toUpperCase() == 'APPROVED';
-        final isDuplicate =
-            seenDesignKeys.contains(s.id) ||
-            seenDesignKeys.contains(s.designNumber.toLowerCase().trim());
-        if (isApproved && !isDuplicate) {
-          catalogueDesigns.add(ApiDomainMapper.sketch(s));
-          if (s.id.isNotEmpty) seenDesignKeys.add(s.id);
-          if (s.designNumber.isNotEmpty) {
-            seenDesignKeys.add(s.designNumber.toLowerCase().trim());
-          }
-        }
-      }
+    // ── 1. Live Fetch from KaratFlow Server ───────────────────────────
+    try {
+      final orders = await _api.listOrders(status: '', limit: 200);
+      final customers = await _api.listCustomers(limit: 200);
+      final sketches = await _api.listAllSketches(status: '');
+      final threeD = await _api.listAllThreeDDesigns(status: '');
+
+      final catalogueDesigns = _buildCatalogue(threeD, sketches);
 
       _store
         ..setClients(customers.map(ApiDomainMapper.customer).toList())
@@ -147,9 +135,136 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
       _store.setOrders(mappedOrders);
 
       emit(OrdersLoaded(orders: mappedOrders, filteredOrders: mappedOrders));
+
+      // ── 2. Persist to Local Storage Cache for Fast Subsequent Loads ─
+      AppLocalCacheService.instance.saveThreeDDesigns(threeD);
+      AppLocalCacheService.instance.saveSketches(sketches);
+      AppLocalCacheService.instance.saveCustomers(customers);
+      AppLocalCacheService.instance.saveOrders(orders);
     } catch (error) {
-      emit(OrdersError('Failed to load live front-office data: $error'));
+      if (_store.designs.isNotEmpty || _store.orders.isNotEmpty) {
+        emit(
+          OrdersLoaded(orders: _store.orders, filteredOrders: _store.orders),
+        );
+      } else {
+        emit(OrdersError('Failed to load live front-office data: $error'));
+      }
     }
+  }
+
+  List<JewelleryDesign> _buildCatalogue(
+    List<ApiThreeDDesign> threeD,
+    List<ApiSketch> sketches,
+  ) {
+    final seenDesignKeys = <String>{};
+    final catalogueDesigns = <JewelleryDesign>[];
+
+    // 1. Add finished 3D CAD designs (exclude REJECTED)
+    for (final t in threeD) {
+      final isExcluded = t.status.toUpperCase() == 'REJECTED';
+      if (!isExcluded) {
+        ApiSketch? linkedSketch = t.sketch;
+        final currentSketchUrl =
+            linkedSketch?.sketchUrl.trim().toLowerCase() ?? '';
+        if (linkedSketch == null ||
+            currentSketchUrl.isEmpty ||
+            currentSketchUrl.startsWith('blob:')) {
+          linkedSketch =
+              sketches.where((s) {
+                final matchById =
+                    t.sketchId.isNotEmpty &&
+                    s.id.toLowerCase().trim() ==
+                        t.sketchId.toLowerCase().trim();
+                final matchByNum =
+                    (t.sketch?.designNumber.isNotEmpty == true &&
+                        s.designNumber.toLowerCase().trim() ==
+                            t.sketch!.designNumber.toLowerCase().trim()) ||
+                    (t.sketchId.isNotEmpty &&
+                        s.designNumber.toLowerCase().trim() ==
+                            t.sketchId.toLowerCase().trim());
+                final matchByTitle =
+                    (t.sketch?.title.isNotEmpty == true &&
+                    s.title.toLowerCase().trim() ==
+                        t.sketch!.title.toLowerCase().trim());
+                final isMatch = matchById || matchByNum || matchByTitle;
+                final sUrl = s.sketchUrl.trim().toLowerCase();
+                return isMatch && sUrl.isNotEmpty && !sUrl.startsWith('blob:');
+              }).firstOrNull ??
+              linkedSketch;
+        }
+
+        final effectiveThreeD =
+            (linkedSketch != null &&
+                (t.sketch == null ||
+                    t.sketch!.sketchUrl.isEmpty ||
+                    t.sketch!.sketchUrl.toLowerCase().startsWith('blob:')))
+            ? ApiThreeDDesign(
+                id: t.id,
+                sketchId: t.sketchId,
+                totalWeight: t.totalWeight,
+                status: t.status,
+                version: t.version,
+                xtlFileUrl: t.xtlFileUrl,
+                bomFileUrl: t.bomFileUrl,
+                gemQuantity: t.gemQuantity,
+                goldQuantity: t.goldQuantity,
+                otherMetalsQuantity: t.otherMetalsQuantity,
+                volumeMm3: t.volumeMm3,
+                sizeDimensions: t.sizeDimensions,
+                makingCode: t.makingCode,
+                gemWeightTw: t.gemWeightTw,
+                gemBreakdown: t.gemBreakdown,
+                adminInstructions: t.adminInstructions,
+                feedbackAudioUrl: t.feedbackAudioUrl,
+                feedbackImageUrl: t.feedbackImageUrl,
+                sketch: linkedSketch,
+                designer: t.designer,
+                category: t.category,
+                stock: t.stock,
+                stockStatus: t.stockStatus,
+                price: t.price,
+                calculatedPrice: t.calculatedPrice,
+                priceBreakdown: t.priceBreakdown,
+                description: t.description,
+                imageUrl: t.imageUrl,
+                renderImageUrl: t.renderImageUrl,
+              )
+            : t;
+
+        catalogueDesigns.add(ApiDomainMapper.threeDDesign(effectiveThreeD));
+        if (t.sketchId.isNotEmpty) seenDesignKeys.add(t.sketchId);
+        if (t.sketch?.id.isNotEmpty == true) {
+          seenDesignKeys.add(t.sketch!.id);
+        }
+        if (linkedSketch?.id.isNotEmpty == true) {
+          seenDesignKeys.add(linkedSketch!.id);
+        }
+        if (t.sketch?.designNumber.isNotEmpty == true) {
+          seenDesignKeys.add(t.sketch!.designNumber.toLowerCase().trim());
+        }
+        if (linkedSketch?.designNumber.isNotEmpty == true) {
+          seenDesignKeys.add(linkedSketch!.designNumber.toLowerCase().trim());
+        }
+        if (t.id.isNotEmpty) seenDesignKeys.add(t.id);
+      }
+    }
+
+    // 2. Add all 2D Sketches that do NOT already have a 3D CAD design (exclude REJECTED)
+    for (final s in sketches) {
+      final isExcluded = s.status.toUpperCase() == 'REJECTED';
+      final isDuplicate =
+          seenDesignKeys.contains(s.id) ||
+          seenDesignKeys.contains(s.designNumber.toLowerCase().trim());
+      if (!isExcluded && !isDuplicate) {
+        catalogueDesigns.add(ApiDomainMapper.sketch(s));
+        if (s.id.isNotEmpty) seenDesignKeys.add(s.id);
+        if (s.designNumber.isNotEmpty) {
+          seenDesignKeys.add(s.designNumber.toLowerCase().trim());
+        }
+      }
+    }
+
+    return catalogueDesigns;
   }
 
   Future<void> _onCreateLiveOrder(

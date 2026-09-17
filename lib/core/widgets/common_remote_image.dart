@@ -1,5 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_dimensions.dart';
 import '../../data/repositories/karatflow_api_repository.dart';
@@ -63,6 +66,26 @@ class _CommonRemoteImageState extends State<CommonRemoteImage> {
       return;
     }
 
+    final lower = rawUrl.toLowerCase();
+    // Non-image 3D CAD/data files or browser-memory blob: URLs should directly show fallback
+    if (lower.startsWith('blob:') ||
+        lower.endsWith('.stl') ||
+        lower.endsWith('.xtl') ||
+        lower.endsWith('.obj') ||
+        lower.endsWith('.ply') ||
+        lower.endsWith('.bom') ||
+        lower.endsWith('.csv') ||
+        lower.endsWith('.pdf')) {
+      if (mounted) {
+        setState(() {
+          _imageBytes = null;
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
+      return;
+    }
+
     if (_bytesCache.containsKey(rawUrl)) {
       if (mounted) {
         setState(() {
@@ -79,9 +102,88 @@ class _CommonRemoteImageState extends State<CommonRemoteImage> {
       _hasError = false;
     });
 
+    // 1. Base64 Data URI
+    if (rawUrl.startsWith('data:image/')) {
+      try {
+        final commaIdx = rawUrl.indexOf(',');
+        if (commaIdx != -1) {
+          final bytes = base64Decode(rawUrl.substring(commaIdx + 1));
+          _bytesCache[rawUrl] = bytes;
+          if (mounted) {
+            setState(() {
+              _imageBytes = bytes;
+              _isLoading = false;
+              _hasError = false;
+            });
+          }
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Local File on device
     try {
-      final bytes = await KaratFlowApiRepository().downloadStoredFile(rawUrl);
-      if (bytes.isNotEmpty) {
+      final file = File(rawUrl);
+      if (file.existsSync()) {
+        final bytes = await file.readAsBytes();
+        if (bytes.isNotEmpty) {
+          _bytesCache[rawUrl] = bytes;
+          if (mounted) {
+            setState(() {
+              _imageBytes = bytes;
+              _isLoading = false;
+              _hasError = false;
+            });
+          }
+          return;
+        }
+      }
+    } catch (_) {}
+
+    // 3. Flutter Asset
+    if (rawUrl.startsWith('assets/') || rawUrl.startsWith('asset:')) {
+      try {
+        final clean = rawUrl.replaceFirst('asset:', '');
+        final data = await rootBundle.load(clean);
+        final bytes = data.buffer.asUint8List();
+        if (bytes.isNotEmpty) {
+          _bytesCache[rawUrl] = bytes;
+          if (mounted) {
+            setState(() {
+              _imageBytes = bytes;
+              _isLoading = false;
+              _hasError = false;
+            });
+          }
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // 4. Download from API or storage
+    try {
+      Uint8List? bytes;
+      try {
+        bytes = await KaratFlowApiRepository().downloadStoredFile(rawUrl);
+      } catch (_) {
+        // Continue to the next image fallback.
+      }
+
+      // 5. Fallback: Direct HTTP download if downloadStoredFile failed
+      if ((bytes == null || bytes.isEmpty) &&
+          (rawUrl.startsWith('http://') ||
+              rawUrl.startsWith('https://') ||
+              rawUrl.startsWith('/') ||
+              rawUrl.startsWith('api/') ||
+              rawUrl.startsWith('storage/'))) {
+        try {
+          bytes = await KaratFlowApiRepository().apiClient.getBytes(rawUrl);
+        } catch (_) {
+          // Continue to the next image fallback.
+        }
+      }
+
+      if (bytes != null && bytes.isNotEmpty) {
         _bytesCache[rawUrl] = bytes;
         if (mounted) {
           setState(() {
@@ -119,7 +221,9 @@ class _CommonRemoteImageState extends State<CommonRemoteImage> {
 
   @override
   Widget build(BuildContext context) {
-    final radius = widget.borderRadius ?? BorderRadius.circular(AppDimensions.radiusMedium);
+    final radius =
+        widget.borderRadius ??
+        BorderRadius.circular(AppDimensions.radiusMedium);
 
     Widget content;
     if (_isLoading) {
@@ -164,9 +268,6 @@ class _CommonRemoteImageState extends State<CommonRemoteImage> {
       content = Hero(tag: widget.heroTag!, child: content);
     }
 
-    return ClipRRect(
-      borderRadius: radius,
-      child: content,
-    );
+    return ClipRRect(borderRadius: radius, child: content);
   }
 }

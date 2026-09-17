@@ -28,10 +28,9 @@ class StockistDashboardPage extends StatefulWidget {
 }
 
 class _StockistDashboardPageState extends State<StockistDashboardPage> {
-  String get _effectiveStoreName =>
-      widget.storeName?.trim().isNotEmpty == true
-          ? widget.storeName!.trim()
-          : AppStrings.appName.trClean;
+  String get _effectiveStoreName => widget.storeName?.trim().isNotEmpty == true
+      ? widget.storeName!.trim()
+      : AppStrings.appName.trClean;
 
   late String _selectedCategory;
   String _searchQuery = '';
@@ -107,19 +106,8 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
             }
             if (state is InventoryLoaded) {
               _latestInventoryRes = state.response;
-              debugPrint(
-                '🏦 [STOCKIST INVENTORY API] Loaded ${_latestInventoryRes?.items.length ?? 0} vault items | Total Vault Gold: ${_latestInventoryRes?.summary.totalVaultGold}g',
-              );
             } else if (state is PendingIssuancesQueueLoaded) {
               _latestLiveQueue = state.queue;
-              debugPrint(
-                '📦 [STOCKIST PENDING QUEUE API] Loaded ${_latestLiveQueue?.length ?? 0} pending issuances from /issuances/pending-queue',
-              );
-              for (final item in _latestLiveQueue ?? []) {
-                debugPrint(
-                  '   ➜ OrderPartId: ${item.orderPartId} | Order#: ${item.orderNumber} | Design: ${item.designNumber} | Craftsman: ${item.assignedCraftsman?.name} | Gold: ${item.cadSpecs.goldQuantity}g | Gems: ${item.cadSpecs.gemQuantity} pcs',
-                );
-              }
             }
 
             final inventoryRes = _latestInventoryRes;
@@ -1355,19 +1343,17 @@ class _RequisitionCard extends StatelessWidget {
     );
   }
 
-void _showBomBillPrintModal(
-  BuildContext context,
-  VaultRequisition requisition, {
-  String storeName = 'JEWELLERY VAULT',
-}) {
-  BomBillPrintDialog.show(
-    context,
-    requisition: requisition,
-    storeName: storeName,
-  );
-}
-
-
+  void _showBomBillPrintModal(
+    BuildContext context,
+    VaultRequisition requisition, {
+    String storeName = 'JEWELLERY VAULT',
+  }) {
+    BomBillPrintDialog.show(
+      context,
+      requisition: requisition,
+      storeName: storeName,
+    );
+  }
 
   Widget _detailRow(String label, String value, IconData icon) {
     return Row(

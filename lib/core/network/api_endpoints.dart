@@ -70,6 +70,7 @@ abstract final class ApiEndpoints {
       '/worker-tasks/$id/report-failure';
 
   // ── SECTION 10: AWS S3 Cloud Storage (/storage) ──────────────────
+  static const String storageDirectUpload = '/storage/direct-upload';
   static const String storageUploadUrl = '/storage/upload-url';
   static const String storagePresignedUrl = '/storage/presigned-url';
   static const String storageDownloadUrl = '/storage/download-url';

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:jewellery_ops_mobile/core/widgets/common_snackbar.dart';
 
@@ -28,12 +27,12 @@ class ConnectivityController extends GetxController {
     try {
       _subscription = _connectivity.onConnectivityChanged.listen(
         _updateConnectionStatus,
-        onError: (e) {
-          debugPrint('Connectivity stream error: $e');
+        onError: (_) {
+          // Keep the last known state until the stream emits another result.
         },
       );
-    } catch (e) {
-      debugPrint('Failed to subscribe to connectivity stream: $e');
+    } catch (_) {
+      // Keep the current connectivity state if monitoring is unavailable.
     }
   }
 

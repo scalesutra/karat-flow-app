@@ -25,6 +25,12 @@ final class DirectivesOperationSuccess extends DirectivesState {
 }
 
 final class DirectivesError extends DirectivesState {
-  const DirectivesError(this.message);
+  const DirectivesError(this.message, {this.directiveId});
   final String message;
+  final String? directiveId;
+}
+
+final class DirectiveAcknowledging extends DirectivesState {
+  const DirectiveAcknowledging(this.id);
+  final String id;
 }

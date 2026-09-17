@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/api_error_handler.dart';
+import '../../../core/services/app_local_cache_service.dart';
 import '../../../data/demo_store.dart';
 import '../../../data/mappers/api_domain_mapper.dart';
 import '../../../data/repositories/karatflow_api_repository.dart';
@@ -44,20 +44,22 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     Emitter<AdminState> emit,
   ) async {
     emit(const AdminLoading());
+    // ── 0. Instant Cache Render: Production Stages ─────────────────
     try {
-      debugPrint(
-        '🌐 [Admin BLoC] Fetching real live dashboard & stock data directly from backend API...',
-      );
+      final cachedStages = await AppLocalCacheService.instance
+          .getCachedStages();
+      if (cachedStages.isNotEmpty) {
+        _store.setStages(cachedStages);
+      }
+    } catch (_) {}
+
+    try {
       final employees = await _api.listEmployees();
       final customers = await _api.listCustomers(limit: 100);
       final sketches = await _api.listSketches(limit: 100);
       final stages = await _api.listStages();
       final threeDDesigns = await _api.listThreeDDesigns(limit: 100);
       final orders = await _api.listOrders(limit: 100);
-
-      debugPrint(
-        '📦 [Admin BLoC API RES] Received ${employees.length} employees, ${customers.length} customers, ${sketches.length} sketches, ${orders.length} orders, ${threeDDesigns.length} 3D design stock items from API.',
-      );
 
       final team = employees.map(ApiDomainMapper.employee).toList();
       final clients = customers.map(ApiDomainMapper.customer).toList();
@@ -75,6 +77,10 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         ..setStock(stockItems)
         ..setOrders(customerOrders);
 
+      // Save stages & customers to persistent local cache
+      AppLocalCacheService.instance.saveStages(stages);
+      AppLocalCacheService.instance.saveCustomers(customers);
+
       emit(
         AdminLoaded(
           team: team,
@@ -84,9 +90,6 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         ),
       );
     } catch (error) {
-      debugPrint(
-        '❌ [Admin BLoC API ERR] Failed to fetch live dashboard from API: $error',
-      );
       emit(AdminError('Failed to fetch dashboard data from API: $error'));
     }
   }
@@ -213,6 +216,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       );
       final stages = await _api.listStages();
       _store.setStages(stages);
+      AppLocalCacheService.instance.saveStages(stages);
       emit(const AdminActionSuccess('Production stage created successfully.'));
       add(const FetchAdminDashboardEvent());
     } catch (error) {
@@ -236,6 +240,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       );
       final stages = await _api.listStages();
       _store.setStages(stages);
+      AppLocalCacheService.instance.saveStages(stages);
       emit(const AdminActionSuccess('Production stage updated successfully.'));
       add(const FetchAdminDashboardEvent());
     } catch (error) {
@@ -255,6 +260,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       await _api.deleteStage(event.stageId);
       final stages = await _api.listStages();
       _store.setStages(stages);
+      AppLocalCacheService.instance.saveStages(stages);
       emit(const AdminActionSuccess('Production stage deleted successfully.'));
       add(const FetchAdminDashboardEvent());
     } catch (error) {
@@ -278,22 +284,41 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         category: 'sketches',
         bytes: event.bytes,
       );
-      final sketch = await _api.uploadSketch(
-        designNumber: event.designNumber,
-        title: event.title,
-        sketchUrl: upload.fileUrl.isNotEmpty ? upload.fileUrl : upload.fileKey,
-      );
+      final imageUrl = upload.fileUrl.isNotEmpty
+          ? upload.fileUrl
+          : upload.fileKey;
       try {
-        await _api.reviewSketch(
-          id: sketch.id,
-          status: 'APPROVED',
-          adminInstructions: 'Admin Upload - Pre-approved for production',
+        final sketch = await _api.uploadSketch(
+          designNumber: event.designNumber,
+          title: event.title,
+          sketchUrl: imageUrl,
         );
-        _store.approveDesign(sketch.id);
-        _store.approveSketch(event.designNumber);
-      } catch (_) {}
+        try {
+          await _api.reviewSketch(
+            id: sketch.id,
+            status: 'APPROVED',
+            adminInstructions: 'Admin Upload - Pre-approved for production',
+          );
+          _store.approveDesign(sketch.id);
+          _store.approveSketch(event.designNumber);
+        } catch (_) {}
+      } catch (err) {
+        final errStr = err.toString().toLowerCase();
+        if (errStr.contains('403') ||
+            errStr.contains('permission') ||
+            errStr.contains('forbidden') ||
+            errStr.contains('404')) {
+          await _api.directCreateDesign(
+            title: event.title,
+            designNumber: event.designNumber,
+            imageUrl: imageUrl,
+          );
+        } else {
+          rethrow;
+        }
+      }
       emit(
-        const AdminActionSuccess('Design uploaded & approved successfully.'),
+        const AdminActionSuccess('Design uploaded & registered successfully.'),
       );
       add(const FetchAdminDashboardEvent());
     } catch (error) {
@@ -483,19 +508,11 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     Emitter<AdminState> emit,
   ) async {
     try {
-      debugPrint(
-        '🌐 [Admin BLoC] Fetching stock inventory items directly from API /three-d-designs...',
-      );
       final threeDDesigns = await _api.listThreeDDesigns(limit: 100);
       final stockItems = threeDDesigns.map(ApiDomainMapper.stockItem).toList();
-      debugPrint(
-        '📦 [Admin BLoC Stock API RES] ${stockItems.length} real stock items fetched directly from API.',
-      );
       _store.setStock(stockItems);
-    } catch (error) {
-      debugPrint(
-        '❌ [Admin BLoC Stock API ERR] Failed to fetch stock inventory: $error',
-      );
+    } catch (_) {
+      // Keep the existing inventory if this refresh fails.
     }
   }
 
@@ -580,17 +597,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       String? ocrDescription;
       if (uploadedImageUrl != null) {
         try {
-          debugPrint(
-            '🔍 [Admin BLoC] Running PaddleOCR on uploaded sketch: $uploadedImageUrl',
-          );
           final ocrData = await _api.extractCadOcr(imageUrl: uploadedImageUrl);
-          debugPrint(
-            '✅ [Admin BLoC] PaddleOCR: design=${ocrData.designNumber}, '
-            'weight=${ocrData.metalWeightGrams}g, '
-            'gems=${ocrData.gemSummary.totalCount}, '
-            'making=${ocrData.makingCode}, '
-            'confidence=${ocrData.confidenceScore}',
-          );
           // Use OCR data to fill any missing fields
           if (ocrData.metalWeightGrams > 0 && event.goldQuantity == null) {
             ocrGoldQuantity = ocrData.metalWeightGrams;
@@ -613,9 +620,6 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
             ocrDescription = 'OCR Extracted: ${ocrParts.join(' · ')}';
           }
         } catch (ocrError) {
-          debugPrint(
-            '⚠️ [Admin BLoC] OCR extraction failed (non-blocking): $ocrError',
-          );
           // OCR failure is non-blocking — design creation continues without it
         }
       }
@@ -669,9 +673,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
 
   String _directiveTargetType(String recipient) {
     final normalized = recipient.toLowerCase();
-    if (normalized.contains('front') ||
-        normalized.contains('sales') ||
-        normalized.contains('owais')) {
+    if (normalized.contains('front') || normalized.contains('sales')) {
       return 'FRONT_OFFICE';
     }
     if (normalized.contains('all') || normalized.contains('team')) {

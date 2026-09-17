@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:jewellery_ops_mobile/data/models/api_models.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/animated_empty_state_widget.dart';
 import '../../../core/widgets/common_button.dart';
@@ -102,7 +103,10 @@ class _AdminProductionStagesSheetState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.muted)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.muted),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -360,16 +364,23 @@ class _AdminProductionStagesSheetState
                                                 Container(
                                                   padding:
                                                       const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 2,
-                                                  ),
+                                                        horizontal: 6,
+                                                        vertical: 2,
+                                                      ),
                                                   decoration: BoxDecoration(
-                                                    color: (s.isActive
-                                                            ? AppColors.emerald
-                                                            : AppColors.muted)
-                                                        .withValues(alpha: 0.12),
+                                                    color:
+                                                        (s.isActive
+                                                                ? AppColors
+                                                                      .emerald
+                                                                : AppColors
+                                                                      .muted)
+                                                            .withValues(
+                                                              alpha: 0.12,
+                                                            ),
                                                     borderRadius:
-                                                        BorderRadius.circular(4),
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
                                                   ),
                                                   child: Text(
                                                     s.isActive
@@ -387,20 +398,17 @@ class _AdminProductionStagesSheetState
                                                 ),
                                               ],
                                             ),
-                                            if (s.description != null &&
-                                                s.description!.trim().isNotEmpty) ...[
-                                              const SizedBox(height: 3),
-                                              Text(
-                                                s.description!.trim(),
-                                                style: const TextStyle(
-                                                  color: AppColors.muted,
-                                                  fontSize: 11,
-                                                  height: 1.3,
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              s.effectiveDescription,
+                                              style: const TextStyle(
+                                                color: AppColors.muted,
+                                                fontSize: 11,
+                                                height: 1.3,
                                               ),
-                                            ],
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                           ],
                                         ),
                                       ),

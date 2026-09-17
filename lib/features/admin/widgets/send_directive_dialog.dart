@@ -154,8 +154,8 @@ class _SendDirectiveDialogState extends State<SendDirectiveDialog> {
         _selectedImage = file;
         _selectedImageBytes = bytes;
       });
-    } catch (error) {
-      debugPrint('Could not recover interrupted image selection: $error');
+    } catch (_) {
+      // Allow manual image selection if interrupted selection cannot be recovered.
     }
   }
 
@@ -253,183 +253,185 @@ class _SendDirectiveDialogState extends State<SendDirectiveDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            const Text(
-              'Recipient Team:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-            ),
-            const SizedBox(height: 6),
-            DropdownButtonFormField<String>(
-              initialValue: _recipient,
-              items: DirectiveRecipients.options
-                  .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                  .toList(),
-              onChanged: (val) {
-                if (val != null) setState(() => _recipient = val);
-              },
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+              const Text(
+                'Recipient Team:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
               ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Directive Instructions (Optional if voice recorded):',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _textController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: 'Enter specific design instructions...',
-                filled: true,
-                fillColor: AppColors.canvas,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Image Attachment (Optional):',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isSubmitting
-                        ? null
-                        : () => _pickImage(ImageSource.camera),
-                    icon: const Icon(Icons.camera_alt_outlined),
-                    label: const Text('Camera'),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                initialValue: _recipient,
+                items: DirectiveRecipients.options
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _recipient = val);
+                },
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isSubmitting
-                        ? null
-                        : () => _pickImage(ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library_outlined),
-                    label: const Text('Gallery'),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Directive Instructions (Optional if voice recorded):',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _textController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Enter specific design instructions...',
+                  filled: true,
+                  fillColor: AppColors.canvas,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Image Attachment (Optional):',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => _pickImage(ImageSource.camera),
+                      icon: const Icon(Icons.camera_alt_outlined),
+                      label: const Text('Camera'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => _pickImage(ImageSource.gallery),
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Gallery'),
+                    ),
+                  ),
+                ],
+              ),
+              if (_selectedImageBytes != null) ...[
+                const SizedBox(height: 8),
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.memory(
+                        _selectedImageBytes!,
+                        height: 130,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: IconButton.filled(
+                        tooltip: 'Remove image',
+                        onPressed: () => setState(() {
+                          _selectedImage = null;
+                          _selectedImageBytes = null;
+                        }),
+                        icon: const Icon(Icons.close, size: 18),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-            if (_selectedImageBytes != null) ...[
-              const SizedBox(height: 8),
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.memory(
-                      _selectedImageBytes!,
-                      height: 130,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _isRecording
+                      ? AppColors.dangerLight
+                      : AppColors.canvas,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _isRecording ? AppColors.danger : AppColors.outline,
                   ),
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: IconButton.filled(
-                      tooltip: 'Remove image',
-                      onPressed: () => setState(() {
-                        _selectedImage = null;
-                        _selectedImageBytes = null;
-                      }),
-                      icon: const Icon(Icons.close, size: 18),
+                ),
+                child: Row(
+                  children: [
+                    IconButton.filled(
+                      onPressed: _isSubmitting ? null : _toggleRecording,
+                      style: IconButton.styleFrom(
+                        backgroundColor: _isRecording
+                            ? AppColors.danger
+                            : AppColors.emerald,
+                      ),
+                      icon: Icon(_isRecording ? Icons.stop : Icons.mic),
                     ),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _isRecording ? AppColors.dangerLight : AppColors.canvas,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: _isRecording ? AppColors.danger : AppColors.outline,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isRecording
+                                ? 'Recording $minutes:$seconds'
+                                : _recordingPath == null
+                                ? 'Tap Mic to record voice'
+                                : 'Voice note ready · $minutes:$seconds',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                              color: _isRecording
+                                  ? AppColors.danger
+                                  : AppColors.ink,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _recordingPath != null && !_isRecording
+                                ? 'Tap ▶️ on right to preview before sending'
+                                : 'High quality M4A voice directive',
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_recordingPath != null && !_isRecording)
+                      IconButton.filled(
+                        tooltip: _isPlaying ? 'Pause preview' : 'Play preview',
+                        onPressed: _togglePreview,
+                        style: IconButton.styleFrom(
+                          backgroundColor: _isPlaying
+                              ? AppColors.warning
+                              : AppColors.emeraldLight,
+                        ),
+                        icon: Icon(
+                          _isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: _isPlaying
+                              ? AppColors.pureWhite
+                              : AppColors.emerald,
+                          size: 24,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              child: Row(
-                children: [
-                  IconButton.filled(
-                    onPressed: _isSubmitting ? null : _toggleRecording,
-                    style: IconButton.styleFrom(
-                      backgroundColor: _isRecording
-                          ? AppColors.danger
-                          : AppColors.emerald,
-                    ),
-                    icon: Icon(_isRecording ? Icons.stop : Icons.mic),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _isRecording
-                              ? 'Recording $minutes:$seconds'
-                              : _recordingPath == null
-                              ? 'Tap Mic to record voice'
-                              : 'Voice note ready · $minutes:$seconds',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
-                            color: _isRecording
-                                ? AppColors.danger
-                                : AppColors.ink,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _recordingPath != null && !_isRecording
-                              ? 'Tap ▶️ on right to preview before sending'
-                              : 'High quality M4A voice directive',
-                          style: const TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_recordingPath != null && !_isRecording)
-                    IconButton.filled(
-                      tooltip: _isPlaying ? 'Pause preview' : 'Play preview',
-                      onPressed: _togglePreview,
-                      style: IconButton.styleFrom(
-                        backgroundColor: _isPlaying
-                            ? AppColors.warning
-                            : AppColors.emeraldLight,
-                      ),
-                      icon: Icon(
-                        _isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: _isPlaying
-                            ? AppColors.pureWhite
-                            : AppColors.emerald,
-                        size: 24,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
       actions: [
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.pop(context),

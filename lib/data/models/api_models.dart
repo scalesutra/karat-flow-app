@@ -55,6 +55,15 @@ class ApiUser {
   final String phone;
   final String role;
   final bool isActive;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'email': email,
+    'phone': phone,
+    'role': role,
+    'isActive': isActive,
+  };
 }
 
 // ── 2. Employee Models ──────────────────────────────────────────────
@@ -217,6 +226,18 @@ class ApiCustomer {
   final int ordersCount;
 
   int get activeOrdersCount => ordersCount;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'city': city,
+    'contactPerson': contactPerson,
+    'phone': phone,
+    'email': email,
+    'creditLimitLakhs': creditLimitLakhs,
+    'outstandingLakhs': outstandingLakhs,
+    '_count': {'orders': ordersCount},
+  };
 }
 
 // ── 4. Production Stage Models ──────────────────────────────────────
@@ -232,13 +253,23 @@ class ApiStage {
   });
 
   factory ApiStage.fromJson(Map<String, dynamic> json) {
+    final rawDesc = json['description'] as String? ??
+        json['desc'] as String? ??
+        json['details'] as String? ??
+        json['stageDescription'] as String? ??
+        json['stage_description'] as String? ??
+        json['instructions'] as String? ??
+        json['sop'] as String? ??
+        json['notes'] as String? ??
+        json['info'] as String?;
+
     return ApiStage(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       stageNumber: (json['stageNumber'] is num)
           ? (json['stageNumber'] as num).toInt()
           : int.tryParse(json['stageNumber']?.toString() ?? '0') ?? 0,
-      description: json['description'] as String?,
+      description: rawDesc?.trim(),
       isActive: json['isActive'] as bool? ?? true,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'] as String)
@@ -256,6 +287,72 @@ class ApiStage {
   final bool isActive;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  String get effectiveDescription {
+    final rawDesc = description?.trim();
+    if (rawDesc != null && rawDesc.isNotEmpty) {
+      return rawDesc;
+    }
+    final lower = name.toLowerCase();
+    if (lower.contains('cad') ||
+        lower.contains('cam') ||
+        lower.contains('design') ||
+        lower.contains('3d')) {
+      return '3D computer-aided modeling, stone layout & resin prototype slicing';
+    }
+    if (lower.contains('wax') ||
+        lower.contains('tree') ||
+        lower.contains('mould')) {
+      return 'Precision rubber vulcanizing, wax injection & tree assembling';
+    }
+    if (lower.contains('cast') || lower.contains('dhalai')) {
+      return 'Vacuum induction casting with purity alloy & flask burnout';
+    }
+    if (lower.contains('filing') ||
+        lower.contains('ghat') ||
+        lower.contains('clean') ||
+        lower.contains('grind') ||
+        lower.contains('assembly')) {
+      return 'Sprue cutting, emery filing, assembly soldering & weight calibration';
+    }
+    if (lower.contains('setting') ||
+        lower.contains('jadayi') ||
+        lower.contains('stone') ||
+        lower.contains('diamond') ||
+        lower.contains('prong') ||
+        lower.contains('pave')) {
+      return 'Microscope prong, pave, bezel & channel gem stone placement';
+    }
+    if (lower.contains('polish') ||
+        lower.contains('buff') ||
+        lower.contains('chilai') ||
+        lower.contains('ghissai') ||
+        lower.contains('luster')) {
+      return 'Magnetic tumbling, preliminary tripoli & final rouge mirror finish';
+    }
+    if (lower.contains('plate') ||
+        lower.contains('rhodium') ||
+        lower.contains('wash') ||
+        lower.contains('dip') ||
+        lower.contains('color')) {
+      return 'Electro-chemical degreasing & high-micron rhodium/gold plating';
+    }
+    if (lower.contains('hallmark') ||
+        lower.contains('qc') ||
+        lower.contains('quality') ||
+        lower.contains('check') ||
+        lower.contains('audit') ||
+        lower.contains('bis')) {
+      return 'BIS XRF purity assaying, weight verification & laser hallmark engraving';
+    }
+    if (lower.contains('pack') ||
+        lower.contains('dispatch') ||
+        lower.contains('vault') ||
+        lower.contains('tag')) {
+      return 'Safe vault transfer, tag labeling & tamper-proof customer packaging';
+    }
+    return 'Step $stageNumber production routing & quality assurance checkpoint';
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -309,13 +406,35 @@ class ApiSketch {
   });
 
   factory ApiSketch.fromJson(Map<String, dynamic> json) {
-    final rawUrl =
-        json['sketchUrl'] as String? ??
+    String? fileUrlFromMap(dynamic f) {
+      if (f is String && f.isNotEmpty) return f;
+      if (f is Map) {
+        return f['url'] as String? ??
+            f['path'] as String? ??
+            f['fileKey'] as String? ??
+            f['key'] as String?;
+      }
+      return null;
+    }
+
+    final rawUrl = json['sketchUrl'] as String? ??
+        json['sketch_url'] as String? ??
         json['imageUrl'] as String? ??
+        json['image_url'] as String? ??
         json['url'] as String? ??
         json['image'] as String? ??
+        json['photoUrl'] as String? ??
+        json['photo'] as String? ??
+        json['renderImageUrl'] as String? ??
+        json['renderUrl'] as String? ??
         json['sketchPath'] as String? ??
         json['filePath'] as String? ??
+        json['fileUrl'] as String? ??
+        json['file_url'] as String? ??
+        json['storageKey'] as String? ??
+        json['cdnUrl'] as String? ??
+        fileUrlFromMap(json['file']) ??
+        fileUrlFromMap(json['attachment']) ??
         '';
 
     return ApiSketch(
@@ -354,6 +473,24 @@ class ApiSketch {
   final String? updatedAt;
   final String? category;
   final double? price;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'designNumber': designNumber,
+    'title': title,
+    'sketchUrl': sketchUrl,
+    'status': status,
+    'version': version,
+    if (adminInstructions != null) 'adminInstructions': adminInstructions,
+    if (feedbackAudioUrl != null) 'feedbackAudioUrl': feedbackAudioUrl,
+    if (feedbackImageUrl != null) 'feedbackImageUrl': feedbackImageUrl,
+    if (designer != null) 'designer': designer!.toJson(),
+    'designerId': designerId,
+    if (createdAt != null) 'createdAt': createdAt,
+    if (updatedAt != null) 'updatedAt': updatedAt,
+    if (category != null) 'category': category,
+    if (price != null) 'price': price,
+  };
 }
 
 // ── 6. 3D CAD Models ────────────────────────────────────────────────
@@ -402,6 +539,21 @@ class ApiPriceBreakdown {
   final double gstPercent;
   final double gstAmount;
   final double finalPrice;
+
+  Map<String, dynamic> toJson() => {
+    'purity': purity,
+    'goldRatePerGram': goldRatePerGram,
+    'netGoldWeight': netGoldWeight,
+    'grossWeight': grossWeight,
+    'totalGoldCost': totalGoldCost,
+    'gemQuantity': gemQuantity,
+    'gemRate': gemRate,
+    'totalGemCost': totalGemCost,
+    'subtotal': subtotal,
+    'gstPercent': gstPercent,
+    'gstAmount': gstAmount,
+    'finalPrice': finalPrice,
+  };
 }
 
 // ── 6. 3D CAD Models ────────────────────────────────────────────────
@@ -434,14 +586,43 @@ class ApiThreeDDesign {
     this.calculatedPrice,
     this.priceBreakdown,
     this.description,
+    this.imageUrl,
+    this.renderImageUrl,
   });
 
   factory ApiThreeDDesign.fromJson(Map<String, dynamic> json) {
     final gemBreakdownList = json['gemBreakdown'] as List? ?? const [];
+    final imgUrl = json['imageUrl'] as String? ??
+        json['image'] as String? ??
+        json['thumbnailUrl'] as String? ??
+        json['previewUrl'] as String? ??
+        json['designImageUrl'] as String? ??
+        json['designImage'] as String? ??
+        json['photoUrl'] as String? ??
+        json['photo'] as String? ??
+        json['fileUrl'] as String? ??
+        (json['file'] is String ? json['file'] as String : null) ??
+        json['sketchUrl'] as String?;
+    final renderUrl = json['renderImageUrl'] as String? ??
+        json['renderUrl'] as String? ??
+        json['renderImage'] as String? ??
+        json['render'] as String?;
+
+    final rawSketchId = json['sketchId'] as String? ??
+        json['sketch_id'] as String? ??
+        (json['sketch'] is String ? json['sketch'] as String : '') ??
+        '';
+
+    final sketchRaw = json['sketch'];
+    final parsedSketch = sketchRaw is Map<String, dynamic>
+        ? ApiSketch.fromJson(sketchRaw)
+        : (sketchRaw is Map
+            ? ApiSketch.fromJson(Map<String, dynamic>.from(sketchRaw))
+            : null);
 
     return ApiThreeDDesign(
       id: json['id'] as String? ?? '',
-      sketchId: json['sketchId'] as String? ?? '',
+      sketchId: rawSketchId,
       totalWeight: (json['totalWeight'] as num?)?.toDouble() ?? 0.0,
       status: json['status'] as String? ?? 'PENDING',
       version: json['version'] as int? ?? 1,
@@ -461,9 +642,7 @@ class ApiThreeDDesign {
       adminInstructions: json['adminInstructions'] as String?,
       feedbackAudioUrl: json['feedbackAudioUrl'] as String?,
       feedbackImageUrl: json['feedbackImageUrl'] as String?,
-      sketch: json['sketch'] != null
-          ? ApiSketch.fromJson(json['sketch'] as Map<String, dynamic>)
-          : null,
+      sketch: parsedSketch,
       designer: json['designer'] is Map
           ? ApiUser.fromJson(json['designer'] as Map<String, dynamic>)
           : null,
@@ -480,6 +659,8 @@ class ApiThreeDDesign {
             )
           : null,
       description: json['description'] as String?,
+      imageUrl: imgUrl,
+      renderImageUrl: renderUrl,
     );
   }
 
@@ -510,6 +691,40 @@ class ApiThreeDDesign {
   final double? calculatedPrice;
   final ApiPriceBreakdown? priceBreakdown;
   final String? description;
+  final String? imageUrl;
+  final String? renderImageUrl;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'sketchId': sketchId,
+    'totalWeight': totalWeight,
+    'status': status,
+    'version': version,
+    if (xtlFileUrl != null) 'xtlFileUrl': xtlFileUrl,
+    if (bomFileUrl != null) 'bomFileUrl': bomFileUrl,
+    'gemQuantity': gemQuantity,
+    'goldQuantity': goldQuantity,
+    'otherMetalsQuantity': otherMetalsQuantity,
+    'volumeMm3': volumeMm3,
+    'sizeDimensions': sizeDimensions,
+    'makingCode': makingCode,
+    'gemWeightTw': gemWeightTw,
+    'gemBreakdown': gemBreakdown.map((e) => e.toJson()).toList(),
+    if (adminInstructions != null) 'adminInstructions': adminInstructions,
+    if (feedbackAudioUrl != null) 'feedbackAudioUrl': feedbackAudioUrl,
+    if (feedbackImageUrl != null) 'feedbackImageUrl': feedbackImageUrl,
+    if (sketch != null) 'sketch': sketch!.toJson(),
+    if (designer != null) 'designer': designer!.toJson(),
+    if (category != null) 'category': category,
+    if (stock != null) 'stock': stock,
+    if (stockStatus != null) 'stockStatus': stockStatus,
+    if (price != null) 'price': price,
+    if (calculatedPrice != null) 'calculatedPrice': calculatedPrice,
+    if (priceBreakdown != null) 'priceBreakdown': priceBreakdown!.toJson(),
+    if (description != null) 'description': description,
+    if (imageUrl != null) 'imageUrl': imageUrl,
+    if (renderImageUrl != null) 'renderImageUrl': renderImageUrl,
+  };
 }
 
 // ── 7. Order & Part Models ──────────────────────────────────────────
@@ -555,6 +770,19 @@ class ApiOrder {
   final String dueDate;
   final DateTime? createdAt;
   final List<ApiOrderPart> parts;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'orderNumber': orderNumber,
+    'status': status,
+    'customer': {
+      'name': customerName,
+      'city': customerCity,
+    },
+    'dueDate': dueDate,
+    if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+    'parts': parts.map((p) => p.toJson()).toList(),
+  };
 }
 
 class ApiOrderPart {
@@ -632,6 +860,18 @@ class ApiOrderPart {
   final String status;
   final bool isBlocked;
   final String? blockReason;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'designNumber': designNumber,
+    'designName': designName,
+    'quantity': quantity,
+    'grossWeight': grossWeight,
+    'currentStage': currentStage,
+    'status': status,
+    'isBlocked': isBlocked,
+    if (blockReason != null) 'blockReason': blockReason,
+  };
 }
 
 // ── 8. Workshop Worker Task Models ──────────────────────────────────
@@ -1326,6 +1566,14 @@ class GemBreakdownItem {
   final int count;
   final double weightTw;
   final String color;
+
+  Map<String, dynamic> toJson() => {
+    'shape': shape,
+    'dimensions': dimensions,
+    'count': count,
+    'weightTw': weightTw,
+    'color': color,
+  };
 }
 
 class CadOcrExtractedData {

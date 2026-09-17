@@ -20,6 +20,7 @@ class DirectivesBloc extends Bloc<DirectivesEvent, DirectivesState> {
 
   final KaratFlowApiRepository _repository;
   final DemoStore _store;
+  final Set<String> _acknowledging = {};
 
   Future<void> _onFetchDirectives(
     FetchDirectivesEvent event,
@@ -64,13 +65,21 @@ class DirectivesBloc extends Bloc<DirectivesEvent, DirectivesState> {
     AcknowledgeDirectiveEvent event,
     Emitter<DirectivesState> emit,
   ) async {
+    if (!_acknowledging.add(event.id)) return;
+    emit(DirectiveAcknowledging(event.id));
     try {
-      final directive = await _repository.acknowledgeDirective(event.id);
-      _store.upsertApiDirective(directive);
+      await _repository.acknowledgeDirective(event.id);
+      _store.markDirectiveAcknowledged(event.id);
       emit(const DirectivesOperationSuccess('Directive acknowledged.'));
-      add(const FetchDirectivesEvent());
     } catch (error) {
-      emit(DirectivesError('Failed to acknowledge directive: $error'));
+      emit(
+        DirectivesError(
+          'Failed to acknowledge directive: $error',
+          directiveId: event.id,
+        ),
+      );
+    } finally {
+      _acknowledging.remove(event.id);
     }
   }
 }

@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:developer' as dev;
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'api_endpoints.dart';
 import 'token_storage_service.dart';
 
-/// Centralized HTTP API Client with Zero-Caching Policy, Background Token Refresh, and Detailed Debug Logging
+/// Centralized HTTP API Client with Zero-Caching Policy and Background Token Refresh.
 class ApiClient {
   ApiClient({Dio? dio, TokenStorageService? tokenStorage})
     : _tokenStorage = tokenStorage ?? TokenStorageService(),
@@ -37,22 +35,6 @@ class ApiClient {
 
   Dio get rawDio => _dio;
 
-  void _logLongString(String label, String message) {
-    dev.log('$label $message', name: 'API_CLIENT');
-    const int chunkSize = 800;
-    if (message.length <= chunkSize) {
-      debugPrint('$label $message');
-    } else {
-      debugPrint('$label (Length: ${message.length} chars):');
-      for (int i = 0; i < message.length; i += chunkSize) {
-        final end = (i + chunkSize < message.length)
-            ? i + chunkSize
-            : message.length;
-        debugPrint(message.substring(i, end));
-      }
-    }
-  }
-
   Future<String?> _performSilentTokenRefresh() async {
     if (_isRefreshing) {
       final completer = Completer<String?>();
@@ -68,7 +50,7 @@ class ApiClient {
         return null;
       }
 
-      // Use isolated Dio instance for token refresh to prevent log noise & recursion
+      // Use isolated Dio instance for token refresh to prevent interceptor recursion
       final refreshDio = Dio(
         BaseOptions(
           baseUrl: ApiEndpoints.baseUrl,
@@ -95,15 +77,11 @@ class ApiClient {
           if (newRefreshToken.isNotEmpty) {
             await _tokenStorage.saveRefreshToken(newRefreshToken);
           }
-          debugPrint(
-            '🎉 [TOKEN REFRESH] Session token refreshed silently in background.',
-          );
           _flushQueue(newToken);
           return newToken;
         }
       }
     } catch (e) {
-      debugPrint('⚠️ [TOKEN REFRESH FAILED] Session expired: $e');
       await _tokenStorage.clearAll();
     } finally {
       _isRefreshing = false;
@@ -132,40 +110,9 @@ class ApiClient {
             options.headers['Authorization'] = 'Bearer $token';
           }
 
-          debugPrint('🌐 [API REQ] ${options.method} -> ${options.uri}');
-          if (options.data != null) {
-            try {
-              final bodyStr = options.data is Map || options.data is List
-                  ? jsonEncode(options.data)
-                  : options.data.toString();
-              _logLongString('📦 [API REQ BODY]', bodyStr);
-            } catch (_) {
-              debugPrint('📦 [API REQ BODY] ${options.data}');
-            }
-          }
           return handler.next(options);
         },
-        onResponse: (response, handler) {
-          debugPrint(
-            '✅ [API RES] ${response.statusCode} <- ${response.requestOptions.method} ${response.requestOptions.uri}',
-          );
-          if (response.data != null) {
-            try {
-              final resStr = response.data is Map || response.data is List
-                  ? jsonEncode(response.data)
-                  : response.data.toString();
-              _logLongString('📄 [API RES DATA]', resStr);
-            } catch (_) {
-              debugPrint('📄 [API RES DATA] ${response.data}');
-            }
-          }
-          return handler.next(response);
-        },
         onError: (DioException error, handler) async {
-          final statusCode = error.response?.statusCode ?? 'NO_STATUS';
-          final path = error.requestOptions.path;
-          final method = error.requestOptions.method;
-
           final isAuthEndpoint =
               error.requestOptions.path.contains('/auth/login') ||
               error.requestOptions.path.contains('/auth/refresh-token');
@@ -176,9 +123,6 @@ class ApiClient {
             if (storedRefreshToken == null || storedRefreshToken.isEmpty) {
               return handler.next(error);
             }
-            debugPrint(
-              '🔄 [TOKEN REFRESH] 401 Unauthorized on $method $path. Refreshing token silently...',
-            );
             final newToken = await _performSilentTokenRefresh();
             if (newToken != null && newToken.isNotEmpty) {
               final originalOptions = error.requestOptions;
@@ -190,14 +134,6 @@ class ApiClient {
                 return handler.next(error);
               }
             }
-          }
-
-          final errorDetail = statusCode == 'NO_STATUS'
-              ? ' (${error.type}: ${error.message ?? 'Server connection failed'})'
-              : '';
-          debugPrint('❌ [API ERR] $statusCode$errorDetail <- $method $path');
-          if (error.response?.data != null) {
-            debugPrint('❌ [API ERR DATA] ${error.response?.data}');
           }
 
           return handler.next(error);
@@ -307,8 +243,16 @@ class ApiClient {
   }
 
   /// Downloads bytes from a public or presigned external URL without adding
-  /// the KaratFlow bearer token to the external host.
+  /// the KaratFlow bearer token to the external host. If an internal Karatflow URL
+  /// is passed, automatically delegates to [getBytes] with Bearer auth.
   Future<Uint8List> getAbsoluteBytes(String url) async {
+    final trimmed = url.trim();
+    final uri = Uri.tryParse(trimmed);
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') ||
+        (uri != null && uri.host.toLowerCase().contains('scalesutra.com'))) {
+      return getBytes(trimmed);
+    }
+
     final downloadDio = Dio(
       BaseOptions(
         connectTimeout: ApiEndpoints.connectTimeout,
@@ -316,13 +260,98 @@ class ApiClient {
       ),
     );
     final response = await downloadDio.get<List<int>>(
-      url,
+      trimmed,
       options: Options(responseType: ResponseType.bytes),
     );
     final bytes = response.data;
     if (bytes == null || bytes.isEmpty) {
-      throw const FormatException('The downloaded audio file is empty.');
+      throw const FormatException('The downloaded file is empty.');
     }
     return Uint8List.fromList(bytes);
+  }
+
+  /// Downloads bytes with automatic authentication detection:
+  /// - KaratFlow internal routes (/api/..., scalesutra.com) are requested with JWT Bearer auth.
+  /// - External URLs (AWS S3, Cloudflare R2 presigned URLs) are requested without extra auth headers.
+  Future<Uint8List> getBytes(String urlOrPath) async {
+    final trimmed = urlOrPath.trim();
+    final uri = Uri.tryParse(trimmed);
+    final isHttp =
+        trimmed.startsWith('http://') || trimmed.startsWith('https://');
+    final isInternal =
+        !isHttp ||
+        (uri != null &&
+            (uri.host.toLowerCase().contains('scalesutra.com') ||
+                uri.host.toLowerCase().contains('134.195.138.153') ||
+                uri.host.toLowerCase().contains('localhost')));
+
+    if (isInternal) {
+      final token = await _tokenStorage.getAccessToken();
+      final headers = <String, dynamic>{};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
+      String cleanPath = trimmed;
+      if (cleanPath.startsWith('/storage/')) {
+        cleanPath = '/api/v1$cleanPath';
+      } else if (cleanPath.startsWith('storage/')) {
+        cleanPath = '/api/v1/$cleanPath';
+      }
+
+      final fullUrl = isHttp
+          ? trimmed
+          : (cleanPath.startsWith('/api/')
+                ? Uri.parse(ApiEndpoints.baseUrl)
+                      .replace(
+                        path: cleanPath.split('?')[0],
+                        query: cleanPath.contains('?')
+                            ? cleanPath.substring(cleanPath.indexOf('?') + 1)
+                            : null,
+                      )
+                      .toString()
+                : Uri.parse(
+                    ApiEndpoints.baseUrl,
+                  ).resolve(cleanPath).toString());
+
+      final downloadDio = Dio(
+        BaseOptions(
+          connectTimeout: ApiEndpoints.connectTimeout,
+          receiveTimeout: ApiEndpoints.receiveTimeout,
+          followRedirects: false,
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+      final response = await downloadDio.get<List<int>>(
+        fullUrl,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: headers.isNotEmpty ? headers : null,
+          followRedirects: false,
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+
+      // Handle 301, 302, 303, 307, 308 redirect WITHOUT Authorization header
+      if (response.statusCode != null &&
+          response.statusCode! >= 300 &&
+          response.statusCode! < 400) {
+        final redirectLocation = response.headers.value('location');
+        if (redirectLocation != null && redirectLocation.trim().isNotEmpty) {
+          final resolvedLocation = Uri.parse(
+            fullUrl,
+          ).resolve(redirectLocation.trim()).toString();
+          return getAbsoluteBytes(resolvedLocation);
+        }
+      }
+
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) {
+        throw const FormatException('Empty payload received from server.');
+      }
+      return Uint8List.fromList(bytes);
+    } else {
+      return getAbsoluteBytes(trimmed);
+    }
   }
 }

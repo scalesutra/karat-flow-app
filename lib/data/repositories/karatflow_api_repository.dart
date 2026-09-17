@@ -1,7 +1,7 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/network/api_endpoints.dart';
@@ -13,6 +13,8 @@ class KaratFlowApiRepository {
     : _api = apiClient ?? ApiClient();
 
   final ApiClient _api;
+
+  ApiClient get apiClient => _api;
 
   Map<String, dynamic> _dataMap(dynamic responseData) {
     if (responseData is! Map || responseData['data'] is! Map) {
@@ -345,6 +347,35 @@ class KaratFlowApiRepository {
         .toList();
   }
 
+  Future<List<ApiSketch>> listAllSketches({
+    String status = '',
+    String search = '',
+    String designerId = '',
+    int maxTotal = 2000,
+  }) async {
+    final all = <ApiSketch>[];
+    int page = 1;
+    const pageSize = 100;
+    while (all.length < maxTotal) {
+      try {
+        final chunk = await listSketches(
+          status: status,
+          search: search,
+          designerId: designerId,
+          page: page,
+          limit: pageSize,
+        );
+        if (chunk.isEmpty) break;
+        all.addAll(chunk);
+        if (chunk.length < pageSize) break;
+        page++;
+      } catch (_) {
+        break;
+      }
+    }
+    return all;
+  }
+
   Future<ApiSketch> getSketchDetails(String id) async {
     final response = await _api.get(ApiEndpoints.sketchDetails(id));
     final data = response.data['data'] as Map<String, dynamic>;
@@ -356,16 +387,40 @@ class KaratFlowApiRepository {
     required String title,
     required String sketchUrl,
   }) async {
-    final response = await _api.post(
-      ApiEndpoints.uploadSketch,
-      data: {
-        'designNumber': designNumber,
-        'title': title,
-        'sketchUrl': sketchUrl,
-      },
-    );
-    final data = response.data['data'] as Map<String, dynamic>;
-    return ApiSketch.fromJson(data);
+    try {
+      final response = await _api.post(
+        ApiEndpoints.uploadSketch,
+        data: {
+          'designNumber': designNumber,
+          'title': title,
+          'sketchUrl': sketchUrl,
+        },
+      );
+      final data = response.data['data'] as Map<String, dynamic>;
+      return ApiSketch.fromJson(data);
+    } catch (e) {
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('404') ||
+          errStr.contains('403') ||
+          errStr.contains('permission')) {
+        try {
+          final fallbackResp = await _api.post(
+            ApiEndpoints.sketches,
+            data: {
+              'designNumber': designNumber,
+              'title': title,
+              'sketchUrl': sketchUrl,
+              'photoUrl': sketchUrl,
+            },
+          );
+          final data = fallbackResp.data['data'] as Map<String, dynamic>;
+          return ApiSketch.fromJson(data);
+        } catch (_) {
+          rethrow;
+        }
+      }
+      rethrow;
+    }
   }
 
   Future<ApiSketch> reuploadSketch({
@@ -424,6 +479,31 @@ class KaratFlowApiRepository {
     } catch (_) {
       return [];
     }
+  }
+
+  Future<List<ApiThreeDDesign>> listAllThreeDDesigns({
+    String status = '',
+    int maxTotal = 2000,
+  }) async {
+    final all = <ApiThreeDDesign>[];
+    int page = 1;
+    const pageSize = 100;
+    while (all.length < maxTotal) {
+      try {
+        final chunk = await listThreeDDesigns(
+          status: status,
+          page: page,
+          limit: pageSize,
+        );
+        if (chunk.isEmpty) break;
+        all.addAll(chunk);
+        if (chunk.length < pageSize) break;
+        page++;
+      } catch (_) {
+        break;
+      }
+    }
+    return all;
   }
 
   Future<ApiThreeDDesign> getThreeDDesignDetails(String id) async {
@@ -571,6 +651,31 @@ class KaratFlowApiRepository {
     final data = response.data['data'] as Map<String, dynamic>;
     return ApiThreeDDesign.fromJson(data);
   }
+
+  /// Alias for [directCreateDesign]
+  Future<ApiThreeDDesign> createThreeDDesignDirect({
+    required String title,
+    required String designNumber,
+    String? imageUrl,
+    String? bomFileUrl,
+    String? xtlFileUrl,
+    String? category,
+    double? price,
+    double? goldQuantity,
+    String? sizeDimensions,
+    String? description,
+  }) => directCreateDesign(
+    title: title,
+    designNumber: designNumber,
+    imageUrl: imageUrl,
+    bomFileUrl: bomFileUrl,
+    xtlFileUrl: xtlFileUrl,
+    category: category,
+    price: price,
+    goldQuantity: goldQuantity,
+    sizeDimensions: sizeDimensions,
+    description: description,
+  );
 
   // ── SECTION 7: Orders (/orders) ───────────────────────────────────
   Future<List<ApiOrder>> listOrders({
@@ -747,10 +852,6 @@ class KaratFlowApiRepository {
           'limit': limit,
         },
       );
-      debugPrint(
-        '📋 [WORKER TASKS API] GET /worker-tasks status: ${response.statusCode}',
-      );
-      debugPrint('📄 [WORKER TASKS API DATA] ${response.data}');
 
       final data = response.data['data'];
       List rawList = [];
@@ -763,51 +864,30 @@ class KaratFlowApiRepository {
           .map((w) => ApiWorkerTask.fromJson(w as Map<String, dynamic>))
           .toList();
 
-      debugPrint(
-        '🔨 [WORKER TASKS PARSED] Loaded ${tasks.length} bench tasks:',
-      );
-      for (final t in tasks) {
-        debugPrint(
-          '   ➜ TaskID: ${t.id} | Order#: ${t.orderId} | Design: ${t.designNumber} | Stage: ${t.stageName} | Status: ${t.status} | StockIssued: ${t.isStockIssued}',
-        );
-      }
       return tasks;
-    } catch (e, st) {
-      debugPrint('❌ [WORKER TASKS API ERROR] $e\n$st');
+    } catch (e) {
       return [];
     }
   }
 
   Future<ApiWorkerTask> startWorkerTask(String id) async {
     try {
-      debugPrint('▶️ [WORKER TASK START API] POST /worker-tasks/$id/start');
       final response = await _api.post(ApiEndpoints.startWorkerTask(id));
-      debugPrint(
-        '✅ [WORKER TASK START SUCCESS] ${response.statusCode} | Data: ${response.data}',
-      );
       final dataMap = _dataMap(response.data);
       return ApiWorkerTask.fromJson(dataMap);
     } on DioException catch (e) {
-      debugPrint(
-        '❌ [WORKER TASK START DIO ERROR] Status: ${e.response?.statusCode} | Data: ${e.response?.data}',
-      );
       final resMsg = e.response?.data?['message'] as String?;
       if (resMsg != null && resMsg.isNotEmpty) {
         throw Exception(resMsg);
       }
       rethrow;
     } catch (e) {
-      debugPrint('❌ [WORKER TASK START UNKNOWN ERROR] $e');
       rethrow;
     }
   }
 
   Future<ApiWorkerTask> completeWorkerTask(String id) async {
-    debugPrint('✅ [WORKER TASK COMPLETE API] POST /worker-tasks/$id/complete');
     final response = await _api.post(ApiEndpoints.completeWorkerTask(id));
-    debugPrint(
-      '🎉 [WORKER TASK COMPLETE SUCCESS] ${response.statusCode} | Data: ${response.data}',
-    );
     final dataMap = _dataMap(response.data);
     return ApiWorkerTask.fromJson(dataMap);
   }
@@ -816,15 +896,9 @@ class KaratFlowApiRepository {
     String id,
     String reason,
   ) async {
-    debugPrint(
-      '⚠️ [WORKER TASK FAILURE API] POST /worker-tasks/$id/report-failure | Reason: $reason',
-    );
     final response = await _api.post(
       ApiEndpoints.reportWorkerTaskFailure(id),
       data: {'failureReason': reason},
-    );
-    debugPrint(
-      '🚨 [WORKER TASK FAILURE REPORTED] ${response.statusCode} | Data: ${response.data}',
     );
     final dataMap = _dataMap(response.data);
     return ApiWorkerTask.fromJson(dataMap);
@@ -850,22 +924,86 @@ class KaratFlowApiRepository {
     required String category,
     required Uint8List bytes,
   }) async {
-    final signedUrl = await getPresignedUploadUrl(
-      fileName: fileName,
-      fileType: fileType,
-      category: category,
-    );
-    if (signedUrl.uploadUrl.isEmpty) {
-      throw const FormatException(
-        'Storage API returned an invalid upload URL.',
+    try {
+      final response = await _api.post(
+        ApiEndpoints.storageDirectUpload,
+        queryParameters: {'folder': category, 'fileName': fileName},
+        data: Stream.fromIterable([bytes]),
+        options: Options(
+          contentType: fileType,
+          headers: {'Content-Type': fileType, 'Content-Length': bytes.length},
+        ),
       );
+
+      final respData = response.data;
+      Map<String, dynamic>? dataMap;
+      if (respData is Map<String, dynamic>) {
+        if (respData['data'] is Map<String, dynamic>) {
+          dataMap = respData['data'] as Map<String, dynamic>;
+        } else {
+          dataMap = respData;
+        }
+      }
+
+      final rawFileUrl =
+          dataMap?['fileUrl'] as String? ??
+          dataMap?['url'] as String? ??
+          dataMap?['publicUrl'] as String? ??
+          '';
+      var fileKey =
+          dataMap?['fileKey'] as String? ?? dataMap?['key'] as String? ?? '';
+
+      if (fileKey.isEmpty && rawFileUrl.isNotEmpty) {
+        final parsedUri = Uri.tryParse(rawFileUrl);
+        if (parsedUri != null) {
+          final segs = parsedUri.pathSegments;
+          if (segs.length > 1 &&
+              (segs.first.toLowerCase() == 'karatflow' ||
+                  segs.first.toLowerCase() == 'karratflow')) {
+            fileKey = segs.skip(1).join('/');
+          } else if (segs.isNotEmpty) {
+            fileKey = segs.join('/');
+          }
+        }
+      }
+
+      if (fileKey.isEmpty) {
+        fileKey = '$category/$fileName';
+      }
+
+      // Server view proxy URL as used by Admin Panel and working endpoints
+      final serverViewUrl =
+          '/api/v1/storage/view?key=${Uri.encodeQueryComponent(fileKey)}';
+
+      if (rawFileUrl.isNotEmpty || serverViewUrl.isNotEmpty) {
+        return ApiPresignedUrl(
+          uploadUrl: rawFileUrl.isNotEmpty ? rawFileUrl : serverViewUrl,
+          fileKey: fileKey,
+          fileUrl: serverViewUrl,
+          expiresInSeconds: 86400,
+        );
+      }
+      throw FormatException(
+        'Direct upload server response did not contain fileUrl: $respData',
+      );
+    } catch (e) {
+      final signedUrl = await getPresignedUploadUrl(
+        fileName: fileName,
+        fileType: fileType,
+        category: category,
+      );
+      if (signedUrl.uploadUrl.isEmpty) {
+        throw FormatException(
+          'Direct upload failed: $e, and presigned upload URL is empty.',
+        );
+      }
+      await _api.putAbsoluteBytes(
+        signedUrl.uploadUrl,
+        bytes: bytes,
+        contentType: fileType,
+      );
+      return signedUrl;
     }
-    await _api.putAbsoluteBytes(
-      signedUrl.uploadUrl,
-      bytes: bytes,
-      contentType: fileType,
-    );
-    return signedUrl;
   }
 
   // ── SECTION 10B: PaddleOCR Spec Extraction (/ocr) ───────────────
@@ -898,51 +1036,165 @@ class KaratFlowApiRepository {
     if (reference.isEmpty) {
       throw const FormatException('The stored file reference is empty.');
     }
+
+    // Reject browser-local blob: URLs immediately (cannot be fetched over HTTP)
+    if (reference.toLowerCase().startsWith('blob:')) {
+      throw const FormatException(
+        'Blob memory URLs are client-side only and cannot be downloaded.',
+      );
+    }
+
+    // 1. Check if it's a local file on device
+    try {
+      final localFile = File(reference);
+      if (localFile.existsSync()) {
+        final bytes = await localFile.readAsBytes();
+        if (bytes.isNotEmpty) return bytes;
+      }
+    } catch (_) {}
+
     final uri = Uri.tryParse(reference);
     if (uri == null) {
       throw const FormatException('The stored file reference is invalid.');
     }
 
+    // 2. Relative storage key (e.g. 'sketches/filename.png')
     if (!uri.hasScheme && !reference.startsWith('/api/')) {
-      final signed = await getPresignedDownloadUrl(
-        reference.replaceFirst(RegExp(r'^/+'), ''),
-      );
-      if (signed.downloadUrl.isEmpty) {
-        throw const FormatException('Storage API returned no download URL.');
+      final cleanRef = reference
+          .replaceFirst(RegExp(r'^/+'), '')
+          .replaceAll('\\', '/');
+      try {
+        final signed = await getPresignedDownloadUrl(cleanRef);
+        if (signed.downloadUrl.isNotEmpty) {
+          return await _api.getAbsoluteBytes(signed.downloadUrl);
+        }
+      } catch (_) {
+        // Try with/without karratflow/ prefix
+        if (cleanRef.startsWith('karratflow/')) {
+          try {
+            final signed = await getPresignedDownloadUrl(
+              cleanRef.replaceFirst('karratflow/', ''),
+            );
+            if (signed.downloadUrl.isNotEmpty) {
+              return await _api.getAbsoluteBytes(signed.downloadUrl);
+            }
+          } catch (_) {}
+        } else {
+          try {
+            final signed = await getPresignedDownloadUrl(
+              'karratflow/$cleanRef',
+            );
+            if (signed.downloadUrl.isNotEmpty) {
+              return await _api.getAbsoluteBytes(signed.downloadUrl);
+            }
+          } catch (_) {}
+        }
+
+        // Try server view proxy endpoint directly
+        try {
+          return await _api.getBytes(
+            '/storage/view?key=${Uri.encodeQueryComponent(cleanRef)}',
+          );
+        } catch (_) {}
+        try {
+          return await _api.getBytes(
+            '/storage/view?key=${Uri.encodeQueryComponent('karratflow/$cleanRef')}',
+          );
+        } catch (_) {}
+
+        final resolvedUrl = Uri.parse(
+          ApiEndpoints.baseUrl,
+        ).resolve(reference).toString();
+        return await _api.getBytes(resolvedUrl);
       }
-      return _api.getAbsoluteBytes(signed.downloadUrl);
     }
 
+    // 3. Absolute URL, Cloudflare R2, or AWS S3 URL
     String targetUrl = uri.hasScheme
         ? reference
         : Uri.parse(ApiEndpoints.baseUrl).resolve(reference).toString();
-    final fileKey = _storageFileKey(uri);
-    if (fileKey != null) {
-      final signed = await getPresignedDownloadUrl(fileKey);
-      if (signed.downloadUrl.isEmpty) {
-        throw const FormatException('Storage API returned no download URL.');
-      }
-      targetUrl = signed.downloadUrl;
+
+    // If already a server view endpoint, download directly via _api
+    if (reference.startsWith('/api/') || reference.contains('/storage/view')) {
+      return _api.getBytes(targetUrl);
     }
 
-    return _api.getAbsoluteBytes(targetUrl);
+    final fileKey = _storageFileKey(uri);
+    if (fileKey != null) {
+      final candidates = <String>[fileKey];
+      if (fileKey.startsWith('karratflow/')) {
+        candidates.add(fileKey.replaceFirst('karratflow/', ''));
+      }
+      if (fileKey.startsWith('karatflow/')) {
+        candidates.add(fileKey.replaceFirst('karatflow/', ''));
+      }
+      if (!fileKey.startsWith('karratflow/') &&
+          !fileKey.startsWith('karatflow/')) {
+        candidates.add('karratflow/$fileKey');
+      }
+
+      // Step 3a: Try server view proxy endpoint first (100% reliable, zero signature issues)
+      for (final candidate in candidates) {
+        try {
+          final bytes = await _api.getBytes(
+            '/storage/view?key=${Uri.encodeQueryComponent(candidate)}',
+          );
+          if (bytes.isNotEmpty) {
+            return bytes;
+          }
+        } catch (_) {}
+      }
+
+      // Step 3b: Fallback to presigned download URL
+      for (final candidate in candidates) {
+        try {
+          final signed = await getPresignedDownloadUrl(candidate);
+          if (signed.downloadUrl.isNotEmpty) {
+            final bytes = await _api.getAbsoluteBytes(signed.downloadUrl);
+            if (bytes.isNotEmpty) {
+              return bytes;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Direct download with internal/external auth handling
+    return _api.getBytes(targetUrl);
   }
 
   String? _storageFileKey(Uri uri) {
     final isSigned = uri.queryParameters.keys.any(
-      (key) => key.toLowerCase() == 'x-amz-signature',
+      (key) =>
+          key.toLowerCase() == 'x-amz-signature' ||
+          key.toLowerCase() == 'x-amz-algorithm',
     );
     if (isSigned) return null;
 
     final proxyKey =
         uri.queryParameters['fileKey'] ?? uri.queryParameters['key'];
     if (proxyKey != null && proxyKey.trim().isNotEmpty) {
-      return proxyKey.trim();
+      return proxyKey.trim().replaceAll('\\', '/');
     }
 
     final host = uri.host.toLowerCase();
-    if (!host.contains('amazonaws.com') && !host.contains('s3')) return null;
-    final key = uri.pathSegments.join('/').trim();
+    final isCloudStorage =
+        host.contains('amazonaws.com') ||
+        host.contains('s3') ||
+        host.contains('cloudflarestorage.com') ||
+        host.contains('r2');
+    if (!isCloudStorage) return null;
+
+    final segments = uri.pathSegments;
+    if (segments.isEmpty) return null;
+
+    if (segments.length > 1 &&
+        (segments.first.toLowerCase() == 'karatflow' ||
+            segments.first.toLowerCase() == 'karratflow')) {
+      return segments.skip(1).join('/').trim().replaceAll('\\', '/');
+    }
+
+    final key = segments.join('/').trim().replaceAll('\\', '/');
     return key.isEmpty ? null : key;
   }
 
@@ -1131,13 +1383,22 @@ class KaratFlowApiRepository {
     return ApiDirective.fromJson(data);
   }
 
-  Future<ApiDirective> acknowledgeDirective(String id) async {
+  Future<void> acknowledgeDirective(String id) async {
+    if (id.trim().isEmpty) {
+      throw ArgumentError('Directive ID is missing.');
+    }
     final response = await _api.patch(
       ApiEndpoints.acknowledgeDirective(id),
       data: <String, dynamic>{},
     );
-    final data = response.data['data'] as Map<String, dynamic>;
-    return ApiDirective.fromJson(data);
+    // A successful command may return only a message or HTTP 204.
+    // Do not require a complete directive object to acknowledge an existing one.
+    final body = response.data;
+    if (body is Map && body['success'] == false) {
+      throw StateError(
+        body['message']?.toString() ?? 'Acknowledgement failed.',
+      );
+    }
   }
 
   // ── SECTION 14: Health (/health) ──────────────────────────────────

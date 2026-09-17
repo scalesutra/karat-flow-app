@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../data/repositories/karatflow_api_repository.dart';
 import '../constants/app_colors.dart';
 import '../network/api_endpoints.dart';
 import 'common_progress_indicator.dart';
 
-/// Ultra-Modern Presigned AWS S3 & Local File Sketch Image Renderer
+/// Ultra-Modern Presigned AWS S3 / Cloudflare R2 & Local File Sketch Image Renderer
 class PresignedSketchImage extends StatefulWidget {
   const PresignedSketchImage({
     super.key,
@@ -31,7 +32,9 @@ class PresignedSketchImage extends StatefulWidget {
 
 class _PresignedSketchImageState extends State<PresignedSketchImage> {
   static final Map<String, String> _urlCache = {};
+  static final Map<String, Uint8List> _bytesCache = {};
   String? _resolvedUrl;
+  Uint8List? _imageBytes;
   bool _isLoading = true;
   bool _hasError = false;
 
@@ -61,11 +64,11 @@ class _PresignedSketchImageState extends State<PresignedSketchImage> {
       return;
     }
 
-    // Support base64 data URI directly
-    if (url.startsWith('data:image')) {
+    // 1. Check in-memory bytes cache first (0ms instant render)
+    if (_bytesCache.containsKey(url)) {
       if (mounted) {
         setState(() {
-          _resolvedUrl = url;
+          _imageBytes = _bytesCache[url];
           _isLoading = false;
           _hasError = false;
         });
@@ -73,62 +76,105 @@ class _PresignedSketchImageState extends State<PresignedSketchImage> {
       return;
     }
 
-    // Check if local file path on device
+    // 2. Support base64 data URI directly
+    if (url.startsWith('data:image')) {
+      final comma = url.indexOf(',');
+      if (comma != -1) {
+        try {
+          final bytes = base64Decode(url.substring(comma + 1));
+          _bytesCache[url] = bytes;
+          if (mounted) {
+            setState(() {
+              _imageBytes = bytes;
+              _isLoading = false;
+              _hasError = false;
+            });
+          }
+          return;
+        } catch (_) {}
+      }
+    }
+
+    // 3. Check if local file path on device
     if (url.startsWith('/') ||
         url.startsWith('file://') ||
         url.contains(':\\')) {
       final cleanPath = url.replaceAll('file://', '');
       final file = File(cleanPath);
       if (file.existsSync()) {
-        if (mounted) {
-          setState(() {
-            _resolvedUrl = url;
-            _isLoading = false;
-            _hasError = false;
-          });
-        }
-        return;
+        try {
+          final bytes = await file.readAsBytes();
+          _bytesCache[url] = bytes;
+          if (mounted) {
+            setState(() {
+              _imageBytes = bytes;
+              _isLoading = false;
+              _hasError = false;
+            });
+          }
+          return;
+        } catch (_) {}
       }
     }
 
+    // 4. Check URL cache
     if (_urlCache.containsKey(url)) {
+      _resolvedUrl = _urlCache[url];
       if (mounted) {
         setState(() {
-          _resolvedUrl = _urlCache[url];
           _isLoading = false;
           _hasError = false;
         });
       }
+      _tryDownloadBytesPreemptively(url, _resolvedUrl!);
       return;
     }
 
     try {
       final uri = Uri.parse(url);
+      final host = uri.host.toLowerCase();
+      final isRawCloudStorage =
+          (host.contains('cloudflarestorage.com') ||
+              host.contains('r2') ||
+              host.contains('amazonaws.com') ||
+              host.contains('s3')) &&
+          !url.contains('X-Amz-Signature') &&
+          !url.contains('X-Amz-Algorithm');
+
       String resolvedUrl;
-      if (url.contains('X-Amz-Algorithm')) {
-        resolvedUrl = url;
-      } else if (url.startsWith('http://') || url.startsWith('https://')) {
-        resolvedUrl = url;
-      } else if (!uri.hasScheme && url.startsWith('/api/')) {
-        resolvedUrl = Uri.parse(ApiEndpoints.baseUrl).resolve(url).toString();
-      } else if (!uri.hasScheme ||
-          url.contains('amazonaws.com') ||
-          url.contains('karratflow')) {
-        final fileKey = uri.hasScheme
-            ? uri.path.replaceFirst(RegExp(r'^/+'), '')
-            : url.replaceFirst(RegExp(r'^/+'), '');
-        final api = KaratFlowApiRepository();
-        final signed = await api.getPresignedDownloadUrl(fileKey);
-        if (signed.downloadUrl.isEmpty) {
-          throw const FormatException('Storage API returned no download URL.');
+
+      if (!uri.hasScheme &&
+          (url.startsWith('/api/') || url.startsWith('/storage/'))) {
+        final cleanPath = url.startsWith('/api/v1')
+            ? url.replaceFirst('/api/v1', '')
+            : url;
+        resolvedUrl = '${ApiEndpoints.baseUrl}$cleanPath';
+      } else if (isRawCloudStorage || !uri.hasScheme) {
+        // Extract key from R2 / S3 path
+        String targetKey;
+        final segments = uri.pathSegments;
+        if (segments.length > 1 &&
+            (segments.first.toLowerCase() == 'karatflow' ||
+                segments.first.toLowerCase() == 'karratflow')) {
+          targetKey = segments.skip(1).join('/');
+        } else if (segments.isNotEmpty) {
+          targetKey = segments.join('/');
+        } else {
+          targetKey = url.replaceFirst(RegExp(r'^/+'), '');
         }
-        resolvedUrl = signed.downloadUrl;
-      } else {
+
+        // Direct 100% reliable server view proxy endpoint (used by Admin Panel)
         resolvedUrl =
-            '${ApiEndpoints.baseUrl}${url.startsWith('/') ? '' : '/'}$url';
+            '${ApiEndpoints.baseUrl}/storage/view?key=${Uri.encodeQueryComponent(targetKey)}';
+      } else if (url.contains('X-Amz-Algorithm') ||
+          url.contains('X-Amz-Signature')) {
+        resolvedUrl = url;
+      } else {
+        resolvedUrl = url;
       }
 
       _urlCache[url] = resolvedUrl;
+
       if (mounted) {
         setState(() {
           _resolvedUrl = resolvedUrl;
@@ -136,13 +182,44 @@ class _PresignedSketchImageState extends State<PresignedSketchImage> {
           _hasError = false;
         });
       }
+
+      _tryDownloadBytesPreemptively(url, resolvedUrl);
     } catch (e) {
-      debugPrint(
-        '⚠️ [PresignedSketchImage] Failed to resolve presigned URL for $url: $e',
-      );
+      _tryDownloadBytesFallback(url);
+    }
+  }
+
+  Future<void> _tryDownloadBytesPreemptively(
+    String originalUrl,
+    String targetUrl,
+  ) async {
+    try {
+      final api = KaratFlowApiRepository();
+      final bytes = await api.downloadStoredFile(targetUrl);
+      if (bytes.isNotEmpty && mounted) {
+        _bytesCache[originalUrl] = bytes;
+        setState(() {
+          _imageBytes = bytes;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _tryDownloadBytesFallback(String originalUrl) async {
+    try {
+      final api = KaratFlowApiRepository();
+      final bytes = await api.downloadStoredFile(originalUrl);
+      if (bytes.isNotEmpty && mounted) {
+        _bytesCache[originalUrl] = bytes;
+        setState(() {
+          _imageBytes = bytes;
+          _isLoading = false;
+          _hasError = false;
+        });
+      }
+    } catch (_) {
       if (mounted) {
         setState(() {
-          _resolvedUrl = null;
           _isLoading = false;
           _hasError = true;
         });
@@ -165,6 +242,20 @@ class _PresignedSketchImageState extends State<PresignedSketchImage> {
       );
     }
 
+    if (_imageBytes != null && _imageBytes!.isNotEmpty) {
+      return Image.memory(
+        _imageBytes!,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        errorBuilder: (_, __, ___) => _buildNetworkOrError(),
+      );
+    }
+
+    return _buildNetworkOrError();
+  }
+
+  Widget _buildNetworkOrError() {
     if (_hasError || _resolvedUrl == null) {
       if (widget.errorBuilder != null) {
         return widget.errorBuilder!();
@@ -184,45 +275,36 @@ class _PresignedSketchImageState extends State<PresignedSketchImage> {
       );
     }
 
-    final targetUrl = _resolvedUrl!;
-    if (targetUrl.startsWith('data:image')) {
-      final comma = targetUrl.indexOf(',');
-      if (comma != -1) {
-        try {
-          final bytes = base64Decode(targetUrl.substring(comma + 1));
-          return Image.memory(
-            bytes,
-            width: widget.width,
-            height: widget.height,
-            fit: widget.fit,
-            errorBuilder: (_, __, ___) =>
-                widget.errorBuilder?.call() ?? const Icon(Icons.broken_image),
-          );
-        } catch (_) {}
-      }
-    }
-
-    if (targetUrl.startsWith('/') ||
-        targetUrl.startsWith('file://') ||
-        targetUrl.contains(':\\')) {
-      final cleanPath = targetUrl.replaceAll('file://', '');
-      return Image.file(
-        File(cleanPath),
-        width: widget.width,
-        height: widget.height,
-        fit: widget.fit,
-        errorBuilder: (_, __, ___) =>
-            widget.errorBuilder?.call() ?? const Icon(Icons.broken_image),
-      );
-    }
-
     return Image.network(
-      targetUrl,
+      _resolvedUrl!,
       width: widget.width,
       height: widget.height,
       fit: widget.fit,
-      errorBuilder: (_, __, ___) =>
-          widget.errorBuilder?.call() ?? const Icon(Icons.broken_image),
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return Center(
+          child: CircularProgressIndicator(
+            value: progress.expectedTotalBytes != null
+                ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                : null,
+            strokeWidth: 2,
+            color: AppColors.emerald,
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        _tryDownloadBytesFallback(widget.imageUrl);
+        if (widget.errorBuilder != null) {
+          return widget.errorBuilder!();
+        }
+        return const Center(
+          child: Icon(
+            Icons.broken_image_outlined,
+            color: AppColors.danger,
+            size: 32,
+          ),
+        );
+      },
     );
   }
 }

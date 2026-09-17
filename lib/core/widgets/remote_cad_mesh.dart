@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/repositories/karatflow_api_repository.dart';
 import '../constants/app_colors.dart';
+import '../network/api_endpoints.dart';
 
 /// Cache for resolved presigned S3 CAD download URLs
 final Map<String, String> _cadUrlCache = {};
@@ -97,27 +98,33 @@ class _RemoteCadMeshState extends State<RemoteCadMesh> {
       try {
         bytes = await KaratFlowApiRepository().downloadStoredFile(targetUrl);
       } catch (_) {
-        // Fallback to direct HTTP get if KaratFlowApiRepository fails
+        // Fallback to direct HTTP get via /storage/view if downloadStoredFile failed
         String directUrl = targetUrl;
-        if (targetUrl.contains('amazonaws.com') ||
-            targetUrl.contains('s3') ||
-            targetUrl.contains('karratflow/')) {
+        final uri = Uri.tryParse(targetUrl);
+        String? fileKey;
+        if (targetUrl.contains('karratflow/')) {
           final pathIndex = targetUrl.indexOf('karratflow/');
-          if (pathIndex != -1) {
-            final fileKey = targetUrl.substring(pathIndex);
-            if (_cadUrlCache.containsKey(fileKey)) {
-              directUrl = _cadUrlCache[fileKey]!;
-            } else {
-              try {
-                final presignedObj = await KaratFlowApiRepository()
-                    .getPresignedDownloadUrl(fileKey);
-                if (presignedObj.downloadUrl.isNotEmpty) {
-                  _cadUrlCache[fileKey] = presignedObj.downloadUrl;
-                  directUrl = presignedObj.downloadUrl;
-                }
-              } catch (_) {}
-            }
+          fileKey = targetUrl.substring(pathIndex);
+        } else if (uri != null && uri.pathSegments.isNotEmpty) {
+          final segs = uri.pathSegments;
+          if (segs.length > 1 &&
+              (segs.first.toLowerCase() == 'karatflow' ||
+                  segs.first.toLowerCase() == 'karratflow')) {
+            fileKey = segs.skip(1).join('/');
+          } else {
+            fileKey = segs.join('/');
           }
+        }
+
+        if (fileKey != null && fileKey.isNotEmpty) {
+          directUrl =
+              '${ApiEndpoints.baseUrl}/storage/view?key=${Uri.encodeQueryComponent(fileKey)}';
+        } else if (targetUrl.startsWith('/api/') ||
+            targetUrl.startsWith('/storage/')) {
+          final clean = targetUrl.startsWith('/api/v1')
+              ? targetUrl.replaceFirst('/api/v1', '')
+              : targetUrl;
+          directUrl = '${ApiEndpoints.baseUrl}$clean';
         }
 
         final response = await Dio().get<List<int>>(

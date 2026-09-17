@@ -4,6 +4,15 @@ import 'package:jewellery_ops_mobile/domain/models.dart';
 import 'package:jewellery_ops_mobile/features/instructions/directive_audio.dart';
 
 void main() {
+  test('recipient menu has no duplicate labels or manager/artisan aliases', () {
+    expect(
+      DirectiveRecipients.options.toSet().length,
+      DirectiveRecipients.options.length,
+    );
+    expect(DirectiveRecipients.options, contains('Process Manager'));
+    expect(DirectiveRecipients.options, isNot(contains('Product Manager')));
+    expect(DirectiveRecipients.options, isNot(contains('Karigar (Artisans)')));
+  });
   test('all teams directive matches every operational role', () {
     for (final role in AppRole.values.where((role) => role != AppRole.admin)) {
       expect(

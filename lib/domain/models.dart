@@ -482,8 +482,8 @@ class CustomerOrder {
     required this.itemsSummary,
     this.apiId = '',
     this.designs = const [],
-    this.currentWorkshopStage = 'N/A',
-    this.responsibleManager = 'Arjun · PM',
+    this.currentWorkshopStage = 'In Queue (Unassigned)',
+    this.responsibleManager = 'Unassigned',
     this.isBlocked = false,
     this.blockedReason,
   });

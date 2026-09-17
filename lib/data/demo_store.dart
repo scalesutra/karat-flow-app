@@ -160,15 +160,14 @@ class DemoStore extends ChangeNotifier {
     final idx = _vaultRequisitions.indexWhere((r) => r.id == reqId);
     if (idx >= 0) {
       final req = _vaultRequisitions[idx];
-      _vaultRequisitions[idx] = req.copyWith(
-        status: 'ISSUED',
-      );
+      _vaultRequisitions[idx] = req.copyWith(status: 'ISSUED');
       for (int i = 0; i < _workerTasks.length; i++) {
         final t = _workerTasks[i];
         if (t.id == reqId ||
             t.orderPartId == reqId ||
             (req.orderId.isNotEmpty && t.orderId == req.orderId) ||
-            (req.designNumber.isNotEmpty && t.designNumber == req.designNumber)) {
+            (req.designNumber.isNotEmpty &&
+                t.designNumber == req.designNumber)) {
           _workerTasks[i] = ApiWorkerTask(
             id: t.id,
             orderPartId: t.orderPartId,
@@ -209,9 +208,21 @@ class DemoStore extends ChangeNotifier {
       final rStage = r.stageName.trim().toUpperCase();
 
       final matchesId = rId == taskPart || rId == task.id.toUpperCase();
-      final matchesDesign = rDesign.isNotEmpty && (rDesign == taskDesign || rDesign.endsWith(taskDesign) || taskDesign.endsWith(rDesign));
-      final matchesOrder = rOrder.isNotEmpty && (rOrder == taskOrder || rOrder.endsWith(taskOrder) || taskOrder.endsWith(rOrder));
-      final matchesStage = rStage.isNotEmpty && (rStage == taskStage || rStage.contains(taskStage) || taskStage.contains(rStage));
+      final matchesDesign =
+          rDesign.isNotEmpty &&
+          (rDesign == taskDesign ||
+              rDesign.endsWith(taskDesign) ||
+              taskDesign.endsWith(rDesign));
+      final matchesOrder =
+          rOrder.isNotEmpty &&
+          (rOrder == taskOrder ||
+              rOrder.endsWith(taskOrder) ||
+              taskOrder.endsWith(rOrder));
+      final matchesStage =
+          rStage.isNotEmpty &&
+          (rStage == taskStage ||
+              rStage.contains(taskStage) ||
+              taskStage.contains(rStage));
 
       return matchesId || matchesDesign || matchesOrder || matchesStage;
     });
@@ -227,10 +238,14 @@ class DemoStore extends ChangeNotifier {
       if (t.id.toUpperCase() == tId || t.orderPartId.toUpperCase() == tId) {
         completedStage = t.stage.name.toUpperCase().trim();
         if (t.orderPartId.isNotEmpty && completedStage.isNotEmpty) {
-          _completedStagePartKeys.add('${t.orderPartId.toUpperCase()}_$completedStage');
+          _completedStagePartKeys.add(
+            '${t.orderPartId.toUpperCase()}_$completedStage',
+          );
         }
         if (t.designNumber.isNotEmpty && completedStage.isNotEmpty) {
-          _completedStagePartKeys.add('${t.designNumber.toUpperCase()}_$completedStage');
+          _completedStagePartKeys.add(
+            '${t.designNumber.toUpperCase()}_$completedStage',
+          );
         }
         _workerTasks[i] = ApiWorkerTask(
           id: t.id,
@@ -254,31 +269,40 @@ class DemoStore extends ChangeNotifier {
     for (int i = 0; i < _lots.length; i++) {
       final lot = _lots[i];
       final lotStage = lot.apiStageName.toUpperCase().trim();
-      final stageMatches = completedStage.isEmpty ||
+      final stageMatches =
+          completedStage.isEmpty ||
           lotStage == completedStage ||
           lotStage.contains(completedStage) ||
           completedStage.contains(lotStage);
       if ((lot.id.toUpperCase() == tId ||
-              _completedStagePartKeys.contains('${lot.designCode.toUpperCase()}_$lotStage')) &&
+              _completedStagePartKeys.contains(
+                '${lot.designCode.toUpperCase()}_$lotStage',
+              )) &&
           stageMatches) {
-        _lots[i] = lot.copyWith(
-          assignedEmployeeRole: 'COMPLETED',
-        );
+        _lots[i] = lot.copyWith(assignedEmployeeRole: 'COMPLETED');
       }
     }
     notifyListeners();
   }
 
-  bool isWorkerTaskCompletedForPart(String partId, {String? designNumber, String? stageName, String? artisanName}) {
+  bool isWorkerTaskCompletedForPart(
+    String partId, {
+    String? designNumber,
+    String? stageName,
+    String? artisanName,
+  }) {
     final pId = partId.trim().toUpperCase();
     final dNum = (designNumber ?? '').trim().toUpperCase();
     final sName = (stageName ?? '').trim().toUpperCase();
 
     if (sName.isNotEmpty) {
-      if (pId.isNotEmpty && _completedStagePartKeys.contains('${pId}_$sName')) return true;
-      if (dNum.isNotEmpty && _completedStagePartKeys.contains('${dNum}_$sName')) return true;
+      if (pId.isNotEmpty && _completedStagePartKeys.contains('${pId}_$sName'))
+        return true;
+      if (dNum.isNotEmpty && _completedStagePartKeys.contains('${dNum}_$sName'))
+        return true;
       for (final key in _completedStagePartKeys) {
-        final matchesStage = key.endsWith('_$sName') ||
+        final matchesStage =
+            key.endsWith('_$sName') ||
             (sName.contains('FIL') && key.endsWith('_FILING')) ||
             (sName.contains('WAX') && key.endsWith('_WAXING')) ||
             (sName.contains('SET') && key.contains('SET')) ||
@@ -287,7 +311,7 @@ class DemoStore extends ChangeNotifier {
             (sName.contains('PACK') && key.contains('PACK'));
         if (matchesStage &&
             ((pId.isNotEmpty && key.startsWith('${pId}_')) ||
-             (dNum.isNotEmpty && key.startsWith('${dNum}_')))) {
+                (dNum.isNotEmpty && key.startsWith('${dNum}_')))) {
           return true;
         }
       }
@@ -296,11 +320,17 @@ class DemoStore extends ChangeNotifier {
     }
 
     final matchesLot = _lots.any((l) {
-      final matchesId = (pId.isNotEmpty && (l.id.toUpperCase() == pId || pId.endsWith(l.id.toUpperCase()))) ||
-          (dNum.isNotEmpty && (l.designCode.toUpperCase() == dNum || dNum.contains(l.designCode.toUpperCase())));
+      final matchesId =
+          (pId.isNotEmpty &&
+              (l.id.toUpperCase() == pId ||
+                  pId.endsWith(l.id.toUpperCase()))) ||
+          (dNum.isNotEmpty &&
+              (l.designCode.toUpperCase() == dNum ||
+                  dNum.contains(l.designCode.toUpperCase())));
       if (!matchesId) return false;
       final lotStage = l.apiStageName.toUpperCase();
-      final matchesStg = sName.isEmpty ||
+      final matchesStg =
+          sName.isEmpty ||
           lotStage == sName ||
           lotStage.contains(sName) ||
           sName.contains(lotStage) ||
@@ -308,7 +338,8 @@ class DemoStore extends ChangeNotifier {
           (lotStage.contains('WAX') && sName.contains('WAX')) ||
           (lotStage.contains('QC') && sName.contains('QC')) ||
           (lotStage.contains('PACK') && sName.contains('PACK'));
-      final isDone = l.assignedEmployeeRole.toUpperCase() == 'COMPLETED' ||
+      final isDone =
+          l.assignedEmployeeRole.toUpperCase() == 'COMPLETED' ||
           l.assignedEmployeeRole.toUpperCase() == 'STAGE_COMPLETED' ||
           l.assignedEmployeeRole.toUpperCase() == 'PASSED' ||
           lotStage == 'COMPLETED';
@@ -317,7 +348,9 @@ class DemoStore extends ChangeNotifier {
     if (matchesLot) return true;
 
     return _workerTasks.any((t) {
-      final isDone = t.status.toUpperCase() == 'COMPLETED' || t.status.toUpperCase() == 'STAGE_COMPLETED';
+      final isDone =
+          t.status.toUpperCase() == 'COMPLETED' ||
+          t.status.toUpperCase() == 'STAGE_COMPLETED';
       if (!isDone) return false;
 
       final tPart = t.orderPartId.trim().toUpperCase();
@@ -325,17 +358,18 @@ class DemoStore extends ChangeNotifier {
       final tDesign = t.designNumber.trim().toUpperCase();
       final tStage = t.stageName.trim().toUpperCase();
 
-      final matchesPart = pId.isNotEmpty &&
+      final matchesPart =
+          pId.isNotEmpty &&
           (tPart == pId ||
               tId == pId ||
               pId.endsWith(tPart) ||
               tPart.endsWith(pId) ||
               (tDesign.isNotEmpty && pId == tDesign));
-      final matchesDesign = dNum.isNotEmpty &&
-          (tDesign == dNum ||
-              tDesign.contains(dNum) ||
-              dNum.contains(tDesign));
-      final matchesStage = sName.isEmpty ||
+      final matchesDesign =
+          dNum.isNotEmpty &&
+          (tDesign == dNum || tDesign.contains(dNum) || dNum.contains(tDesign));
+      final matchesStage =
+          sName.isEmpty ||
           tStage == sName ||
           tStage.contains(sName) ||
           sName.contains(tStage) ||
@@ -401,6 +435,20 @@ class DemoStore extends ChangeNotifier {
       ..clear()
       ..addAll(directives.map(_apiDirectiveMap));
     _instructions.addAll(directives.map(ApiDomainMapper.directive));
+    notifyListeners();
+  }
+
+  void markDirectiveAcknowledged(String id) {
+    for (final directive in _adminDirectives) {
+      if (directive['id'] == id) directive['status'] = 'Acknowledged';
+    }
+    for (var i = 0; i < _instructions.length; i++) {
+      if (_instructions[i].id == id) {
+        _instructions[i] = _instructions[i].copyWith(
+          status: InstructionStatus.acknowledged,
+        );
+      }
+    }
     notifyListeners();
   }
 
@@ -645,18 +693,33 @@ class DemoStore extends ChangeNotifier {
     required WorkItem target,
     required String message,
     required InstructionUrgency urgency,
+    String? createdBy,
+    String? assignedTo,
     bool hasPhoto = false,
     bool hasVoice = false,
   }) {
+    final effectiveAssignee =
+        (assignedTo != null && assignedTo.trim().isNotEmpty)
+        ? assignedTo.trim()
+        : (target.owner.isNotEmpty ? target.owner : target.title);
+
+    final effectiveCreator = (createdBy != null && createdBy.trim().isNotEmpty)
+        ? createdBy.trim()
+        : 'Admin';
+
+    final effectiveMessage = message.trim().isNotEmpty
+        ? message.trim()
+        : (hasVoice
+              ? 'Voice directive attached.'
+              : (hasPhoto ? 'Image directive attached.' : 'Directive issued.'));
+
     final instruction = Instruction(
       id: 'INS-${(_instructions.length + 15).toString().padLeft(3, '0')}',
       targetId: target.id,
       targetLabel: '${target.pivot.singularLabel} ${target.id}',
-      message: message.trim().isEmpty
-          ? 'Voice instruction attached.'
-          : message.trim(),
-      createdBy: 'Ramesh Pareek',
-      assignedTo: 'Arjun · Process Manager',
+      message: effectiveMessage,
+      createdBy: effectiveCreator,
+      assignedTo: effectiveAssignee,
       urgency: urgency,
       status: InstructionStatus.sent,
       createdAt: DateTime.now(),
@@ -720,7 +783,7 @@ class DemoStore extends ChangeNotifier {
             hasSketchImage: old.imageUrl.isNotEmpty,
             hasStlFile: false,
             modelFileUrl: old.imageUrl,
-            assignedTo: 'Rahul CAD Designer',
+            assignedTo: 'Unassigned',
             receivedAt: DateTime.now(),
             volumeCubicMm: 1250,
           ),
@@ -842,7 +905,7 @@ class DemoStore extends ChangeNotifier {
           status: CadTaskStatus.newTask,
           hasVoiceNote: false,
           hasSketchImage: false,
-          assignedTo: 'Vikram · CAD',
+          assignedTo: 'Unassigned',
           receivedAt: DateTime.now(),
         ),
       );
@@ -920,7 +983,7 @@ class DemoStore extends ChangeNotifier {
           status: CadTaskStatus.newTask,
           hasVoiceNote: false,
           hasSketchImage: false,
-          assignedTo: 'Vikram · CAD',
+          assignedTo: 'Unassigned',
           receivedAt: DateTime.now(),
         ),
       );

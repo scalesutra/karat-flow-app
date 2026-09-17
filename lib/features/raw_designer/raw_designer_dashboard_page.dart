@@ -6,10 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
-import '../../core/network/api_endpoints.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/models/api_models.dart';
-import '../../data/repositories/karatflow_api_repository.dart';
 import '../instructions/directive_audio.dart';
 import 'bloc/sketch_bloc.dart';
 
@@ -389,7 +387,7 @@ class _SketchImagePreviewDialog extends StatelessWidget {
                             minScale: 0.5,
                             maxScale: 4.0,
                             child: Center(
-                              child: _PresignedSketchImage(
+                              child: PresignedSketchImage(
                                 imageUrl: sketch.sketchUrl,
                                 fit: BoxFit.contain,
                                 loadingLabel: 'Loading full sketch image...',
@@ -818,7 +816,7 @@ class _SketchCard extends StatelessWidget {
                           borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(AppDimensions.radiusLarge),
                           ),
-                          child: _PresignedSketchImage(
+                          child: PresignedSketchImage(
                             imageUrl: sketch.sketchUrl,
                             fit: BoxFit.cover,
                           ),
@@ -1035,152 +1033,6 @@ class _SketchCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _PresignedSketchImage extends StatefulWidget {
-  const _PresignedSketchImage({
-    required this.imageUrl,
-    this.fit = BoxFit.cover,
-    this.loadingLabel,
-  });
-
-  final String imageUrl;
-  final BoxFit fit;
-  final String? loadingLabel;
-
-  @override
-  State<_PresignedSketchImage> createState() => _PresignedSketchImageState();
-}
-
-class _PresignedSketchImageState extends State<_PresignedSketchImage> {
-  static final Map<String, String> _urlCache = {};
-  String? _resolvedUrl;
-  bool _isLoading = true;
-  bool _hasError = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUrl();
-  }
-
-  @override
-  void didUpdateWidget(_PresignedSketchImage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.imageUrl != widget.imageUrl) {
-      _loadUrl();
-    }
-  }
-
-  Future<void> _loadUrl() async {
-    final url = widget.imageUrl.trim();
-    if (url.isEmpty) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _hasError = true;
-        });
-      }
-      return;
-    }
-
-    if (_urlCache.containsKey(url)) {
-      if (mounted) {
-        setState(() {
-          _resolvedUrl = _urlCache[url];
-          _isLoading = false;
-        });
-      }
-      return;
-    }
-
-    try {
-      final uri = Uri.parse(url);
-      String resolvedUrl;
-      if (url.contains('X-Amz-Algorithm')) {
-        resolvedUrl = url;
-      } else if (!uri.hasScheme && url.startsWith('/api/')) {
-        resolvedUrl = Uri.parse(ApiEndpoints.baseUrl).resolve(url).toString();
-      } else if (!uri.hasScheme || url.contains('amazonaws.com')) {
-        final fileKey = uri.hasScheme
-            ? uri.path.replaceFirst(RegExp(r'^/+'), '')
-            : url.replaceFirst(RegExp(r'^/+'), '');
-        final api = KaratFlowApiRepository();
-        final signed = await api.getPresignedDownloadUrl(fileKey);
-        if (signed.downloadUrl.isEmpty) {
-          throw const FormatException('Storage API returned no download URL.');
-        }
-        resolvedUrl = signed.downloadUrl;
-      } else {
-        resolvedUrl = url;
-      }
-      _urlCache[url] = resolvedUrl;
-      if (mounted) {
-        setState(() {
-          _resolvedUrl = resolvedUrl;
-          _isLoading = false;
-          _hasError = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _resolvedUrl = null;
-          _isLoading = false;
-          _hasError = true;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Center(
-        child: CommonProgressIndicator(
-          label: widget.loadingLabel ?? 'Loading...',
-        ),
-      );
-    }
-
-    if (_hasError) {
-      return const Center(
-        child: Icon(
-          Icons.broken_image_outlined,
-          color: AppColors.danger,
-          size: 32,
-        ),
-      );
-    }
-
-    final targetUrl = _resolvedUrl ?? widget.imageUrl;
-
-    return Image.network(
-      targetUrl,
-      fit: widget.fit,
-      loadingBuilder: (context, child, progress) {
-        if (progress == null) return child;
-        return Center(
-          child: CircularProgressIndicator(
-            value: progress.expectedTotalBytes != null
-                ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
-                : null,
-            strokeWidth: 2,
-            color: AppColors.emerald,
-          ),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-        return const Center(
-          child: Icon(
-            Icons.broken_image_outlined,
-            color: AppColors.danger,
-            size: 32,
-          ),
-        );
-      },
     );
   }
 }

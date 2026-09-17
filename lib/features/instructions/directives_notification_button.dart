@@ -30,9 +30,11 @@ class DirectivesNotificationButton extends StatelessWidget {
         final List<Map<String, String>> directives;
         if (role == AppRole.admin) {
           directives = effectiveStore.adminDirectives
-              .where((d) =>
-                  d['status'] == 'Active' &&
-                  (d['recipient']?.toLowerCase().trim() == 'admin'))
+              .where(
+                (d) =>
+                    d['status'] == 'Active' &&
+                    (d['recipient']?.toLowerCase().trim() == 'admin'),
+              )
               .toList();
         } else {
           directives = effectiveStore.directivesForRole(role);
@@ -55,9 +57,9 @@ class DirectivesNotificationButton extends StatelessWidget {
                 size: 22,
               ),
               onPressed: () {
-                try {
-                  context.read<DirectivesBloc>().add(const FetchDirectivesEvent());
-                } catch (_) {}
+                context.read<DirectivesBloc>().add(
+                  const FetchDirectivesEvent(),
+                );
                 _showDirectivesSheet(context, role, effectiveStore);
               },
             ),
@@ -103,19 +105,16 @@ class DirectivesNotificationButton extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => _DirectivesNotificationModal(
-        role: role,
-        store: store,
+      builder: (sheetContext) => BlocProvider.value(
+        value: context.read<DirectivesBloc>(),
+        child: _DirectivesNotificationModal(role: role, store: store),
       ),
     );
   }
 }
 
 class _DirectivesNotificationModal extends StatelessWidget {
-  const _DirectivesNotificationModal({
-    required this.role,
-    required this.store,
-  });
+  const _DirectivesNotificationModal({required this.role, required this.store});
 
   final AppRole role;
   final DemoStore store;
@@ -197,10 +196,13 @@ class _DirectivesNotificationModal extends StatelessWidget {
               builder: (context, _) {
                 final directives = role == AppRole.admin
                     ? store.adminDirectives
-                        .where((d) =>
-                            d['status'] == 'Active' &&
-                            (d['recipient']?.toLowerCase().trim() == 'admin'))
-                        .toList()
+                          .where(
+                            (d) =>
+                                d['status'] == 'Active' &&
+                                (d['recipient']?.toLowerCase().trim() ==
+                                    'admin'),
+                          )
+                          .toList()
                     : store.directivesForRole(role);
 
                 if (directives.isEmpty) {
@@ -253,6 +255,7 @@ class _DirectivesNotificationModal extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final directive = directives[index];
                     return _NotificationDirectiveCard(
+                      key: ValueKey(directive['id']),
                       directive: directive,
                       store: store,
                     );
@@ -267,14 +270,26 @@ class _DirectivesNotificationModal extends StatelessWidget {
   }
 }
 
-class _NotificationDirectiveCard extends StatelessWidget {
+class _NotificationDirectiveCard extends StatefulWidget {
   const _NotificationDirectiveCard({
+    super.key,
     required this.directive,
     required this.store,
   });
 
   final Map<String, String> directive;
   final DemoStore store;
+
+  @override
+  State<_NotificationDirectiveCard> createState() =>
+      _NotificationDirectiveCardState();
+}
+
+class _NotificationDirectiveCardState
+    extends State<_NotificationDirectiveCard> {
+  bool _submitting = false;
+  String? _error;
+  Map<String, String> get directive => widget.directive;
 
   @override
   Widget build(BuildContext context) {
@@ -289,103 +304,124 @@ class _NotificationDirectiveCard extends StatelessWidget {
     final displayText = message.text.isNotEmpty
         ? message.text
         : (directive['title']?.trim().isNotEmpty == true
-            ? directive['title']!
-            : 'Directive Note Attached');
+              ? directive['title']!
+              : 'Directive Note Attached');
 
     final acknowledged = directive['status'] == 'Acknowledged';
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: acknowledged
-            ? AppColors.canvas
-            : AppColors.goldLight.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
+    return BlocListener<DirectivesBloc, DirectivesState>(
+      listener: (context, state) {
+        if (state is DirectivesError && state.directiveId == directive['id']) {
+          setState(() {
+            _submitting = false;
+            _error = state.message;
+          });
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
           color: acknowledged
-              ? AppColors.outline
-              : AppColors.gold.withValues(alpha: 0.5),
+              ? AppColors.canvas
+              : AppColors.goldLight.withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: acknowledged
+                ? AppColors.outline
+                : AppColors.gold.withValues(alpha: 0.5),
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.goldDark.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  'To: ${directive['recipient'] ?? 'All Teams'}',
-                  style: const TextStyle(
-                    color: AppColors.goldDark,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 10,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.goldDark.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'To: ${directive['recipient'] ?? 'All Teams'}',
+                    style: const TextStyle(
+                      color: AppColors.goldDark,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10,
+                    ),
                   ),
                 ),
+                const Spacer(),
+                Text(
+                  directive['date'] ?? '',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 10),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              displayText,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.ink,
+                height: 1.3,
               ),
-              const Spacer(),
-              Text(
-                directive['date'] ?? '',
-                style: const TextStyle(color: AppColors.muted, fontSize: 10),
+            ),
+            if (audioUrl != null && audioUrl.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              DirectiveVoiceButton(audioUrl: audioUrl),
+            ],
+            if (imageUrl != null && imageUrl.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              DirectiveImageAttachment(imageUrl: imageUrl),
+            ],
+            if (!acknowledged) ...[
+              const SizedBox(height: 10),
+              if (_error != null)
+                Text(_error!, style: const TextStyle(color: AppColors.danger)),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.emerald,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onPressed: _submitting
+                      ? null
+                      : () {
+                          setState(() {
+                            _submitting = true;
+                            _error = null;
+                          });
+                          context.read<DirectivesBloc>().add(
+                            AcknowledgeDirectiveEvent(directive['id'] ?? ''),
+                          );
+                        },
+                  icon: const Icon(Icons.check_circle_outline, size: 14),
+                  label: Text(
+                    _submitting ? 'Acknowledging…' : 'Mark as Acknowledged',
+                  ),
+                ),
               ),
             ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            displayText,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: AppColors.ink,
-              height: 1.3,
-            ),
-          ),
-          if (audioUrl != null && audioUrl.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            DirectiveVoiceButton(audioUrl: audioUrl),
           ],
-          if (imageUrl != null && imageUrl.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            DirectiveImageAttachment(imageUrl: imageUrl),
-          ],
-          if (!acknowledged) ...[
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.emerald,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                onPressed: () {
-                  try {
-                    context.read<DirectivesBloc>().add(
-                          AcknowledgeDirectiveEvent(directive['id'] ?? ''),
-                        );
-                  } catch (_) {}
-                },
-                icon: const Icon(Icons.check_circle_outline, size: 14),
-                label: const Text('Mark as Acknowledged'),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

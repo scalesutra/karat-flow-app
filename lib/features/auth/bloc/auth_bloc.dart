@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/network/token_storage_service.dart';
 import '../../../core/network/api_error_handler.dart';
@@ -31,25 +30,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(const AuthLoading());
-    debugPrint('🔍 [AuthBloc] Checking stored session token...');
     try {
       final token = await _tokenStorage.getAccessToken();
       if (token == null || token.isEmpty) {
-        debugPrint('ℹ️ [AuthBloc] No active session found.');
         emit(const AuthUnauthenticated());
         return;
       }
 
-      debugPrint(
-        '👤 [AuthBloc] Fetching profile for existing token from GET /auth/me...',
-      );
       final profile = await _api.getProfile();
       final role = profile.role.toLowerCase();
       await _tokenStorage.saveUserRole(role);
 
-      debugPrint(
-        '✅ [AuthBloc] Session verified. User: ${profile.name}, Role: $role',
-      );
       emit(
         AuthAuthenticated(
           token: token,
@@ -61,7 +52,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (e) {
-      debugPrint('⚠️ [AuthBloc] Stored session invalid or expired: $e');
       await _tokenStorage.clearAll();
       emit(const AuthUnauthenticated());
     }
@@ -72,9 +62,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(const AuthLoading());
-    debugPrint(
-      '🔐 [AuthBloc] Submitting login request for ${event.username} to POST /auth/login...',
-    );
     try {
       final authData = await _api.login(
         email: event.username.trim(),
@@ -90,10 +77,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final userRole = profile.role.toLowerCase();
       await _tokenStorage.saveUserRole(userRole);
 
-      debugPrint(
-        '🎉 [AuthBloc] Login success! Name: ${profile.name}, Role: $userRole, JWT Token length: ${authData.token.length}',
-      );
-
       emit(
         AuthAuthenticated(
           token: authData.token,
@@ -105,7 +88,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (e) {
-      debugPrint('❌ [AuthBloc] Login failed with error: $e');
       emit(
         AuthError(
           ApiErrorHandler.parseMessage(
@@ -123,7 +105,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     if (state is AuthAuthenticated) {
       final current = state as AuthAuthenticated;
-      debugPrint('🔄 [AuthBloc] Switching role to: ${event.role}');
       await _tokenStorage.saveUserRole(event.role);
       emit(
         AuthAuthenticated(
@@ -143,9 +124,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(const AuthLoading());
-    debugPrint('🚪 [AuthBloc] Logging out and clearing all secure tokens...');
     await _tokenStorage.clearAll();
-    debugPrint('✅ [AuthBloc] Logout complete.');
     emit(const AuthUnauthenticated());
   }
 }

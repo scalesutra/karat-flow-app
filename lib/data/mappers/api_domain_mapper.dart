@@ -329,8 +329,8 @@ abstract final class ApiDomainMapper {
           ? 'Completed'
           : ((firstPart?.currentStage.trim().isNotEmpty == true)
                 ? firstPart!.currentStage
-                : 'Waxing'),
-      responsibleManager: 'Arjun · PM',
+                : 'In Queue (Unassigned)'),
+      responsibleManager: 'Unassigned',
       isBlocked: isBlocked,
       blockedReason: blockReason,
     );
@@ -408,6 +408,43 @@ abstract final class ApiDomainMapper {
     return null;
   }
 
+  static String pickValidImageUrl(List<String?> candidates) {
+    // 1. First priority: Candidates that are valid, non-blob, non-CAD image URLs
+    for (final raw in candidates) {
+      if (raw == null) continue;
+      final url = raw.trim();
+      if (url.isEmpty) continue;
+      final lower = url.toLowerCase();
+      if (lower.startsWith('blob:')) continue;
+      if (lower.endsWith('.stl') ||
+          lower.endsWith('.xtl') ||
+          lower.endsWith('.obj') ||
+          lower.endsWith('.ply') ||
+          lower.endsWith('.bom') ||
+          lower.endsWith('.csv') ||
+          lower.endsWith('.pdf')) {
+        continue;
+      }
+      return url;
+    }
+    // 2. Fallback: if nothing else found, return first non-empty candidate (if any)
+    for (final raw in candidates) {
+      if (raw != null && raw.trim().isNotEmpty) {
+        final url = raw.trim();
+        final lower = url.toLowerCase();
+        if (!lower.endsWith('.stl') &&
+            !lower.endsWith('.xtl') &&
+            !lower.endsWith('.obj') &&
+            !lower.endsWith('.ply') &&
+            !lower.endsWith('.bom') &&
+            !lower.endsWith('.csv')) {
+          return url;
+        }
+      }
+    }
+    return '';
+  }
+
   static JewelleryDesign sketch(ApiSketch value) {
     final catName = value.category != null && value.category!.isNotEmpty
         ? value.category!
@@ -426,7 +463,10 @@ abstract final class ApiDomainMapper {
       purity: '',
       grossWeightGrams: 0,
       estimatedPrice: parsePrice(value.price, value.adminInstructions),
-      imageUrl: value.sketchUrl,
+      imageUrl: pickValidImageUrl([
+        value.sketchUrl,
+        value.feedbackImageUrl,
+      ]),
       description: _cleanText(value.adminInstructions).isNotEmpty
           ? _cleanText(value.adminInstructions)
           : (value.status == 'APPROVED'
@@ -499,11 +539,14 @@ abstract final class ApiDomainMapper {
           : value.totalWeight,
       diamondCarats: value.gemWeightTw > 0 ? value.gemWeightTw : 0.0,
       estimatedPrice: calcPrice,
-      imageUrl: (value.sketch?.sketchUrl.isNotEmpty == true)
-          ? value.sketch!.sketchUrl
-          : (value.xtlFileUrl?.isNotEmpty == true
-                ? value.xtlFileUrl!
-                : (value.bomFileUrl ?? '')),
+      imageUrl: pickValidImageUrl([
+        value.renderImageUrl,
+        value.imageUrl,
+        value.sketch?.sketchUrl,
+        value.feedbackImageUrl,
+        value.sketch?.feedbackImageUrl,
+        value.bomFileUrl,
+      ]),
       description: _cleanText(value.adminInstructions).isNotEmpty
           ? _cleanText(value.adminInstructions)
           : 'High Quality 3D CAD Designed Jewellery',

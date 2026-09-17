@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/localization.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
-import '../../data/repositories/karatflow_api_repository.dart';
 import '../../domain/models.dart';
 import 'client_detail_page.dart';
 import 'bloc/orders_bloc.dart';
@@ -240,13 +240,21 @@ class _ClientsPageState extends State<ClientsPage> {
               controller: contactController,
               label: 'Contact Person Name',
               hintText: 'e.g. Shailesh Mehta',
+              textCapitalization: TextCapitalization.words,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\.]")),
+              ],
             ),
             const SizedBox(height: 10),
             CommonTextField(
               controller: phoneController,
               label: 'Phone Number',
-              hintText: 'e.g. +91 98250 12345',
+              hintText: 'e.g. 9825012345',
               keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(10),
+              ],
             ),
             const SizedBox(height: 18),
             CommonButton.primary(
@@ -266,6 +274,14 @@ class _ClientsPageState extends State<ClientsPage> {
                     context,
                     title: 'Validation Error',
                     message: 'Please enter all required client details.',
+                  );
+                  return;
+                }
+                if (phone.length != 10) {
+                  CommonSnackbar.error(
+                    context,
+                    title: 'Validation Error',
+                    message: 'Please enter a valid 10-digit phone number.',
                   );
                   return;
                 }

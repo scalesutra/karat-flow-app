@@ -191,8 +191,8 @@ class _SketchDirectiveDialogState extends State<SketchDirectiveDialog> {
         _selectedImage = file;
         _selectedImageBytes = bytes;
       });
-    } catch (error) {
-      debugPrint('Could not recover interrupted image selection: $error');
+    } catch (_) {
+      // Allow manual image selection if interrupted selection cannot be recovered.
     }
   }
 
@@ -240,154 +240,156 @@ class _SketchDirectiveDialogState extends State<SketchDirectiveDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            const Text(
-              'Correction instructions (Optional if voice recorded)',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _instructionsController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText:
-                    'Enter instructions or record voice directive below...',
-                filled: true,
-                fillColor: AppColors.canvas,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+              const Text(
+                'Correction instructions (Optional if voice recorded)',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _instructionsController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText:
+                      'Enter instructions or record voice directive below...',
+                  filled: true,
+                  fillColor: AppColors.canvas,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isSubmitting
-                        ? null
-                        : () => _pickImage(ImageSource.camera),
-                    icon: const Icon(Icons.camera_alt_outlined),
-                    label: const Text('Camera'),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => _pickImage(ImageSource.camera),
+                      icon: const Icon(Icons.camera_alt_outlined),
+                      label: const Text('Camera'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isSubmitting
-                        ? null
-                        : () => _pickImage(ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library_outlined),
-                    label: const Text('Gallery'),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => _pickImage(ImageSource.gallery),
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Gallery'),
+                    ),
                   ),
+                ],
+              ),
+              if (_selectedImageBytes != null) ...[
+                const SizedBox(height: 8),
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.memory(
+                        _selectedImageBytes!,
+                        height: 130,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: IconButton.filled(
+                        onPressed: () => setState(() {
+                          _selectedImage = null;
+                          _selectedImageBytes = null;
+                        }),
+                        icon: const Icon(Icons.close, size: 18),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-            if (_selectedImageBytes != null) ...[
-              const SizedBox(height: 8),
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.memory(
-                      _selectedImageBytes!,
-                      height: 130,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _isRecording
+                      ? AppColors.dangerLight
+                      : AppColors.canvas,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _isRecording ? AppColors.danger : AppColors.outline,
                   ),
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: IconButton.filled(
-                      onPressed: () => setState(() {
-                        _selectedImage = null;
-                        _selectedImageBytes = null;
-                      }),
-                      icon: const Icon(Icons.close, size: 18),
+                ),
+                child: Row(
+                  children: [
+                    IconButton.filled(
+                      onPressed: _isSubmitting ? null : _toggleRecording,
+                      style: IconButton.styleFrom(
+                        backgroundColor: _isRecording
+                            ? AppColors.danger
+                            : AppColors.emerald,
+                      ),
+                      icon: Icon(_isRecording ? Icons.stop : Icons.mic),
                     ),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _isRecording ? AppColors.dangerLight : AppColors.canvas,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: _isRecording ? AppColors.danger : AppColors.outline,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isRecording
+                                ? 'Recording $minutes:$seconds'
+                                : _recordingPath == null
+                                ? 'Tap Mic to record voice'
+                                : 'Voice directive ready · $minutes:$seconds',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                              color: _isRecording
+                                  ? AppColors.danger
+                                  : AppColors.ink,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _recordingPath != null && !_isRecording
+                                ? 'Tap ▶️ on right to preview before sending'
+                                : 'High quality M4A audio directive',
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_recordingPath != null && !_isRecording)
+                      IconButton.filled(
+                        tooltip: _isPlaying ? 'Pause preview' : 'Play preview',
+                        onPressed: _togglePreview,
+                        style: IconButton.styleFrom(
+                          backgroundColor: _isPlaying
+                              ? AppColors.warning
+                              : AppColors.emeraldLight,
+                        ),
+                        icon: Icon(
+                          _isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: _isPlaying
+                              ? AppColors.pureWhite
+                              : AppColors.emerald,
+                          size: 24,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              child: Row(
-                children: [
-                  IconButton.filled(
-                    onPressed: _isSubmitting ? null : _toggleRecording,
-                    style: IconButton.styleFrom(
-                      backgroundColor: _isRecording
-                          ? AppColors.danger
-                          : AppColors.emerald,
-                    ),
-                    icon: Icon(_isRecording ? Icons.stop : Icons.mic),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _isRecording
-                              ? 'Recording $minutes:$seconds'
-                              : _recordingPath == null
-                              ? 'Tap Mic to record voice'
-                              : 'Voice directive ready · $minutes:$seconds',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
-                            color: _isRecording
-                                ? AppColors.danger
-                                : AppColors.ink,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _recordingPath != null && !_isRecording
-                              ? 'Tap ▶️ on right to preview before sending'
-                              : 'High quality M4A audio directive',
-                          style: const TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_recordingPath != null && !_isRecording)
-                    IconButton.filled(
-                      tooltip: _isPlaying ? 'Pause preview' : 'Play preview',
-                      onPressed: _togglePreview,
-                      style: IconButton.styleFrom(
-                        backgroundColor: _isPlaying
-                            ? AppColors.warning
-                            : AppColors.emeraldLight,
-                      ),
-                      icon: Icon(
-                        _isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: _isPlaying
-                            ? AppColors.pureWhite
-                            : AppColors.emerald,
-                        size: 24,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
       actions: [
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.pop(context),

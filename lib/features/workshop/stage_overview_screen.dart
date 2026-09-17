@@ -279,10 +279,9 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     int? quantity,
     String? nextWorkerName,
   }) {
-    final stages = DemoStore.instance.stages
-        .where((stage) => stage.isActive)
-        .toList()
-      ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+    final stages =
+        DemoStore.instance.stages.where((stage) => stage.isActive).toList()
+          ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
 
     final curIdx = stages.indexWhere(
       (s) =>
@@ -290,17 +289,18 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           s.name.trim().toLowerCase() ==
               (part.stageName ?? '').trim().toLowerCase(),
     );
-    final ApiStage? nextApiStage =
-        (curIdx != -1 && curIdx + 1 < stages.length)
-            ? stages[curIdx + 1]
-            : null;
-    final WorkshopStage? nextStage =
-        nextApiStage != null ? _domainStage(nextApiStage) : null;
+    final ApiStage? nextApiStage = (curIdx != -1 && curIdx + 1 < stages.length)
+        ? stages[curIdx + 1]
+        : null;
+    final WorkshopStage? nextStage = nextApiStage != null
+        ? _domainStage(nextApiStage)
+        : null;
 
     final movingWholePart = quantity == null || quantity >= part.pieces;
     if (movingWholePart) {
       if (nextStage != null) {
-        widget.orderData['currentStageName'] = nextApiStage?.name ?? nextStage.label;
+        widget.orderData['currentStageName'] =
+            nextApiStage?.name ?? nextStage.label;
         widget.orderData['stage'] = nextApiStage?.name ?? nextStage.label;
       } else {
         widget.orderData['status'] = 'complete';
@@ -335,7 +335,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       final workerId = selectedMember?.id ?? nextWorkerName;
       final workerDisplayName = selectedMember?.name ?? nextWorkerName;
 
-      final targetStage = nextApiStage ??
+      final targetStage =
+          nextApiStage ??
           (nextStage != null
               ? stages
                     .where((stage) => _domainStage(stage) == nextStage)
@@ -606,12 +607,57 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     String? assignmentFailureReason;
 
     if (rawAssignments is List && rawAssignments.isNotEmpty) {
+      final currentStageName = (rawStg.isNotEmpty ? rawStg : stg.label)
+          .trim()
+          .toLowerCase();
+      final currentStageId =
+          (widget.orderData['stageId'] as String? ??
+                  widget.orderData['currentStageId'] as String? ??
+                  '')
+              .trim();
+
       for (final a in rawAssignments) {
         if (a is Map) {
           final st = (a['status'] as String? ?? '').toUpperCase();
-          if (st == 'COMPLETED' || st == 'PASSED' || a['completedAt'] != null) {
-            hasCompletedAssignment = true;
+          final rawStage = a['stage'];
+          final aStageName =
+              (rawStage is Map
+                      ? rawStage['name'] as String? ?? ''
+                      : (rawStage is String
+                            ? rawStage
+                            : (a['stageName'] as String? ?? '')))
+                  .trim()
+                  .toLowerCase();
+          final aStageId =
+              (a['stageId'] as String? ??
+                      (rawStage is Map ? rawStage['id'] as String? : null) ??
+                      '')
+                  .trim();
+
+          final matchesStage =
+              (currentStageId.isNotEmpty &&
+                  aStageId.isNotEmpty &&
+                  currentStageId == aStageId) ||
+              (currentStageName.isNotEmpty &&
+                  aStageName.isNotEmpty &&
+                  (currentStageName == aStageName ||
+                      currentStageName.contains(aStageName) ||
+                      aStageName.contains(currentStageName)));
+
+          if (matchesStage) {
+            if (st == 'COMPLETED' ||
+                st == 'PASSED' ||
+                a['completedAt'] != null) {
+              hasCompletedAssignment = true;
+            } else if (st == 'ASSIGNED' ||
+                st == 'IN_PROGRESS' ||
+                st == 'ACTIVE' ||
+                st == 'PENDING') {
+              hasCompletedAssignment = false;
+              break;
+            }
           }
+
           if (st == 'FAILED' &&
               a['failureReason'] != null &&
               !isOrderExplicitlyUnblocked) {
@@ -832,8 +878,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           DemoStore.instance.setTeam(team);
           workers = team;
         }
-      } catch (e) {
-        debugPrint('Could not fetch employees directly: $e');
+      } catch (_) {
+        // Keep the existing employee list when the optional refresh fails.
       }
     }
     if (workers.isEmpty) {
@@ -1725,10 +1771,13 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
                   Builder(
                     builder: (context) {
-                      final activeStages = DemoStore.instance.stages
-                          .where((stage) => stage.isActive)
-                          .toList()
-                        ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+                      final activeStages =
+                          DemoStore.instance.stages
+                              .where((stage) => stage.isActive)
+                              .toList()
+                            ..sort(
+                              (a, b) => a.stageNumber.compareTo(b.stageNumber),
+                            );
 
                       final currentIdx = activeStages.indexWhere(
                         (s) =>
@@ -1737,11 +1786,13 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                 (part.stageName ?? '').trim().toLowerCase(),
                       );
                       final ApiStage? nextStage =
-                          (currentIdx != -1 && currentIdx + 1 < activeStages.length)
-                              ? activeStages[currentIdx + 1]
-                              : null;
+                          (currentIdx != -1 &&
+                              currentIdx + 1 < activeStages.length)
+                          ? activeStages[currentIdx + 1]
+                          : null;
                       final bool isLast =
-                          currentIdx != -1 && currentIdx >= activeStages.length - 1;
+                          currentIdx != -1 &&
+                          currentIdx >= activeStages.length - 1;
 
                       return Column(
                         mainAxisSize: MainAxisSize.min,
@@ -1763,7 +1814,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                       nextWorkerName: selectedNextWorker,
                                     );
                                   }
-                                  if (passedPcs >= totalPcs && nextStage == null) {
+                                  if (passedPcs >= totalPcs &&
+                                      nextStage == null) {
                                     widget.orderData['status'] = 'complete';
                                     DemoStore.instance.updateOrderStatus(
                                       _orderId,
@@ -1784,8 +1836,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                       defectivePcs > 0
                                           ? 'Moved $passedPcs pcs → ${nextStage?.name ?? "Next Stage"} (Assigned to $selectedNextWorker). $defectivePcs pcs remaining in ${part.stage.label}!'
                                           : (nextStage != null
-                                              ? 'Moved $passedPcs pcs → ${nextStage.name} (Assigned to $selectedNextWorker)!'
-                                              : 'Completed $passedPcs pcs! Order is ready.'),
+                                                ? 'Moved $passedPcs pcs → ${nextStage.name} (Assigned to $selectedNextWorker)!'
+                                                : 'Completed $passedPcs pcs! Order is ready.'),
                                     ),
                                     backgroundColor: AppColors.emerald,
                                   ),
@@ -3000,11 +3052,12 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         apiStages.add(s);
       }
     }
-    final String statusStr =
-        (widget.orderData['status'] as String? ?? '').toLowerCase();
-    final String stageStr =
-        (widget.orderData['stage'] as String? ?? '').toLowerCase();
-    final bool isEntireOrderCompleted = statusStr == 'complete' ||
+    final String statusStr = (widget.orderData['status'] as String? ?? '')
+        .toLowerCase();
+    final String stageStr = (widget.orderData['stage'] as String? ?? '')
+        .toLowerCase();
+    final bool isEntireOrderCompleted =
+        statusStr == 'complete' ||
         statusStr == 'completed' ||
         statusStr == 'ready' ||
         statusStr == 'delivered' ||
@@ -3014,24 +3067,26 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     int highestReachedStageIndex = -1;
     for (final item in _parentItems) {
       for (final p in item.parts) {
-        final pIdx = apiStages.indexWhere((s) =>
-            _domainStage(s) == p.stage ||
-            s.name.trim().toLowerCase() ==
-                (p.stageName ?? '').trim().toLowerCase() ||
-            (s.name.toLowerCase().contains('fil') &&
-                p.stage == WorkshopStage.filingAndAssembly) ||
-            (s.name.toLowerCase().contains('wax') &&
-                p.stage == WorkshopStage.cadAndWax) ||
-            (s.name.toLowerCase().contains('cast') &&
-                p.stage == WorkshopStage.casting) ||
-            (s.name.toLowerCase().contains('set') &&
-                p.stage == WorkshopStage.stoneSetting) ||
-            (s.name.toLowerCase().contains('pol') &&
-                p.stage == WorkshopStage.polishing) ||
-            (s.name.toLowerCase().contains('qc') &&
-                p.stage == WorkshopStage.qualityCheck) ||
-            (s.name.toLowerCase().contains('pack') &&
-                p.stage == WorkshopStage.readyForDispatch));
+        final pIdx = apiStages.indexWhere(
+          (s) =>
+              _domainStage(s) == p.stage ||
+              s.name.trim().toLowerCase() ==
+                  (p.stageName ?? '').trim().toLowerCase() ||
+              (s.name.toLowerCase().contains('fil') &&
+                  p.stage == WorkshopStage.filingAndAssembly) ||
+              (s.name.toLowerCase().contains('wax') &&
+                  p.stage == WorkshopStage.cadAndWax) ||
+              (s.name.toLowerCase().contains('cast') &&
+                  p.stage == WorkshopStage.casting) ||
+              (s.name.toLowerCase().contains('set') &&
+                  p.stage == WorkshopStage.stoneSetting) ||
+              (s.name.toLowerCase().contains('pol') &&
+                  p.stage == WorkshopStage.polishing) ||
+              (s.name.toLowerCase().contains('qc') &&
+                  p.stage == WorkshopStage.qualityCheck) ||
+              (s.name.toLowerCase().contains('pack') &&
+                  p.stage == WorkshopStage.readyForDispatch),
+        );
         if (pIdx > highestReachedStageIndex) {
           highestReachedStageIndex = pIdx;
         }
@@ -3085,30 +3140,36 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           final targetOrder = _orderId.trim().toUpperCase();
           final targetApiOrder = _apiOrderId.trim().toUpperCase();
 
-          final matchesDesign = tDesign.isNotEmpty &&
-              (_parentItems.any((item) =>
-                  item.code.toUpperCase() == tDesign ||
-                  item.code.toUpperCase().contains(tDesign) ||
-                  tDesign.contains(item.code.toUpperCase()) ||
-                  item.parts.any((p) =>
-                      p.code.toUpperCase() == tDesign ||
-                      p.name.toUpperCase().contains(tDesign) ||
-                      tDesign.contains(p.code.toUpperCase()))) ||
-               (widget.orderData['designs'] is List &&
-                   (widget.orderData['designs'] as List).any((d) {
-                     final dNum = (d is Map
-                             ? (d['designNumber'] ??
-                                 d['designCode'] ??
-                                 d['code'] ??
-                                 '')
-                             : '')
-                         .toString()
-                         .toUpperCase();
-                     return dNum.isNotEmpty &&
-                         (dNum == tDesign ||
-                             dNum.contains(tDesign) ||
-                             tDesign.contains(dNum));
-                   })));
+          final matchesDesign =
+              tDesign.isNotEmpty &&
+              (_parentItems.any(
+                    (item) =>
+                        item.code.toUpperCase() == tDesign ||
+                        item.code.toUpperCase().contains(tDesign) ||
+                        tDesign.contains(item.code.toUpperCase()) ||
+                        item.parts.any(
+                          (p) =>
+                              p.code.toUpperCase() == tDesign ||
+                              p.name.toUpperCase().contains(tDesign) ||
+                              tDesign.contains(p.code.toUpperCase()),
+                        ),
+                  ) ||
+                  (widget.orderData['designs'] is List &&
+                      (widget.orderData['designs'] as List).any((d) {
+                        final dNum =
+                            (d is Map
+                                    ? (d['designNumber'] ??
+                                          d['designCode'] ??
+                                          d['code'] ??
+                                          '')
+                                    : '')
+                                .toString()
+                                .toUpperCase();
+                        return dNum.isNotEmpty &&
+                            (dNum == tDesign ||
+                                dNum.contains(tDesign) ||
+                                tDesign.contains(dNum));
+                      })));
 
           final tSeq = tOrderNumber.split('-').last;
           final targetSeq = targetOrder.split('-').last;
@@ -3116,41 +3177,97 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
               tSeq.isNotEmpty && targetSeq.isNotEmpty && tSeq == targetSeq;
 
           final matchesOrder =
-              targetOrder.isEmpty ||
-              matchesDesign ||
-              matchesSeq ||
-              tPartId == targetOrder ||
-              tPartId == targetApiOrder ||
-              tOrderId == targetOrder ||
-              tOrderId == targetApiOrder ||
-              tOrderNumber == targetOrder ||
-              tOrderNumber == targetApiOrder ||
+              (targetOrder.isNotEmpty &&
+                  (tOrderId == targetOrder ||
+                      tOrderNumber == targetOrder ||
+                      tPartId == targetOrder ||
+                      tOrderId.endsWith(targetOrder) ||
+                      targetOrder.endsWith(tOrderId))) ||
               (targetApiOrder.isNotEmpty &&
-                  (tOrderId.contains(targetApiOrder) ||
-                      targetApiOrder.contains(tOrderId) ||
-                      tOrderNumber.contains(targetApiOrder) ||
-                      targetApiOrder.contains(tOrderNumber))) ||
-              (tOrderNumber.isNotEmpty &&
-                  (tOrderNumber.endsWith(targetOrder) ||
-                      targetOrder.endsWith(tOrderNumber))) ||
-              (tOrderId.isNotEmpty &&
-                  (tOrderId.endsWith(targetOrder) ||
-                      targetOrder.endsWith(tOrderId)));
+                  (tOrderId == targetApiOrder ||
+                      tOrderNumber == targetApiOrder ||
+                      tPartId == targetApiOrder)) ||
+              matchesDesign ||
+              matchesSeq;
+
+          return matchesOrder;
+        });
+
+        final hasActiveWorkerTaskForStage = DemoStore.instance.workerTasks.any((
+          t,
+        ) {
+          final isPending =
+              t.status.toUpperCase() == 'ASSIGNED' ||
+              t.status.toUpperCase() == 'IN_PROGRESS' ||
+              t.status.toUpperCase() == 'ACTIVE';
+          if (!isPending) return false;
+
+          final tStageName = t.stage.name.toLowerCase().trim();
+          final targetStageName = apiStage.name.toLowerCase().trim();
+          final matchesStage =
+              tStageName == targetStageName ||
+              tStageName.contains(targetStageName) ||
+              targetStageName.contains(tStageName) ||
+              (tStageName.contains('wax') && targetStageName.contains('wax')) ||
+              (tStageName.contains('cast') &&
+                  targetStageName.contains('cast')) ||
+              (tStageName.contains('fil') && targetStageName.contains('fil')) ||
+              (tStageName.contains('set') && targetStageName.contains('set')) ||
+              (tStageName.contains('pol') && targetStageName.contains('pol')) ||
+              (tStageName.contains('qc') && targetStageName.contains('qc')) ||
+              (tStageName.contains('pack') && targetStageName.contains('pack'));
+          if (!matchesStage) return false;
+
+          final tPartId = t.orderPartId.trim().toUpperCase();
+          final tOrderId = t.orderId.trim().toUpperCase();
+          final tOrderNumber = t.orderPart.orderNumber.trim().toUpperCase();
+          final tDesign = t.designNumber.trim().toUpperCase();
+          final targetOrder = _orderId.trim().toUpperCase();
+          final targetApiOrder = _apiOrderId.trim().toUpperCase();
+
+          final matchesDesign =
+              tDesign.isNotEmpty &&
+              _parentItems.any(
+                (item) =>
+                    item.code.toUpperCase() == tDesign ||
+                    item.parts.any((p) => p.code.toUpperCase() == tDesign),
+              );
+
+          final matchesOrder =
+              (targetOrder.isNotEmpty &&
+                  (tOrderId == targetOrder ||
+                      tOrderNumber == targetOrder ||
+                      tPartId == targetOrder ||
+                      tOrderId.endsWith(targetOrder) ||
+                      targetOrder.endsWith(tOrderId))) ||
+              (targetApiOrder.isNotEmpty &&
+                  (tOrderId == targetApiOrder ||
+                      tOrderNumber == targetApiOrder ||
+                      tPartId == targetApiOrder)) ||
+              matchesDesign;
 
           return matchesOrder;
         });
 
         final isLotStageDone = DemoStore.instance.lots.any((l) {
-          final matchesOrder = l.orderId == _orderId ||
-              (_apiOrderId.isNotEmpty && l.orderId == _apiOrderId) ||
-              _orderId.contains(l.orderId) ||
-              l.orderId.contains(_orderId);
-          final matchesPart = _parentItems.any((item) =>
-              item.code.toUpperCase() == l.designCode.toUpperCase() ||
-              item.parts.any((p) =>
-                  p.code.toUpperCase() == l.designCode.toUpperCase() ||
-                  p.code.toUpperCase() == l.id.toUpperCase()));
-          final matchesStage = l.stage == stage ||
+          final matchesOrder =
+              (l.orderId.isNotEmpty &&
+                  _orderId.isNotEmpty &&
+                  (l.orderId == _orderId ||
+                      _orderId.contains(l.orderId) ||
+                      l.orderId.contains(_orderId))) ||
+              (_apiOrderId.isNotEmpty && l.orderId == _apiOrderId);
+          final matchesPart = _parentItems.any(
+            (item) =>
+                item.code.toUpperCase() == l.designCode.toUpperCase() ||
+                item.parts.any(
+                  (p) =>
+                      p.code.toUpperCase() == l.designCode.toUpperCase() ||
+                      p.code.toUpperCase() == l.id.toUpperCase(),
+                ),
+          );
+          final matchesStage =
+              l.stage == stage ||
               l.apiStageName.toLowerCase().trim() ==
                   apiStage.name.toLowerCase().trim() ||
               (l.apiStageName.toLowerCase().contains('fil') &&
@@ -3167,7 +3284,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   apiStage.name.toLowerCase().contains('qc')) ||
               (l.apiStageName.toLowerCase().contains('pack') &&
                   apiStage.name.toLowerCase().contains('pack'));
-          final isDone = l.assignedEmployeeRole.toUpperCase() == 'COMPLETED' ||
+          final isDone =
+              l.assignedEmployeeRole.toUpperCase() == 'COMPLETED' ||
               l.assignedEmployeeRole.toUpperCase() == 'STAGE_COMPLETED' ||
               l.assignedEmployeeRole.toUpperCase() == 'PASSED' ||
               l.apiStageName.toUpperCase() == 'COMPLETED' ||
@@ -3175,23 +3293,26 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
           return (matchesOrder || matchesPart) && matchesStage && isDone;
         });
 
-        final isWorkerTaskDone =
-            DemoStore.instance.isWorkerTaskCompletedForPart(
-          _orderId,
-          designNumber:
-              _parentItems.firstOrNull?.parts.firstOrNull?.code ??
+        final isWorkerTaskDone = DemoStore.instance
+            .isWorkerTaskCompletedForPart(
+              _orderId,
+              designNumber:
+                  _parentItems.firstOrNull?.parts.firstOrNull?.code ??
                   _parentItems.firstOrNull?.code,
-          stageName: apiStage.name,
-        );
+              stageName: apiStage.name,
+            );
 
         final isStagePast =
             highestReachedStageIndex != -1 && index < highestReachedStageIndex;
-        final isStageFuture = !isEntireOrderCompleted &&
+        final isStageFuture =
+            !isEntireOrderCompleted &&
             highestReachedStageIndex != -1 &&
             index > highestReachedStageIndex;
         final isCurrentStage = !isStagePast && !isStageFuture;
 
-        final isCurrentStageCompleted = isCurrentStage &&
+        final isCurrentStageCompleted =
+            isCurrentStage &&
+            !hasActiveWorkerTaskForStage &&
             (hasWorkerStageCompleted ||
                 isLotStageDone ||
                 isWorkerTaskDone ||
@@ -3533,20 +3654,6 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                     // Worker Assignment & Status Row (Wrap prevents any overflow)
                                     Builder(
                                       builder: (context) {
-                                        final isWorkerDone =
-                                            part.isCompleted ||
-                                            (part.stage.index > stage.index) ||
-                                            hasWorkerStageCompleted ||
-                                            isLotStageDone ||
-                                            isWorkerTaskDone ||
-                                            DemoStore.instance
-                                                .isWorkerTaskCompletedForPart(
-                                                  part.code,
-                                                  designNumber: part.code,
-                                                  stageName: apiStage.name,
-                                                  artisanName:
-                                                      part.assignedEmployee,
-                                                );
                                         final workerName =
                                             part.assignedEmployee;
                                         final isAssigned =
@@ -3555,6 +3662,34 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                             workerName != 'Unassigned' &&
                                             workerName !=
                                                 'Unassigned (In Queue)';
+
+                                        final isPastStage =
+                                            part.stage.index > stage.index;
+
+                                        final hasActiveAssignment =
+                                            hasActiveWorkerTaskForStage ||
+                                            (isCurrentStage &&
+                                                isAssigned &&
+                                                !part.isCompleted &&
+                                                !isEntireOrderCompleted);
+
+                                        final isWorkerDone =
+                                            isPastStage ||
+                                            (!hasActiveAssignment &&
+                                                (isEntireOrderCompleted ||
+                                                    hasWorkerStageCompleted ||
+                                                    isLotStageDone ||
+                                                    isWorkerTaskDone ||
+                                                    DemoStore.instance
+                                                        .isWorkerTaskCompletedForPart(
+                                                          part.code,
+                                                          designNumber:
+                                                              part.code,
+                                                          stageName:
+                                                              apiStage.name,
+                                                          artisanName: part
+                                                              .assignedEmployee,
+                                                        )));
 
                                         return Wrap(
                                           spacing: 6,
