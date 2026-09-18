@@ -59,11 +59,13 @@ class AdminReviewCadSheet extends StatelessWidget {
   void _openUpdateStockModal(BuildContext context, CadDesignTask task) {
     final titleController = TextEditingController(text: task.productTitle);
     final stockController = TextEditingController(text: '1');
-    final initialPrice = (task.calculatedPrice != null && task.calculatedPrice! > 0)
+    final initialPrice =
+        (task.calculatedPrice != null && task.calculatedPrice! > 0)
         ? '${task.calculatedPrice!.toInt()}'
-        : ((task.priceBreakdown?.finalPrice != null && task.priceBreakdown!.finalPrice > 0)
-            ? '${task.priceBreakdown!.finalPrice.toInt()}'
-            : '');
+        : ((task.priceBreakdown?.finalPrice != null &&
+                  task.priceBreakdown!.finalPrice > 0)
+              ? '${task.priceBreakdown!.finalPrice.toInt()}'
+              : '');
     final priceController = TextEditingController(text: initialPrice);
     final goldQtyController = TextEditingController(
       text: '${task.goldQuantity}',
@@ -107,7 +109,10 @@ class AdminReviewCadSheet extends StatelessWidget {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Icon(Icons.inventory_2_outlined, color: AppColors.goldDark),
+                      const Icon(
+                        Icons.inventory_2_outlined,
+                        color: AppColors.goldDark,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -124,7 +129,10 @@ class AdminReviewCadSheet extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Purity: ${task.sizeDimensions.isNotEmpty ? task.sizeDimensions : 'Gold'} · Making Code: ${task.makingCode.isNotEmpty ? task.makingCode : 'N/A'}',
-                    style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   CommonTextField(
@@ -162,7 +170,9 @@ class AdminReviewCadSheet extends StatelessWidget {
                           controller: goldQtyController,
                           label: 'Net Gold (g)',
                           hintText: 'Enter net gold in grams',
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -171,7 +181,9 @@ class AdminReviewCadSheet extends StatelessWidget {
                           controller: totalWeightController,
                           label: 'Gross Weight (g)',
                           hintText: 'Enter gross weight in grams',
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                         ),
                       ),
                     ],
@@ -185,10 +197,22 @@ class AdminReviewCadSheet extends StatelessWidget {
                   DropdownButtonFormField<String>(
                     initialValue: selectedStatus,
                     items: const [
-                      DropdownMenuItem(value: 'In Stock', child: Text('In Stock')),
-                      DropdownMenuItem(value: 'Low Stock', child: Text('Low Stock')),
-                      DropdownMenuItem(value: 'Out of Stock', child: Text('Out of Stock')),
-                      DropdownMenuItem(value: 'Custom Made', child: Text('Custom Made')),
+                      DropdownMenuItem(
+                        value: 'In Stock',
+                        child: Text('In Stock'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Low Stock',
+                        child: Text('Low Stock'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Out of Stock',
+                        child: Text('Out of Stock'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Custom Made',
+                        child: Text('Custom Made'),
+                      ),
                     ],
                     onChanged: (val) {
                       if (val != null) {
@@ -196,8 +220,13 @@ class AdminReviewCadSheet extends StatelessWidget {
                       }
                     },
                     decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -207,10 +236,18 @@ class AdminReviewCadSheet extends StatelessWidget {
                       label: 'Save & Update Stock',
                       icon: Icons.check,
                       onPressed: () {
-                        final parsedStock = int.tryParse(stockController.text.trim());
-                        final parsedPrice = double.tryParse(priceController.text.trim());
-                        final parsedGold = double.tryParse(goldQtyController.text.trim());
-                        final parsedTotalWeight = double.tryParse(totalWeightController.text.trim());
+                        final parsedStock = int.tryParse(
+                          stockController.text.trim(),
+                        );
+                        final parsedPrice = double.tryParse(
+                          priceController.text.trim(),
+                        );
+                        final parsedGold = double.tryParse(
+                          goldQtyController.text.trim(),
+                        );
+                        final parsedTotalWeight = double.tryParse(
+                          totalWeightController.text.trim(),
+                        );
 
                         context.read<AdminBloc>().add(
                           UpdateProductStockEvent(
@@ -228,7 +265,8 @@ class AdminReviewCadSheet extends StatelessWidget {
                         CommonSnackbar.success(
                           context,
                           title: 'Stock Updated Successfully',
-                          message: 'Updated stock and pricing for ${task.designCode}.',
+                          message:
+                              'Updated stock and pricing for ${task.designCode}.',
                         );
                       },
                     ),
@@ -248,12 +286,15 @@ class AdminReviewCadSheet extends StatelessWidget {
       animation: store,
       builder: (context, _) {
         final pendingTasks = store.cadTasks
-            .where((task) =>
-                task.hasStlFile &&
-                task.specs != 'Approved 2D Sketch · Pending 3D Wax STL Modeling' &&
-                task.assignedTo != 'Admin Direct Concept' &&
-                task.clientName != 'Admin Direct Concept' &&
-                !task.orderId.contains('ORD-ADM-'))
+            .where(
+              (task) =>
+                  task.hasStlFile &&
+                  task.specs !=
+                      'Approved 2D Sketch · Pending 3D Wax STL Modeling' &&
+                  task.assignedTo != 'Admin Direct Concept' &&
+                  task.clientName != 'Admin Direct Concept' &&
+                  !task.orderId.contains('ORD-ADM-'),
+            )
             .toList();
 
         return Padding(
@@ -341,432 +382,686 @@ class AdminReviewCadSheet extends StatelessWidget {
                           : ListView.separated(
                               physics: const AlwaysScrollableScrollPhysics(),
                               itemCount: pendingTasks.length,
-                              separatorBuilder: (_, _) => const SizedBox(height: 12),
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 12),
                               itemBuilder: (ctx, index) {
-                          final task = pendingTasks[index];
-                          final isApproved =
-                              task.status == CadTaskStatus.completed ||
-                              task.specs.contains('(Approved)');
-                          final pb = task.priceBreakdown;
-                          final calculatedPriceVal = (task.calculatedPrice != null && task.calculatedPrice! > 0)
-                              ? task.calculatedPrice
-                              : (pb?.finalPrice != null && pb!.finalPrice > 0 ? pb.finalPrice : null);
+                                final task = pendingTasks[index];
+                                final isApproved =
+                                    task.status == CadTaskStatus.completed ||
+                                    task.specs.contains('(Approved)');
+                                final pb = task.priceBreakdown;
+                                final calculatedPriceVal =
+                                    (task.calculatedPrice != null &&
+                                        task.calculatedPrice! > 0)
+                                    ? task.calculatedPrice
+                                    : (pb?.finalPrice != null &&
+                                              pb!.finalPrice > 0
+                                          ? pb.finalPrice
+                                          : null);
 
-                          return CommonCard(
-                            padding: const EdgeInsets.all(14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Header: Title & Status Badge
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        task.productTitle,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 15,
-                                          color: AppColors.ink,
-                                        ),
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isApproved
-                                            ? AppColors.emeraldLight
-                                            : AppColors.goldLight,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
+                                return CommonCard(
+                                  padding: const EdgeInsets.all(14),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // Header: Title & Status Badge
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Icon(
-                                            isApproved
-                                                ? Icons.check_circle
-                                                : Icons.view_in_ar,
-                                            size: 11,
-                                            color: isApproved
-                                                ? AppColors.emeraldDark
-                                                : AppColors.goldDark,
+                                          Expanded(
+                                            child: Text(
+                                              task.productTitle,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 15,
+                                                color: AppColors.ink,
+                                              ),
+                                            ),
                                           ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            isApproved
-                                                ? 'APPROVED'
-                                                : 'PENDING SIGN-OFF',
-                                            style: TextStyle(
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 3,
+                                            ),
+                                            decoration: BoxDecoration(
                                               color: isApproved
-                                                  ? AppColors.emeraldDark
-                                                  : AppColors.goldDark,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w800,
+                                                  ? AppColors.emeraldLight
+                                                  : AppColors.goldLight,
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  isApproved
+                                                      ? Icons.check_circle
+                                                      : Icons.view_in_ar,
+                                                  size: 11,
+                                                  color: isApproved
+                                                      ? AppColors.emeraldDark
+                                                      : AppColors.goldDark,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  isApproved
+                                                      ? 'APPROVED'
+                                                      : 'PENDING SIGN-OFF',
+                                                  style: TextStyle(
+                                                    color: isApproved
+                                                        ? AppColors.emeraldDark
+                                                        : AppColors.goldDark,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Code: ${task.designCode} · Designer: ${task.assignedTo}',
-                                  style: const TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Code: ${task.designCode} · Designer: ${task.assignedTo}',
+                                        style: const TextStyle(
+                                          color: AppColors.muted,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
 
-                                Builder(
-                                  builder: (ctx) {
-                                    final taskImage = task.imageUrl.isNotEmpty
-                                        ? task.imageUrl
-                                        : (store.designs
-                                            .where((d) => d.code == task.designCode && d.imageUrl.isNotEmpty)
-                                            .firstOrNull
-                                            ?.imageUrl ?? '');
+                                      Builder(
+                                        builder: (ctx) {
+                                          final taskImage =
+                                              task.imageUrl.isNotEmpty
+                                              ? task.imageUrl
+                                              : (store.designs
+                                                        .where(
+                                                          (d) =>
+                                                              d.code ==
+                                                                  task.designCode &&
+                                                              d
+                                                                  .imageUrl
+                                                                  .isNotEmpty,
+                                                        )
+                                                        .firstOrNull
+                                                        ?.imageUrl ??
+                                                    '');
 
-                                    if (taskImage.isEmpty && !task.hasSketchImage) {
-                                      return const SizedBox.shrink();
-                                    }
+                                          if (taskImage.isEmpty &&
+                                              !task.hasSketchImage) {
+                                            return const SizedBox.shrink();
+                                          }
 
-                                    return Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(10),
-                                          child: Container(
-                                            height: 140,
-                                            width: double.infinity,
-                                            decoration: BoxDecoration(
-                                              color: AppColors.canvas,
-                                              borderRadius: BorderRadius.circular(10),
-                                              border: Border.all(
-                                                color: AppColors.outline.withValues(alpha: 0.5),
-                                              ),
-                                            ),
-                                            child: Stack(
-                                              children: [
-                                                if (taskImage.isNotEmpty)
-                                                  Positioned.fill(
-                                                    child: PresignedSketchImage(
-                                                      imageUrl: taskImage,
-                                                      fit: BoxFit.contain,
-                                                    ),
-                                                  )
-                                                else
-                                                  const Center(
-                                                    child: Icon(
-                                                      Icons.image_outlined,
-                                                      color: AppColors.muted,
-                                                      size: 36,
+                                          return Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                child: Container(
+                                                  height: 140,
+                                                  width: double.infinity,
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.canvas,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                    border: Border.all(
+                                                      color: AppColors.outline
+                                                          .withValues(
+                                                            alpha: 0.5,
+                                                          ),
                                                     ),
                                                   ),
-                                                Positioned(
-                                                  bottom: 8,
-                                                  left: 8,
-                                                  child: Container(
-                                                    padding: const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 3,
-                                                    ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.black.withValues(alpha: 0.65),
-                                                      borderRadius: BorderRadius.circular(6),
-                                                    ),
-                                                    child: const Row(
-                                                      mainAxisSize: MainAxisSize.min,
-                                                      children: [
-                                                        Icon(Icons.image, size: 12, color: Colors.white),
-                                                        SizedBox(width: 4),
-                                                        Text(
-                                                          'Design Concept / Sketch',
-                                                          style: TextStyle(
-                                                            color: Colors.white,
-                                                            fontSize: 10,
-                                                            fontWeight: FontWeight.bold,
+                                                  child: Stack(
+                                                    children: [
+                                                      if (taskImage.isNotEmpty)
+                                                        Positioned.fill(
+                                                          child:
+                                                              PresignedSketchImage(
+                                                                imageUrl:
+                                                                    taskImage,
+                                                                fit: BoxFit
+                                                                    .contain,
+                                                              ),
+                                                        )
+                                                      else
+                                                        const Center(
+                                                          child: Icon(
+                                                            Icons
+                                                                .image_outlined,
+                                                            color:
+                                                                AppColors.muted,
+                                                            size: 36,
                                                           ),
                                                         ),
-                                                      ],
+                                                      Positioned(
+                                                        bottom: 8,
+                                                        left: 8,
+                                                        child: Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 8,
+                                                                vertical: 3,
+                                                              ),
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.black
+                                                                .withValues(
+                                                                  alpha: 0.65,
+                                                                ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  6,
+                                                                ),
+                                                          ),
+                                                          child: const Row(
+                                                            mainAxisSize:
+                                                                MainAxisSize
+                                                                    .min,
+                                                            children: [
+                                                              Icon(
+                                                                Icons.image,
+                                                                size: 12,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
+                                                              SizedBox(
+                                                                width: 4,
+                                                              ),
+                                                              Text(
+                                                                'Design Concept / Sketch',
+                                                                style: TextStyle(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  fontSize: 10,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (task.hasStlFile)
+                                                        Positioned(
+                                                          bottom: 8,
+                                                          right: 8,
+                                                          child: Container(
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal: 8,
+                                                                  vertical: 3,
+                                                                ),
+                                                            decoration: BoxDecoration(
+                                                              color: AppColors
+                                                                  .emerald
+                                                                  .withValues(
+                                                                    alpha: 0.9,
+                                                                  ),
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    6,
+                                                                  ),
+                                                            ),
+                                                            child: Row(
+                                                              mainAxisSize:
+                                                                  MainAxisSize
+                                                                      .min,
+                                                              children: [
+                                                                const Icon(
+                                                                  Icons
+                                                                      .view_in_ar,
+                                                                  size: 12,
+                                                                  color: Colors
+                                                                      .white,
+                                                                ),
+                                                                const SizedBox(
+                                                                  width: 4,
+                                                                ),
+                                                                Text(
+                                                                  task.modelFileUrl !=
+                                                                              null &&
+                                                                          task
+                                                                              .modelFileUrl!
+                                                                              .isNotEmpty
+                                                                      ? '3D STL Ready'
+                                                                      : '3D STL Attached',
+                                                                  style: const TextStyle(
+                                                                    color: Colors
+                                                                        .white,
+                                                                    fontSize:
+                                                                        10,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                            ],
+                                          );
+                                        },
+                                      ),
+
+                                      // 1. Metal & Gem Specifications Card
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF7F8FA),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: AppColors.outline.withValues(
+                                              alpha: 0.5,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.fitness_center,
+                                                  size: 14,
+                                                  color: AppColors.goldDark,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Metal: ${task.sizeDimensions.isNotEmpty ? task.sizeDimensions : 'Gold'} · Weight: ${task.goldQuantity}g (Gross: ${task.estimatedWeightGrams}g)',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: AppColors.ink,
                                                     ),
                                                   ),
                                                 ),
-                                                if (task.hasStlFile)
-                                                  Positioned(
-                                                    bottom: 8,
-                                                    right: 8,
-                                                    child: Container(
-                                                      padding: const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 3,
+                                              ],
+                                            ),
+                                            if (task.makingCode.isNotEmpty) ...[
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                'Making Code: ${task.makingCode}',
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: AppColors.muted,
+                                                ),
+                                              ),
+                                            ],
+                                            const Divider(height: 12),
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.diamond_outlined,
+                                                  size: 14,
+                                                  color: Colors.blueAccent,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Gems: ${task.gemQuantity} Pcs · Total Gem Weight: ${task.gemWeightTw} Tw',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: AppColors.ink,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+
+                                      // 2. Expandable Gem Breakdown Table
+                                      if (task.gemBreakdown.isNotEmpty)
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            border: Border.all(
+                                              color: AppColors.outline,
+                                            ),
+                                          ),
+                                          child: Theme(
+                                            data: Theme.of(context).copyWith(
+                                              dividerColor: Colors.transparent,
+                                            ),
+                                            child: ExpansionTile(
+                                              dense: true,
+                                              tilePadding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 0,
+                                                  ),
+                                              title: Text(
+                                                '💎 Detailed Gem Breakdown (${task.gemBreakdown.length} Shapes)',
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.ink,
+                                                ),
+                                              ),
+                                              children: [
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.fromLTRB(
+                                                        10,
+                                                        0,
+                                                        10,
+                                                        10,
                                                       ),
-                                                      decoration: BoxDecoration(
-                                                        color: AppColors.emerald.withValues(alpha: 0.9),
-                                                        borderRadius: BorderRadius.circular(6),
-                                                      ),
-                                                      child: Row(
-                                                        mainAxisSize: MainAxisSize.min,
-                                                        children: [
-                                                          const Icon(
-                                                            Icons.view_in_ar,
-                                                            size: 12,
-                                                            color: Colors.white,
+                                                  child: Table(
+                                                    columnWidths: const {
+                                                      0: FlexColumnWidth(2),
+                                                      1: FlexColumnWidth(2),
+                                                      2: FlexColumnWidth(1.5),
+                                                      3: FlexColumnWidth(2),
+                                                    },
+                                                    border: TableBorder.all(
+                                                      color: AppColors.outline
+                                                          .withValues(
+                                                            alpha: 0.4,
                                                           ),
-                                                          const SizedBox(width: 4),
-                                                          Text(
-                                                            task.modelFileUrl != null && task.modelFileUrl!.isNotEmpty
-                                                                ? '3D STL Ready'
-                                                                : '3D STL Attached',
-                                                            style: const TextStyle(
-                                                              color: Colors.white,
-                                                              fontSize: 10,
-                                                              fontWeight: FontWeight.bold,
+                                                      width: 0.8,
+                                                    ),
+                                                    children: [
+                                                      const TableRow(
+                                                        decoration:
+                                                            BoxDecoration(
+                                                              color: Color(
+                                                                0xFFF2F4F7,
+                                                              ),
+                                                            ),
+                                                        children: [
+                                                          Padding(
+                                                            padding:
+                                                                EdgeInsets.all(
+                                                                  4,
+                                                                ),
+                                                            child: Text(
+                                                              'Shape',
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 10,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          Padding(
+                                                            padding:
+                                                                EdgeInsets.all(
+                                                                  4,
+                                                                ),
+                                                            child: Text(
+                                                              'Dim (mm)',
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 10,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          Padding(
+                                                            padding:
+                                                                EdgeInsets.all(
+                                                                  4,
+                                                                ),
+                                                            child: Text(
+                                                              'Count',
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 10,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          Padding(
+                                                            padding:
+                                                                EdgeInsets.all(
+                                                                  4,
+                                                                ),
+                                                            child: Text(
+                                                              'Weight (Tw)',
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 10,
+                                                              ),
                                                             ),
                                                           ),
                                                         ],
                                                       ),
-                                                    ),
+                                                      ...task.gemBreakdown.map((
+                                                        gb,
+                                                      ) {
+                                                        return TableRow(
+                                                          children: [
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets.all(
+                                                                    4,
+                                                                  ),
+                                                              child: Text(
+                                                                gb.shape,
+                                                                style:
+                                                                    const TextStyle(
+                                                                      fontSize:
+                                                                          10,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets.all(
+                                                                    4,
+                                                                  ),
+                                                              child: Text(
+                                                                gb.dimensions,
+                                                                style:
+                                                                    const TextStyle(
+                                                                      fontSize:
+                                                                          10,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets.all(
+                                                                    4,
+                                                                  ),
+                                                              child: Text(
+                                                                '${gb.count}',
+                                                                style:
+                                                                    const TextStyle(
+                                                                      fontSize:
+                                                                          10,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets.all(
+                                                                    4,
+                                                                  ),
+                                                              child: Text(
+                                                                '${gb.weightTw}',
+                                                                style:
+                                                                    const TextStyle(
+                                                                      fontSize:
+                                                                          10,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        );
+                                                      }),
+                                                    ],
                                                   ),
+                                                ),
                                               ],
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(height: 10),
-                                      ],
-                                    );
-                                  },
-                                ),
+                                      const SizedBox(height: 8),
 
-                                // 1. Metal & Gem Specifications Card
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF7F8FA),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: AppColors.outline.withValues(alpha: 0.5)),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.fitness_center, size: 14, color: AppColors.goldDark),
-                                          const SizedBox(width: 6),
-                                          Expanded(
-                                            child: Text(
-                                              'Metal: ${task.sizeDimensions.isNotEmpty ? task.sizeDimensions : 'Gold'} · Weight: ${task.goldQuantity}g (Gross: ${task.estimatedWeightGrams}g)',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.ink,
-                                              ),
+                                      // 3. Calculated Price & Price Breakdown Card
+                                      if (calculatedPriceVal != null ||
+                                          pb != null)
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFFF9EE),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(0xFFFFD18A),
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                      if (task.makingCode.isNotEmpty) ...[
-                                        const SizedBox(height: 3),
-                                        Text(
-                                          'Making Code: ${task.makingCode}',
-                                          style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  const Text(
+                                                    'Total Calculated Price:',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: AppColors.ink,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    '₹${(calculatedPriceVal ?? 0).toInt()}',
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: AppColors.goldDark,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              if (pb != null) ...[
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  '• Gold Cost (${pb.netGoldWeight}g @ ₹${pb.goldRatePerGram.toInt()}/g): ₹${pb.totalGoldCost.toInt()}',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: AppColors.muted,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  '• Gem Cost (${pb.gemQuantity} pcs @ ₹${pb.gemRate.toInt()}/ct): ₹${pb.totalGemCost.toInt()}',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: AppColors.muted,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  '• Subtotal: ₹${pb.subtotal.toInt()} + GST (${pb.gstPercent}%): ₹${pb.gstAmount.toInt()}',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: AppColors.muted,
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
                                         ),
-                                      ],
-                                      const Divider(height: 12),
+                                      // 4. Action Buttons
                                       Row(
                                         children: [
-                                          const Icon(Icons.diamond_outlined, size: 14, color: Colors.blueAccent),
-                                          const SizedBox(width: 6),
                                           Expanded(
-                                            child: Text(
-                                              'Gems: ${task.gemQuantity} Pcs · Total Gem Weight: ${task.gemWeightTw} Tw',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.ink,
-                                              ),
+                                            child: CommonButton.outlined(
+                                              height: 34,
+                                              icon: Icons.view_in_ar,
+                                              label: 'View 3D',
+                                              onPressed: () {
+                                                showModalBottomSheet<void>(
+                                                  context: context,
+                                                  isScrollControlled: true,
+                                                  backgroundColor:
+                                                      Colors.transparent,
+                                                  builder: (viewCtx) =>
+                                                      Common3DViewer(
+                                                        designCode:
+                                                            task.designCode,
+                                                        productTitle:
+                                                            task.productTitle,
+                                                        modelUrl:
+                                                            task.modelFileUrl,
+                                                      ),
+                                                );
+                                              },
                                             ),
                                           ),
+                                          const SizedBox(width: 6),
+                                          if (!isApproved)
+                                            Expanded(
+                                              child: CommonButton.primary(
+                                                height: 34,
+                                                backgroundColor:
+                                                    AppColors.emerald,
+                                                icon:
+                                                    Icons.check_circle_outline,
+                                                label: 'Approve 3D',
+                                                onPressed: () =>
+                                                    _approveTask(context, task),
+                                              ),
+                                            )
+                                          else
+                                            Expanded(
+                                              child: CommonButton.primary(
+                                                height: 34,
+                                                backgroundColor:
+                                                    AppColors.goldDark,
+                                                icon: Icons.edit_note_outlined,
+                                                label: 'Edit Product Stock',
+                                                onPressed: () =>
+                                                    _openUpdateStockModal(
+                                                      context,
+                                                      task,
+                                                    ),
+                                              ),
+                                            ),
                                         ],
                                       ),
                                     ],
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-
-                                // 2. Expandable Gem Breakdown Table
-                                if (task.gemBreakdown.isNotEmpty)
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: AppColors.outline),
-                                    ),
-                                    child: Theme(
-                                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                                      child: ExpansionTile(
-                                        dense: true,
-                                        tilePadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                                        title: Text(
-                                          '💎 Detailed Gem Breakdown (${task.gemBreakdown.length} Shapes)',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.ink,
-                                          ),
-                                        ),
-                                        children: [
-                                          Padding(
-                                            padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                                            child: Table(
-                                              columnWidths: const {
-                                                0: FlexColumnWidth(2),
-                                                1: FlexColumnWidth(2),
-                                                2: FlexColumnWidth(1.5),
-                                                3: FlexColumnWidth(2),
-                                              },
-                                              border: TableBorder.all(
-                                                color: AppColors.outline.withValues(alpha: 0.4),
-                                                width: 0.8,
-                                              ),
-                                              children: [
-                                                const TableRow(
-                                                  decoration: BoxDecoration(color: Color(0xFFF2F4F7)),
-                                                  children: [
-                                                    Padding(padding: EdgeInsets.all(4), child: Text('Shape', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10))),
-                                                    Padding(padding: EdgeInsets.all(4), child: Text('Dim (mm)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10))),
-                                                    Padding(padding: EdgeInsets.all(4), child: Text('Count', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10))),
-                                                    Padding(padding: EdgeInsets.all(4), child: Text('Weight (Tw)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10))),
-                                                  ],
-                                                ),
-                                                ...task.gemBreakdown.map((gb) {
-                                                  return TableRow(
-                                                    children: [
-                                                      Padding(padding: const EdgeInsets.all(4), child: Text(gb.shape, style: const TextStyle(fontSize: 10))),
-                                                      Padding(padding: const EdgeInsets.all(4), child: Text(gb.dimensions, style: const TextStyle(fontSize: 10))),
-                                                      Padding(padding: const EdgeInsets.all(4), child: Text('${gb.count}', style: const TextStyle(fontSize: 10))),
-                                                      Padding(padding: const EdgeInsets.all(4), child: Text('${gb.weightTw}', style: const TextStyle(fontSize: 10))),
-                                                    ],
-                                                  );
-                                                }),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                const SizedBox(height: 8),
-
-                                // 3. Calculated Price & Price Breakdown Card
-                                if (calculatedPriceVal != null || pb != null)
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF9EE),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: const Color(0xFFFFD18A)),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            const Text(
-                                              'Total Calculated Price:',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppColors.ink,
-                                              ),
-                                            ),
-                                            Text(
-                                              '₹${(calculatedPriceVal ?? 0).toInt()}',
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w800,
-                                                color: AppColors.goldDark,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        if (pb != null) ...[
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            '• Gold Cost (${pb.netGoldWeight}g @ ₹${pb.goldRatePerGram.toInt()}/g): ₹${pb.totalGoldCost.toInt()}',
-                                            style: const TextStyle(fontSize: 11, color: AppColors.muted),
-                                          ),
-                                          Text(
-                                            '• Gem Cost (${pb.gemQuantity} pcs @ ₹${pb.gemRate.toInt()}/ct): ₹${pb.totalGemCost.toInt()}',
-                                            style: const TextStyle(fontSize: 11, color: AppColors.muted),
-                                          ),
-                                          Text(
-                                            '• Subtotal: ₹${pb.subtotal.toInt()} + GST (${pb.gstPercent}%): ₹${pb.gstAmount.toInt()}',
-                                            style: const TextStyle(fontSize: 11, color: AppColors.muted),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                                               // 4. Action Buttons
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: CommonButton.outlined(
-                                        height: 34,
-                                        icon: Icons.view_in_ar,
-                                        label: 'View 3D',
-                                        onPressed: () {
-                                          showModalBottomSheet<void>(
-                                            context: context,
-                                            isScrollControlled: true,
-                                            backgroundColor: Colors.transparent,
-                                            builder: (viewCtx) =>
-                                                Common3DViewer(
-                                                  designCode: task.designCode,
-                                                  productTitle:
-                                                      task.productTitle,
-                                                  modelUrl: task.modelFileUrl,
-                                                ),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    if (!isApproved)
-                                      Expanded(
-                                        child: CommonButton.primary(
-                                          height: 34,
-                                          backgroundColor: AppColors.emerald,
-                                          icon: Icons.check_circle_outline,
-                                          label: 'Approve 3D',
-                                          onPressed: () =>
-                                              _approveTask(context, task),
-                                        ),
-                                      )
-                                    else
-                                      Expanded(
-                                        child: CommonButton.primary(
-                                          height: 34,
-                                          backgroundColor: AppColors.goldDark,
-                                          icon: Icons.edit_note_outlined,
-                                          label: 'Edit Product Stock',
-                                          onPressed: () => _openUpdateStockModal(context, task),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ],
+                                );
+                              },
                             ),
-                          );
-                        },
-                      ),
                     );
                   },
                 ),

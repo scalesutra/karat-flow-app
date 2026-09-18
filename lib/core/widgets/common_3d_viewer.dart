@@ -26,17 +26,9 @@ class _Common3DViewerState extends State<Common3DViewer>
   double _rotationY = 0.5;
   bool _isAutoRotating = true;
   bool _isWireframe = false;
-  String _selectedMaterial = 'Gold (22K)';
   Timer? _autoResumeTimer;
 
   late final AnimationController _autoRotateController;
-
-  final Map<String, Color> _materials = {
-    'Gold (22K)': const Color(0xFFB9812E),
-    'Rose Gold': const Color(0xFFE5A990),
-    'White Gold / Platinum': const Color(0xFFD4D8D2),
-    'Emerald Green Gold': const Color(0xFF0D6252),
-  };
 
   @override
   void initState() {
@@ -63,7 +55,7 @@ class _Common3DViewerState extends State<Common3DViewer>
 
   @override
   Widget build(BuildContext context) {
-    final ringColor = _materials[_selectedMaterial] ?? const Color(0xFFB9812E);
+    const ringColor = AppColors.gold;
     final hasModel = widget.modelUrl?.trim().isNotEmpty ?? false;
 
     return Container(
@@ -133,7 +125,10 @@ class _Common3DViewerState extends State<Common3DViewer>
               if (!hasModel) return;
               setState(() {
                 _rotationY += details.delta.dx * 0.01;
-                _rotationX = (_rotationX - details.delta.dy * 0.01).clamp(-1.4, 1.4);
+                _rotationX = (_rotationX - details.delta.dy * 0.01).clamp(
+                  -1.4,
+                  1.4,
+                );
               });
             },
             onPanEnd: (_) {
@@ -282,45 +277,6 @@ class _Common3DViewerState extends State<Common3DViewer>
                       });
                     },
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // Material dropdown
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Material / Metal Shader:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    color: AppColors.ink,
-                  ),
-                ),
-                DropdownButton<String>(
-                  value: _selectedMaterial,
-                  dropdownColor: AppColors.paper,
-                  underline: const SizedBox.shrink(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: AppColors.emeraldDark,
-                  ),
-                  items: _materials.keys.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        _selectedMaterial = newValue;
-                      });
-                    }
-                  },
                 ),
               ],
             ),

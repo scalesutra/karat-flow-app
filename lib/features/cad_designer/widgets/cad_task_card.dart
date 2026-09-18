@@ -43,14 +43,17 @@ class CadTaskCard extends StatelessWidget {
     final parts = <String>[];
 
     // Only show order if it's a real, distinct order ID (not equal to design code or fallback CAD/SKETCH)
-    final hasRealOrder = rawOrder.isNotEmpty &&
+    final hasRealOrder =
+        rawOrder.isNotEmpty &&
         rawOrder.toLowerCase() != cleanCode.toLowerCase() &&
         !rawOrder.toUpperCase().startsWith('CAD-') &&
         !rawOrder.toUpperCase().startsWith('SKETCH-');
 
     if (hasRealOrder) {
       parts.add(
-        rawOrder.toUpperCase().startsWith('ORD') ? rawOrder : 'Order #$rawOrder',
+        rawOrder.toUpperCase().startsWith('ORD')
+            ? rawOrder
+            : 'Order #$rawOrder',
       );
     }
 

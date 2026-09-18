@@ -253,7 +253,8 @@ class ApiStage {
   });
 
   factory ApiStage.fromJson(Map<String, dynamic> json) {
-    final rawDesc = json['description'] as String? ??
+    final rawDesc =
+        json['description'] as String? ??
         json['desc'] as String? ??
         json['details'] as String? ??
         json['stageDescription'] as String? ??
@@ -417,7 +418,8 @@ class ApiSketch {
       return null;
     }
 
-    final rawUrl = json['sketchUrl'] as String? ??
+    final rawUrl =
+        json['sketchUrl'] as String? ??
         json['sketch_url'] as String? ??
         json['imageUrl'] as String? ??
         json['image_url'] as String? ??
@@ -592,7 +594,8 @@ class ApiThreeDDesign {
 
   factory ApiThreeDDesign.fromJson(Map<String, dynamic> json) {
     final gemBreakdownList = json['gemBreakdown'] as List? ?? const [];
-    final imgUrl = json['imageUrl'] as String? ??
+    final imgUrl =
+        json['imageUrl'] as String? ??
         json['image'] as String? ??
         json['thumbnailUrl'] as String? ??
         json['previewUrl'] as String? ??
@@ -603,12 +606,14 @@ class ApiThreeDDesign {
         json['fileUrl'] as String? ??
         (json['file'] is String ? json['file'] as String : null) ??
         json['sketchUrl'] as String?;
-    final renderUrl = json['renderImageUrl'] as String? ??
+    final renderUrl =
+        json['renderImageUrl'] as String? ??
         json['renderUrl'] as String? ??
         json['renderImage'] as String? ??
         json['render'] as String?;
 
-    final rawSketchId = json['sketchId'] as String? ??
+    final rawSketchId =
+        json['sketchId'] as String? ??
         json['sketch_id'] as String? ??
         (json['sketch'] is String ? json['sketch'] as String : '') ??
         '';
@@ -617,8 +622,8 @@ class ApiThreeDDesign {
     final parsedSketch = sketchRaw is Map<String, dynamic>
         ? ApiSketch.fromJson(sketchRaw)
         : (sketchRaw is Map
-            ? ApiSketch.fromJson(Map<String, dynamic>.from(sketchRaw))
-            : null);
+              ? ApiSketch.fromJson(Map<String, dynamic>.from(sketchRaw))
+              : null);
 
     return ApiThreeDDesign(
       id: json['id'] as String? ?? '',
@@ -775,10 +780,7 @@ class ApiOrder {
     'id': id,
     'orderNumber': orderNumber,
     'status': status,
-    'customer': {
-      'name': customerName,
-      'city': customerCity,
-    },
+    'customer': {'name': customerName, 'city': customerCity},
     'dueDate': dueDate,
     if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
     'parts': parts.map((p) => p.toJson()).toList(),
@@ -830,7 +832,8 @@ class ApiOrderPart {
     }
 
     if (dName.isEmpty) {
-      dName = json['designName'] as String? ??
+      dName =
+          json['designName'] as String? ??
           json['designTitle'] as String? ??
           json['productTitle'] as String? ??
           json['title'] as String? ??
@@ -932,9 +935,15 @@ class ApiWorkerTaskOrderPart {
 
   factory ApiWorkerTaskOrderPart.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const ApiWorkerTaskOrderPart(id: '');
-    final orderMap = json['order'] is Map ? Map<String, dynamic>.from(json['order']) : null;
-    final sketchMap = json['sketch'] is Map ? Map<String, dynamic>.from(json['sketch']) : null;
-    final cadMap = json['threeDDesign'] is Map ? Map<String, dynamic>.from(json['threeDDesign']) : null;
+    final orderMap = json['order'] is Map
+        ? Map<String, dynamic>.from(json['order'])
+        : null;
+    final sketchMap = json['sketch'] is Map
+        ? Map<String, dynamic>.from(json['sketch'])
+        : null;
+    final cadMap = json['threeDDesign'] is Map
+        ? Map<String, dynamic>.from(json['threeDDesign'])
+        : null;
 
     final isStockIssuedVal =
         json['isStockIssued'] as bool? ??
@@ -950,8 +959,14 @@ class ApiWorkerTaskOrderPart {
       status: json['status']?.toString() ?? 'ASSIGNED',
       isBlocked: json['isBlocked'] as bool? ?? false,
       isStockIssued: isStockIssuedVal,
-      orderNumber: orderMap?['orderNumber']?.toString() ?? json['orderNumber']?.toString() ?? '',
-      sketchUrl: sketchMap?['imageUrl']?.toString() ?? sketchMap?['url']?.toString() ?? '',
+      orderNumber:
+          orderMap?['orderNumber']?.toString() ??
+          json['orderNumber']?.toString() ??
+          '',
+      sketchUrl:
+          sketchMap?['imageUrl']?.toString() ??
+          sketchMap?['url']?.toString() ??
+          '',
       gemQuantity: (cadMap?['gemQuantity'] as num?)?.toInt() ?? 0,
       goldQuantity: (cadMap?['goldQuantity'] as num?)?.toDouble() ?? 0.0,
     );
@@ -1025,9 +1040,15 @@ class ApiWorkerTask {
   String get assignedEmployeeName => assignedByManagerName;
 
   factory ApiWorkerTask.fromJson(Map<String, dynamic> json) {
-    final stageMap = json['stage'] is Map ? Map<String, dynamic>.from(json['stage']) : null;
-    final partMap = json['orderPart'] is Map ? Map<String, dynamic>.from(json['orderPart']) : null;
-    final managerMap = json['assignedByManager'] is Map ? Map<String, dynamic>.from(json['assignedByManager']) : null;
+    final stageMap = json['stage'] is Map
+        ? Map<String, dynamic>.from(json['stage'])
+        : null;
+    final partMap = json['orderPart'] is Map
+        ? Map<String, dynamic>.from(json['orderPart'])
+        : null;
+    final managerMap = json['assignedByManager'] is Map
+        ? Map<String, dynamic>.from(json['assignedByManager'])
+        : null;
 
     String dNum =
         partMap?['designNumber']?.toString() ??
@@ -1075,9 +1096,15 @@ class ApiWorkerTask {
           );
 
     final issStatus = json['issuanceStatus']?.toString() ?? '';
-    final latestIss = json['latestIssuance'] is Map ? Map<String, dynamic>.from(json['latestIssuance']) : null;
-    final itemsList = (json['itemsIssued'] as List?)
-            ?.map((e) => e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{})
+    final latestIss = json['latestIssuance'] is Map
+        ? Map<String, dynamic>.from(json['latestIssuance'])
+        : null;
+    final itemsList =
+        (json['itemsIssued'] as List?)
+            ?.map(
+              (e) =>
+                  e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{},
+            )
             .toList() ??
         const <Map<String, dynamic>>[];
 
@@ -1085,10 +1112,10 @@ class ApiWorkerTask {
         json['isStockIssued'] as bool? ??
         json['isIssued'] as bool? ??
         (issStatus.toUpperCase() == 'ISSUED') ||
-        (latestIss != null &&
-            latestIss['status']?.toString().toUpperCase() == 'ISSUED') ||
-        (json['issuance'] != null) ||
-        parsedOrderPart.isStockIssued;
+            (latestIss != null &&
+                latestIss['status']?.toString().toUpperCase() == 'ISSUED') ||
+            (json['issuance'] != null) ||
+            parsedOrderPart.isStockIssued;
 
     return ApiWorkerTask(
       id: json['id']?.toString() ?? '',
@@ -1105,8 +1132,7 @@ class ApiWorkerTask {
       createdAt: json['createdAt']?.toString() ?? '',
       isStockIssued: isIssued,
       issuanceStatus: issStatus,
-      totalWeightIssued:
-          (json['totalWeightIssued'] as num?)?.toDouble() ?? 0.0,
+      totalWeightIssued: (json['totalWeightIssued'] as num?)?.toDouble() ?? 0.0,
       totalPcsIssued: (json['totalPcsIssued'] as num?)?.toInt() ?? 0,
       itemsIssued: itemsList,
       latestIssuance: latestIss,
