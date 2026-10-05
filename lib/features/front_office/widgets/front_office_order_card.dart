@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/widgets/common_card.dart';
@@ -34,6 +35,8 @@ class FrontOfficeOrderCard extends StatelessWidget {
 
     return CommonCard(
       onTap: onTap,
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 7.h),
+      borderRadius: BorderRadius.circular(10.r),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -44,18 +47,18 @@ class FrontOfficeOrderCard extends StatelessWidget {
                 child: Text(
                   '$index. ${order.id} · ${order.clientFirmName}',
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                    fontSize: 12.sp,
                     color: AppColors.ink,
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 5.w),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 3,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 6.w,
+                  vertical: 2.h,
                 ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
@@ -75,38 +78,38 @@ class FrontOfficeOrderCard extends StatelessWidget {
                   style: TextStyle(
                     color: statusColor,
                     fontWeight: FontWeight.w800,
-                    fontSize: 11,
+                    fontSize: 9.5.sp,
                   ),
                 ),
               ),
             ],
           ),
           if (order.isBlocked) ...[
-            const SizedBox(height: 6),
+            SizedBox(height: 4.h),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.5.h),
               decoration: BoxDecoration(
                 color: AppColors.dangerLight,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(5.r),
                 border: Border.all(
                   color: AppColors.danger.withValues(alpha: 0.3),
                 ),
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.pause_circle_filled_rounded,
                     color: AppColors.danger,
-                    size: 14,
+                    size: 12.sp,
                   ),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4.w),
                   Expanded(
                     child: Text(
                       'ON CRITICAL HOLD: ${order.blockedReason ?? "Stage blocked by workshop"}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.danger,
                         fontWeight: FontWeight.w700,
-                        fontSize: 11,
+                        fontSize: 9.5.sp,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -116,39 +119,45 @@ class FrontOfficeOrderCard extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 4),
-          Text(
-            'Stage: ${order.currentWorkshopStage.isNotEmpty ? order.currentWorkshopStage : 'Unassigned'}',
-            style: TextStyle(
-              color: order.currentWorkshopStage.isNotEmpty &&
-                      order.currentWorkshopStage.toLowerCase() != 'unassigned'
-                  ? AppColors.emeraldDark
-                  : AppColors.muted,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
+          SizedBox(height: 3.h),
+          Row(
+            children: [
+              Text(
+                'Stage: ${order.currentWorkshopStage.isNotEmpty ? order.currentWorkshopStage : 'Unassigned'}',
+                style: TextStyle(
+                  color: order.currentWorkshopStage.isNotEmpty &&
+                          order.currentWorkshopStage.toLowerCase() != 'unassigned'
+                      ? AppColors.emeraldDark
+                      : AppColors.muted,
+                  fontSize: 10.5.sp,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              SizedBox(width: 5.w),
+              Text('•', style: TextStyle(color: AppColors.muted, fontSize: 9.5.sp)),
+              SizedBox(width: 5.w),
+              Text(
+                '${order.promiseDate.isEmpty ? '' : 'Due: ${order.promiseDate} · '}${order.itemsCount} pcs',
+                style: TextStyle(color: AppColors.muted, fontSize: 10.5.sp),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            '${order.promiseDate.isEmpty ? '' : 'Due: ${order.promiseDate} · '}${order.itemsCount} pcs',
-            style: const TextStyle(color: AppColors.muted, fontSize: 12),
-          ),
-          const SizedBox(height: 8),
           if (order.designs.isNotEmpty) ...[
+            SizedBox(height: 4.h),
             Wrap(
-              spacing: 6,
-              runSpacing: 6,
+              spacing: 4.w,
+              runSpacing: 4.h,
               children: [
                 ...order.designs.take(3).map((d) {
                   final name = d.displayName;
                   return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 5.w,
+                      vertical: 2.h,
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.canvas,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(4.r),
                       border: Border.all(color: AppColors.outline),
                     ),
                     child: Row(
@@ -156,22 +165,22 @@ class FrontOfficeOrderCard extends StatelessWidget {
                       children: [
                         Text(
                           '${d.quantity} pcs',
-                          style: const TextStyle(
-                            fontSize: 11,
+                          style: TextStyle(
+                            fontSize: 9.5.sp,
                             fontWeight: FontWeight.w800,
                             color: AppColors.ink,
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        const Text('·', style: TextStyle(color: AppColors.muted)),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 3.w),
+                        Text('·', style: TextStyle(color: AppColors.muted, fontSize: 9.5.sp)),
+                        SizedBox(width: 3.w),
                         ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 180),
+                          constraints: BoxConstraints(maxWidth: 150.w),
                           child: Text(
                             name,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11,
+                            style: TextStyle(
+                              fontSize: 9.5.sp,
                               fontWeight: FontWeight.w600,
                               color: AppColors.ink,
                             ),
@@ -183,18 +192,18 @@ class FrontOfficeOrderCard extends StatelessWidget {
                 }),
                 if (order.designs.length > 3)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 5.w,
+                      vertical: 2.h,
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.gold.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(4.r),
                     ),
                     child: Text(
                       '+${order.designs.length - 3} more',
-                      style: const TextStyle(
-                        fontSize: 11,
+                      style: TextStyle(
+                        fontSize: 9.5.sp,
                         fontWeight: FontWeight.w700,
                         color: AppColors.goldDark,
                       ),
@@ -203,12 +212,13 @@ class FrontOfficeOrderCard extends StatelessWidget {
               ],
             ),
           ] else if (order.itemsSummary.isNotEmpty) ...[
+            SizedBox(height: 4.h),
             Text(
               order.itemsSummary,
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
+              style: TextStyle(
+                fontSize: 11.sp,
                 fontWeight: FontWeight.w600,
                 color: AppColors.ink,
               ),

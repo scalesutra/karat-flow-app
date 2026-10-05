@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../core/localization/localization.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
@@ -67,20 +68,75 @@ class _OrdersPageState extends State<OrdersPage> {
     OrderDetailSheet.show(context, order);
   }
 
+  List<CustomerOrder> _filterOrders(List<CustomerOrder> source) {
+    final query = _searchQuery.trim().toLowerCase();
+    final status = _selectedStatusFilter;
+
+    return source.where((order) {
+      if (status != 'All' && status.isNotEmpty) {
+        final matchesStatus = switch (status) {
+          'DRAFT' => order.status == OrderStatus.pending,
+          'CHECKED_OUT' => order.status == OrderStatus.inWorkshop,
+          'IN_PRODUCTION' => order.status == OrderStatus.inWorkshop,
+          'COMPLETED' => order.status == OrderStatus.ready,
+          'CANCELLED' => order.status == OrderStatus.cancelled,
+          _ => true,
+        };
+        if (!matchesStatus) return false;
+      }
+
+      if (query.isNotEmpty) {
+        final idMatch = order.id.toLowerCase().contains(query) ||
+            order.apiId.toLowerCase().contains(query);
+        final clientMatch =
+            order.clientFirmName.toLowerCase().contains(query) ||
+            order.clientCity.toLowerCase().contains(query);
+        final summaryMatch = order.itemsSummary.toLowerCase().contains(query);
+        final stageMatch =
+            order.currentWorkshopStage.toLowerCase().contains(query);
+        final designMatch = order.designs.any((d) =>
+            d.designNumber.toLowerCase().contains(query) ||
+            d.displayName.toLowerCase().contains(query));
+
+        if (!idMatch &&
+            !clientMatch &&
+            !summaryMatch &&
+            !stageMatch &&
+            !designMatch) {
+          return false;
+        }
+      }
+
+      return true;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<OrdersBloc, OrdersState>(
       builder: (context, state) {
-        final filteredOrders = state is OrdersLoaded
-            ? state.orders
-            : <CustomerOrder>[];
+        final loadedState = state is OrdersLoaded ? state : null;
+        final hasMore = loadedState?.hasMore ?? false;
+        final isLoadingMore = loadedState?.isLoadingMore ?? false;
+        final pageError = loadedState?.pageError;
+
+        final allOrdersMap = <String, CustomerOrder>{
+          for (final o in widget.store.orders)
+            (o.apiId.isNotEmpty ? o.apiId : o.id): o,
+          if (loadedState != null)
+            for (final o in loadedState.orders)
+              (o.apiId.isNotEmpty ? o.apiId : o.id): o,
+        };
+        final allOrders = allOrdersMap.values.toList();
+        final filteredOrders = _filterOrders(allOrders);
+
         return SafeArea(
           top: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                padding: EdgeInsets.fromLTRB(14.w, 4.h, 14.w, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -94,34 +150,41 @@ class _OrdersPageState extends State<OrdersPage> {
                             CommonText.headlineLarge(
                               AppStrings.navOrders.trClean,
                             ),
-                            const SizedBox(height: 2),
+                            SizedBox(height: 1.h),
                             CommonText.bodySmall(
                               '${filteredOrders.length} ${filteredOrders.length == 1 ? 'order' : 'orders'} listed',
                             ),
                           ],
                         ),
                         CommonButton.primary(
-                          label: '+ New Order',
                           isFullWidth: false,
+                          height: 32.h,
+                          icon: Icons.add_shopping_cart_rounded,
+                          label: 'New Order',
                           onPressed: () => _openNewOrderModal(context),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 8.h),
                     CommonSearchBar(
                       controller: _searchController,
                       hintText: 'Order #, customer, phone or design #...',
                       onChanged: (val) {
-                        _searchQuery = val;
+                        setState(() => _searchQuery = val);
                         _searchDebounce?.cancel();
-                        if (val.trim().isEmpty) {
-                          _fetchLiveOrders();
-                          return;
-                        }
                         _searchDebounce = Timer(
-                          const Duration(milliseconds: 300),
-                          _fetchLiveOrders,
+                          const Duration(milliseconds: 350),
+                          () {
+                            if (mounted) _fetchLiveOrders();
+                          },
                         );
+                      },
+                      onClear: () {
+                        setState(() {
+                          _searchQuery = '';
+                          _searchController.clear();
+                        });
+                        _fetchLiveOrders();
                       },
                     ),
                   ],
@@ -145,7 +208,7 @@ class _OrdersPageState extends State<OrdersPage> {
               ),
               const SizedBox(height: 10),
               Expanded(
-                child: state is OrdersError
+                child: state is OrdersError && allOrders.isEmpty
                     ? CommonEmptyState(
                         icon: Icons.error_outline,
                         title: 'Could not load orders',
@@ -153,7 +216,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         actionLabel: 'Retry',
                         onAction: _fetchLiveOrders,
                       )
-                    : state is! OrdersLoaded
+                    : (state is! OrdersLoaded && allOrders.isEmpty)
                     ? const Center(
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),
@@ -168,9 +231,12 @@ class _OrdersPageState extends State<OrdersPage> {
                     ? CommonEmptyState(
                         icon: Icons.receipt_long_outlined,
                         title: 'No orders found',
-                        description:
-                            'No customer orders match the selected filters.',
-                        actionLabel: 'Reset Filters',
+                        description: _searchQuery.isNotEmpty
+                            ? 'No customer orders match "$_searchQuery".'
+                            : 'No customer orders match the selected filters.',
+                        actionLabel: _searchQuery.isNotEmpty
+                            ? 'Clear Search'
+                            : 'Reset Filters',
                         onAction: () {
                           setState(() {
                             _selectedStatusFilter = 'All';
@@ -182,22 +248,23 @@ class _OrdersPageState extends State<OrdersPage> {
                       )
                     : CommonRefreshIndicator(
                         theme: IndicatorTheme.frontOffice,
+                        showIndicator: false,
                         onRefresh: _fetchLiveOrders,
                         child: ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+                          padding: EdgeInsets.fromLTRB(14.w, 2.h, 14.w, 20.h),
                           itemCount:
-                              filteredOrders.length + (state.hasMore ? 1 : 0),
+                              filteredOrders.length + (hasMore ? 1 : 0),
                           separatorBuilder: (_, _) =>
-                              const SizedBox(height: 10),
+                              SizedBox(height: 6.h),
                           itemBuilder: (context, index) {
                             if (index == filteredOrders.length) {
                               return Column(
                                 children: [
-                                  if (state.pageError != null)
-                                    Text(state.pageError!),
+                                  if (pageError != null)
+                                    Text(pageError),
                                   TextButton(
-                                    onPressed: state.isLoadingMore
+                                    onPressed: isLoadingMore
                                         ? null
                                         : () => context.read<OrdersBloc>().add(
                                             const FetchOrdersEvent(
@@ -205,7 +272,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                             ),
                                           ),
                                     child: Text(
-                                      state.isLoadingMore
+                                      isLoadingMore
                                           ? 'Loading...'
                                           : 'Load more orders',
                                     ),

@@ -22,6 +22,14 @@ final class FetchFrontOfficeDataEvent extends OrdersEvent {
   const FetchFrontOfficeDataEvent();
 }
 
+final class FetchDesignsCatalogEvent extends OrdersEvent {
+  const FetchDesignsCatalogEvent();
+}
+
+final class FetchCustomersEvent extends OrdersEvent {
+  const FetchCustomersEvent();
+}
+
 final class CreateLiveOrderEvent extends OrdersEvent {
   const CreateLiveOrderEvent({
     required this.customerId,

@@ -22,6 +22,7 @@ class ClientsPage extends StatefulWidget {
 class _ClientsPageState extends State<ClientsPage> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -30,7 +31,15 @@ class _ClientsPageState extends State<ClientsPage> {
   }
 
   Future<void> _fetchLiveCustomers() async {
-    context.read<OrdersBloc>().add(const FetchFrontOfficeDataEvent());
+    if (widget.store.clients.isEmpty) {
+      setState(() => _isLoading = true);
+    }
+    context.read<OrdersBloc>().add(const FetchCustomersEvent());
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted && _isLoading) {
+        setState(() => _isLoading = false);
+      }
+    });
   }
 
   @override
@@ -107,7 +116,7 @@ class _ClientsPageState extends State<ClientsPage> {
                   ),
                 ),
                 Expanded(
-                  child: context.watch<OrdersBloc>().state is OrdersLoading
+                  child: (_isLoading && widget.store.clients.isEmpty)
                       ? const Center(
                           child: Padding(
                             padding: EdgeInsets.symmetric(vertical: 40),
@@ -120,6 +129,7 @@ class _ClientsPageState extends State<ClientsPage> {
                         )
                       : CommonRefreshIndicator(
                           theme: IndicatorTheme.frontOffice,
+                          showIndicator: false,
                           onRefresh: _fetchLiveCustomers,
                           child: clients.isEmpty
                               ? SingleChildScrollView(

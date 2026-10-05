@@ -128,4 +128,28 @@ abstract final class ApiEndpoints {
       '/issuances/order-part/$orderPartId';
   static String reconcileIssuance(String id) => '/issuances/$id/reconcile';
   static const String issuances = '/issuances';
+
+  // ── SECTION 16: Department Operations & Floor Logs (/departments) ───
+  static const String departmentCastingSubmit = '/departments/casting/submit';
+  static String departmentCastingLastBalance(String metalType) =>
+      '/departments/casting/last-balance?metalType=${Uri.encodeComponent(metalType)}';
+  static const String departmentFilingSubmit = '/departments/filing/submit';
+  static const String departmentPolishingSubmit = '/departments/polishing/submit';
+  static const String departmentHandSettingSubmit =
+      '/departments/hand-setting/submit';
+  static String departmentCraftsmanMonthlyLedger({
+    required String craftsmanId,
+    required String yearMonth,
+  }) =>
+      '/departments/craftsman-monthly-ledger?craftsmanId=${Uri.encodeComponent(craftsmanId)}&yearMonth=${Uri.encodeComponent(yearMonth)}';
+
+  // ── SECTION 17: Physical Stone Inventory & Matrix (/inventory/stones)
+  static const String stonesPurchase = '/inventory/stones/purchase';
+  static const String stonesDeduct = '/inventory/stones/deduct';
+  static const String stonesMatrix = '/inventory/stones/matrix';
+
+  // ── SECTION 18: Master Attributes (/colors, /shapes) ─────────────
+  static const String colors = '/colors';
+  static const String shapes = '/shapes';
 }
+

@@ -26,8 +26,7 @@ import '../tasks/task_pages.dart';
 import '../workshop/product_manager_page.dart';
 import '../workshop/team_page.dart';
 import '../workshop/workshop_more_page.dart';
-// import '../workshop_artisan/artisan_dashboard_page.dart'; // DISABLED: Factory workers don't use phones
-// import '../worker/worker_dashboard_page.dart'; // DISABLED: Factory workers don't use phones
+import '../workshop/ledger/craftsman_monthly_ledger_page.dart';
 import '../stockist/stockist_dashboard_page.dart';
 
 class AppShell extends StatefulWidget {
@@ -58,13 +57,23 @@ class _AppShellState extends State<AppShell> {
         final activeRole = authState is AuthAuthenticated
             ? AppRole.fromRoleString(authState.role)
             : widget.role;
-        LiveDataBlocCoordinator.refreshForRole(context, activeRole);
+        if (activeRole != AppRole.admin) {
+          LiveDataBlocCoordinator.refreshForRole(
+            context,
+            activeRole,
+            tabIndex: _selectedIndex,
+          );
+        }
       }
     });
   }
 
   Future<void> _refreshApiData() async {
-    LiveDataBlocCoordinator.refreshForRole(context, widget.role);
+    LiveDataBlocCoordinator.refreshForRole(
+      context,
+      widget.role,
+      tabIndex: _selectedIndex,
+    );
   }
 
   @override
@@ -73,8 +82,12 @@ class _AppShellState extends State<AppShell> {
     if (oldWidget.role != widget.role) {
       _selectedIndex = 0;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          LiveDataBlocCoordinator.refreshForRole(context, widget.role);
+        if (mounted && widget.role != AppRole.admin) {
+          LiveDataBlocCoordinator.refreshForRole(
+            context,
+            widget.role,
+            tabIndex: 0,
+          );
         }
       });
     }
@@ -93,13 +106,15 @@ class _AppShellState extends State<AppShell> {
         final safeIndex = _selectedIndex < pages.length ? _selectedIndex : 0;
 
         final body = CommonRefreshIndicator(
-          enabled: true,
+          // The admin dashboard handles its own refresh without a list overlay.
+          enabled: !(widget.role == AppRole.admin && safeIndex == 0),
           theme: _indicatorTheme(widget.role),
           showIndicator: false,
           onRefresh: _refreshApiData,
-          child: KeyedSubtree(
-            key: ValueKey('${widget.role.name}_$safeIndex'),
-            child: pages[safeIndex],
+          child: IndexedStack(
+            key: ValueKey(widget.role.name),
+            index: safeIndex,
+            children: pages,
           ),
         );
 
@@ -190,16 +205,13 @@ class _AppShellState extends State<AppShell> {
         role: AppRole.rawDesigner,
       ),
     ],
-    // DISABLED: Factory workers don't use phones — Process Manager handles stage/complete
     AppRole.workshopArtisan => [
-      ProductManagerPage(store: widget.store),
-      TeamWorkloadPage(store: widget.store),
+      const CraftsmanMonthlyLedgerPage(isEmbeddedView: true),
       WorkshopMorePage(store: widget.store),
     ],
     // DISABLED: Factory workers don't use phones — Process Manager handles stage/complete
     AppRole.worker => [
-      ProductManagerPage(store: widget.store),
-      TeamWorkloadPage(store: widget.store),
+      const CraftsmanMonthlyLedgerPage(isEmbeddedView: true),
       WorkshopMorePage(store: widget.store),
     ],
     AppRole.stockist => [
@@ -229,8 +241,8 @@ class _AppShellState extends State<AppShell> {
     AppRole.processManager => AppStrings.workshopSubtitle.trClean,
     AppRole.cadDesigner => AppStrings.cadSubtitle.trClean,
     AppRole.rawDesigner => 'Raw Design Studio',
-    AppRole.workshopArtisan => 'Workshop (Process Manager View)', // DISABLED: No worker phones
-    AppRole.worker => 'Workshop (Process Manager View)', // DISABLED: No worker phones
+    AppRole.workshopArtisan => 'Karigar Ledger & Performance',
+    AppRole.worker => 'Worker Ledger & Performance',
     AppRole.stockist => 'Vault Stockist Portal',
   };
 
@@ -315,17 +327,13 @@ List<_Destination> _destinations(AppRole role, DemoStore store) {
       _Destination('Sketches', Icons.draw_outlined),
       _Destination('Profile', Icons.person_outline_rounded),
     ],
-    // DISABLED: Factory workers don't use phones
     AppRole.workshopArtisan => [
-      _Destination('Workshop', Icons.space_dashboard_outlined),
-      _Destination('Team', Icons.groups_outlined),
-      _Destination('More', Icons.more_horiz),
+      const _Destination('My Ledger', Icons.menu_book_rounded),
+      const _Destination('More', Icons.more_horiz),
     ],
-    // DISABLED: Factory workers don't use phones
     AppRole.worker => [
-      _Destination('Workshop', Icons.space_dashboard_outlined),
-      _Destination('Team', Icons.groups_outlined),
-      _Destination('More', Icons.more_horiz),
+      const _Destination('My Ledger', Icons.menu_book_rounded),
+      const _Destination('More', Icons.more_horiz),
     ],
     AppRole.stockist => [
       _Destination(

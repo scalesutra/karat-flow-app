@@ -1726,13 +1726,19 @@ class KaratFlowApiRepository {
   Future<ApiMaterialIssuance> issueMaterialsForOrderPart(
     String orderPartId, {
     required List<Map<String, dynamic>> items,
+    List<StoneBreakdownItem>? stonesBreakdown,
     String notes = '',
   }) async {
     final cleanPartId = extractCleanUuid(orderPartId);
     try {
       final response = await _api.post(
         ApiEndpoints.issueOrderPartMaterials(cleanPartId),
-        data: {'items': items, if (notes.isNotEmpty) 'notes': notes},
+        data: {
+          'items': items,
+          if (stonesBreakdown != null && stonesBreakdown.isNotEmpty)
+            'stonesBreakdown': stonesBreakdown.map((s) => s.toJson()).toList(),
+          if (notes.isNotEmpty) 'notes': notes,
+        },
       );
       final data = _dataMap(response.data);
       final resPartId = (data['orderPartId'] as String? ?? '').trim();
@@ -1812,4 +1818,130 @@ class KaratFlowApiRepository {
       return [];
     }
   }
+
+  // ── SECTION 16: Department Operations & Floor Logs ───────────────────────
+
+  Future<CastingLogResponse> submitCastingLog(
+    CastingSubmitPayload payload,
+  ) async {
+    final response = await _api.post(
+      ApiEndpoints.departmentCastingSubmit,
+      data: payload.toJson(),
+    );
+    final data = _dataMap(response.data);
+    return CastingLogResponse.fromJson(data);
+  }
+
+  Future<CastingLastBalanceResponse> getCastingLastBalance(
+    String metalType,
+  ) async {
+    final response = await _api.get(
+      ApiEndpoints.departmentCastingLastBalance(metalType),
+    );
+    final data = _dataMap(response.data);
+    return CastingLastBalanceResponse.fromJson(data);
+  }
+
+  Future<FilingLogResponse> submitFilingLog(
+    FilingSubmitPayload payload,
+  ) async {
+    final response = await _api.post(
+      ApiEndpoints.departmentFilingSubmit,
+      data: payload.toJson(),
+    );
+    final data = _dataMap(response.data);
+    return FilingLogResponse.fromJson(data);
+  }
+
+  Future<PolishingLogResponse> submitPolishingLog(
+    PolishingSubmitPayload payload,
+  ) async {
+    final response = await _api.post(
+      ApiEndpoints.departmentPolishingSubmit,
+      data: payload.toJson(),
+    );
+    final data = _dataMap(response.data);
+    return PolishingLogResponse.fromJson(data);
+  }
+
+  Future<HandSettingLogResponse> submitHandSettingLog(
+    HandSettingSubmitPayload payload,
+  ) async {
+    final response = await _api.post(
+      ApiEndpoints.departmentHandSettingSubmit,
+      data: payload.toJson(),
+    );
+    final data = _dataMap(response.data);
+    return HandSettingLogResponse.fromJson(data);
+  }
+
+  Future<CraftsmanMonthlyLedger> getCraftsmanMonthlyLedger({
+    required String craftsmanId,
+    required String yearMonth,
+  }) async {
+    final response = await _api.get(
+      ApiEndpoints.departmentCraftsmanMonthlyLedger(
+        craftsmanId: craftsmanId,
+        yearMonth: yearMonth,
+      ),
+    );
+    final data = _dataMap(response.data);
+    return CraftsmanMonthlyLedger.fromJson(data);
+  }
+
+  // ── SECTION 17: Physical Stone Inventory & Matrix (Strictly Zero Currency) ─
+
+  Future<bool> purchasePhysicalStones(StoneInwardPayload payload) async {
+    final response = await _api.post(
+      ApiEndpoints.stonesPurchase,
+      data: payload.toJson(),
+    );
+    return response.statusCode == 200 || response.statusCode == 201;
+  }
+
+  Future<bool> deductPhysicalStones(StoneDeductPayload payload) async {
+    final response = await _api.post(
+      ApiEndpoints.stonesDeduct,
+      data: payload.toJson(),
+    );
+    return response.statusCode == 200 || response.statusCode == 201;
+  }
+
+  Future<StoneMatrixResponse> getStoneStockMatrix() async {
+    final response = await _api.get(ApiEndpoints.stonesMatrix);
+    final raw = response.data;
+    if (raw is Map && raw.containsKey('data')) {
+      return StoneMatrixResponse.fromJson(raw['data']);
+    }
+    return StoneMatrixResponse.fromJson(raw);
+  }
+
+  // ── SECTION 18: Dynamic Colors & Shapes Master Lookups ────────────────────
+
+  Future<List<ApiMasterAttribute>> getMasterColors() async {
+    try {
+      final response = await _api.get(ApiEndpoints.colors);
+      final raw = response.data;
+      final list = raw is Map && raw['data'] is List
+          ? raw['data'] as List
+          : (raw is List ? raw : []);
+      return list.map((item) => ApiMasterAttribute.fromJson(item)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<ApiMasterAttribute>> getMasterShapes() async {
+    try {
+      final response = await _api.get(ApiEndpoints.shapes);
+      final raw = response.data;
+      final list = raw is Map && raw['data'] is List
+          ? raw['data'] as List
+          : (raw is List ? raw : []);
+      return list.map((item) => ApiMasterAttribute.fromJson(item)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
 }
+

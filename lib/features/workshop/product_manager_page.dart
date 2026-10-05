@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../front_office/bloc/orders_bloc.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
@@ -8,6 +9,8 @@ import '../../core/localization/localization.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../domain/models.dart';
+import 'departments/department_logs_dialog.dart';
+import 'ledger/craftsman_monthly_ledger_page.dart';
 import 'widgets/artisans_people_tab.dart';
 import 'widgets/live_orders_tab.dart';
 import 'widgets/stages_pipeline_tab.dart';
@@ -147,8 +150,42 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CommonText.headlineLarge(AppStrings.productManager.trClean),
-                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: CommonText.headlineLarge(
+                            AppStrings.productManager.trClean,
+                          ),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CommonButton.primary(
+                              isFullWidth: false,
+                              height: 32.h,
+                              icon: Icons.precision_manufacturing_rounded,
+                              label: 'Dept Logs',
+                              backgroundColor: AppColors.goldDark,
+                              onPressed: () =>
+                                  DepartmentLogsDialog.show(context),
+                            ),
+                            SizedBox(width: 6.w),
+                            CommonButton.primary(
+                              isFullWidth: false,
+                              height: 32.h,
+                              icon: Icons.menu_book_rounded,
+                              label: 'Ledger',
+                              backgroundColor: AppColors.emerald,
+                              onPressed: () => Navigator.of(context).push(
+                                CraftsmanMonthlyLedgerPage.route(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 5.h),
 
                     // Top Task Summary Metric Cards
                     Row(
@@ -163,15 +200,15 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                                     'Showing $pendingCount pending lot allocations from Front Office.',
                               );
                             },
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8.r),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8.w,
+                                vertical: 5.h,
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.paper,
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8.r),
                                 border: Border.all(color: AppColors.outline),
                               ),
                               child: Column(
@@ -179,19 +216,19 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                                 children: [
                                   Text(
                                     '$pendingCount',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: AppColors.ink,
                                       fontWeight: FontWeight.w900,
-                                      fontSize: 16,
+                                      fontSize: 13.5.sp,
                                     ),
                                   ),
-                                  const SizedBox(height: 1),
-                                  const Text(
+                                  SizedBox(height: 1.h),
+                                  Text(
                                     'Pending',
                                     style: TextStyle(
                                       color: AppColors.muted,
                                       fontWeight: FontWeight.w600,
-                                      fontSize: 10,
+                                      fontSize: 9.sp,
                                     ),
                                   ),
                                 ],
@@ -199,7 +236,7 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 5.w),
                         Expanded(
                           child: InkWell(
                             onTap: () {
@@ -210,15 +247,15 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                                     '$inProgressCount orders currently active in crafting stages.',
                               );
                             },
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8.r),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8.w,
+                                vertical: 5.h,
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.paper,
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8.r),
                                 border: Border.all(color: AppColors.outline),
                               ),
                               child: Column(
@@ -226,19 +263,19 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                                 children: [
                                   Text(
                                     '$inProgressCount',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: AppColors.goldDark,
                                       fontWeight: FontWeight.w900,
-                                      fontSize: 16,
+                                      fontSize: 13.5.sp,
                                     ),
                                   ),
-                                  const SizedBox(height: 1),
-                                  const Text(
+                                  SizedBox(height: 1.h),
+                                  Text(
                                     'In Progress',
                                     style: TextStyle(
                                       color: AppColors.muted,
                                       fontWeight: FontWeight.w600,
-                                      fontSize: 10,
+                                      fontSize: 9.sp,
                                     ),
                                   ),
                                 ],
@@ -246,7 +283,7 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 5.w),
                         Expanded(
                           child: InkWell(
                             onTap: () {
@@ -257,15 +294,15 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                                     '$completeCount finished orders ready for dispatch & invoicing.',
                               );
                             },
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8.r),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8.w,
+                                vertical: 5.h,
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.paper,
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8.r),
                                 border: Border.all(color: AppColors.outline),
                               ),
                               child: Column(
@@ -273,19 +310,19 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                                 children: [
                                   Text(
                                     '$completeCount',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: AppColors.emerald,
                                       fontWeight: FontWeight.w900,
-                                      fontSize: 16,
+                                      fontSize: 13.5.sp,
                                     ),
                                   ),
-                                  const SizedBox(height: 1),
-                                  const Text(
+                                  SizedBox(height: 1.h),
+                                  Text(
                                     'Complete',
                                     style: TextStyle(
                                       color: AppColors.muted,
                                       fontWeight: FontWeight.w600,
-                                      fontSize: 10,
+                                      fontSize: 9.sp,
                                     ),
                                   ),
                                 ],
@@ -297,7 +334,7 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                     ),
 
                     if (_activePivot == StatusPivot.orders) ...[
-                      const SizedBox(height: 10),
+                      SizedBox(height: 8.h),
                       CommonSearchBar(
                         controller: _searchController,
                         hintText: 'Order #, customer, phone or design #...',
@@ -306,7 +343,7 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                     ],
 
                     if (_activePivot == StatusPivot.people) ...[
-                      const SizedBox(height: 10),
+                      SizedBox(height: 8.h),
                       CommonSearchBar(
                         controller: _peopleSearchController,
                         hintText: 'Search people by name, craft or stage...',
@@ -316,12 +353,12 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                       ),
                     ],
 
-                    const SizedBox(height: 10),
+                    SizedBox(height: 8.h),
 
                     // 3 Segmented Top Tabs: [ orders ] [ people ] [ stages ]
                     Container(
-                      height: 40,
-                      padding: const EdgeInsets.all(3),
+                      height: 36.h,
+                      padding: EdgeInsets.all(3.r),
                       decoration: BoxDecoration(
                         color: AppColors.canvas,
                         borderRadius: BorderRadius.circular(

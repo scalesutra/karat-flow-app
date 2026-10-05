@@ -83,6 +83,7 @@ class ArtisansPeopleTab extends StatelessWidget {
 
         return CommonRefreshIndicator(
           theme: IndicatorTheme.workshop,
+          showIndicator: false,
           onRefresh: () async {
             await Future<void>.delayed(const Duration(milliseconds: 600));
           },

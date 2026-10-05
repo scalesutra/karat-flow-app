@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/localization/app_strings.dart';
@@ -9,8 +10,8 @@ import '../../data/demo_store.dart';
 import '../../data/models/api_models.dart';
 import '../../data/repositories/karatflow_api_repository.dart';
 import '../inventory/bloc/inventory_bloc.dart';
-import '../materials/bloc/materials_bloc.dart';
 import 'widgets/bom_bill_print_dialog.dart';
+import 'widgets/stone_stock_matrix_view.dart';
 import 'services/stockist_bom_mapper.dart';
 
 class StockistDashboardPage extends StatefulWidget {
@@ -49,9 +50,29 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
   }
 
   void _fetchData() {
-    context.read<InventoryBloc>().add(const FetchInventoryEvent());
-    context.read<MaterialsBloc>().add(const FetchMaterialsEvent());
-    context.read<InventoryBloc>().add(const FetchPendingIssuancesQueueEvent());
+    if (_selectedCategory == 'REQUISITIONS') {
+      context.read<InventoryBloc>().add(
+        const FetchPendingIssuancesQueueEvent(),
+      );
+    } else if (_selectedCategory != 'STONE_MATRIX') {
+      context.read<InventoryBloc>().add(const FetchInventoryEvent());
+    }
+  }
+
+  void _onCategorySelected(String category) {
+    if (_selectedCategory == category) return;
+    setState(() => _selectedCategory = category);
+    if (category == 'REQUISITIONS') {
+      if (_latestLiveQueue == null) {
+        context.read<InventoryBloc>().add(
+          const FetchPendingIssuancesQueueEvent(),
+        );
+      }
+    } else if (category != 'STONE_MATRIX') {
+      if (_latestInventoryRes == null) {
+        context.read<InventoryBloc>().add(const FetchInventoryEvent());
+      }
+    }
   }
 
   @override
@@ -97,15 +118,27 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
       builder: (context, _) {
         return BlocBuilder<InventoryBloc, InventoryState>(
           builder: (context, state) {
-            if (state is InventoryLoading &&
-                _latestInventoryRes == null &&
-                _latestLiveQueue == null) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: CommonProgressIndicator.stockist(),
-                ),
-              );
+            final isRequisitions = _selectedCategory == 'REQUISITIONS';
+            final isStoneMatrix = _selectedCategory == 'STONE_MATRIX';
+
+            if (state is InventoryLoading) {
+              if (isRequisitions && _latestLiveQueue == null) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32.0),
+                    child: CommonProgressIndicator.stockist(),
+                  ),
+                );
+              } else if (!isRequisitions &&
+                  !isStoneMatrix &&
+                  _latestInventoryRes == null) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32.0),
+                    child: CommonProgressIndicator.stockist(),
+                  ),
+                );
+              }
             }
             if (state is InventoryLoaded) {
               _latestInventoryRes = state.response;
@@ -148,6 +181,7 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
 
             return CommonRefreshIndicator(
               theme: IndicatorTheme.universal,
+              showIndicator: false,
               onRefresh: () async {
                 _fetchData();
                 await Future<void>.delayed(const Duration(milliseconds: 400));
@@ -158,10 +192,13 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                   // ── HERO VAULT SUMMARY BANNER (Vault Stock Tab Only) ─────
                   if (widget.initialTab != 'REQUISITIONS') ...[
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12.w,
+                        vertical: 9.h,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.ink,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(10.r),
                         gradient: const LinearGradient(
                           colors: [Color(0xFF064E3B), Color(0xFF022C22)],
                           begin: Alignment.topLeft,
@@ -170,8 +207,8 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                         boxShadow: [
                           BoxShadow(
                             color: AppColors.emerald.withValues(alpha: 0.2),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
@@ -181,35 +218,35 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Row(
+                              Row(
                                 children: [
                                   Icon(
                                     Icons.security_outlined,
-                                    color: Color(0xFFFFD18A),
-                                    size: 22,
+                                    color: const Color(0xFFFFD18A),
+                                    size: 16.sp,
                                   ),
-                                  SizedBox(width: 8),
+                                  SizedBox(width: 5.w),
                                   Text(
                                     'Stockist Vault & Bullion Portal',
                                     style: TextStyle(
-                                      color: Color(0xFFFFD18A),
+                                      color: const Color(0xFFFFD18A),
                                       fontWeight: FontWeight.w800,
-                                      fontSize: 15,
+                                      fontSize: 12.5.sp,
                                     ),
                                   ),
                                 ],
                               ),
                               IconButton(
-                                icon: const Icon(
+                                icon: Icon(
                                   Icons.refresh_rounded,
                                   color: Colors.white70,
-                                  size: 20,
+                                  size: 16.sp,
                                 ),
                                 onPressed: _fetchData,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 14),
+                          SizedBox(height: 8.h),
                           Row(
                             children: [
                               Expanded(
@@ -259,30 +296,31 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                           _FilterChip(
                             label: 'All Vault Stock (${allItems.length})',
                             isSelected: _selectedCategory == 'ALL',
-                            onTap: () =>
-                                setState(() => _selectedCategory = 'ALL'),
+                            onTap: () => _onCategorySelected('ALL'),
                           ),
                           const SizedBox(width: 8),
                           _FilterChip(
                             label: 'Raw Gold (24K/22K)',
                             isSelected: _selectedCategory == 'RAW_GOLD',
-                            onTap: () =>
-                                setState(() => _selectedCategory = 'RAW_GOLD'),
+                            onTap: () => _onCategorySelected('RAW_GOLD'),
                           ),
                           const SizedBox(width: 8),
                           _FilterChip(
                             label: 'Diamonds & Loose Gems',
                             isSelected: _selectedCategory == 'DIAMONDS',
-                            onTap: () =>
-                                setState(() => _selectedCategory = 'DIAMONDS'),
+                            onTap: () => _onCategorySelected('DIAMONDS'),
                           ),
                           const SizedBox(width: 8),
                           _FilterChip(
                             label: 'Findings & Mount Casts',
                             isSelected: _selectedCategory == 'FINDINGS_CASTS',
-                            onTap: () => setState(
-                              () => _selectedCategory = 'FINDINGS_CASTS',
-                            ),
+                            onTap: () => _onCategorySelected('FINDINGS_CASTS'),
+                          ),
+                          const SizedBox(width: 8),
+                          _FilterChip(
+                            label: '💎 Live Stone Matrix (Zero ₹)',
+                            isSelected: _selectedCategory == 'STONE_MATRIX',
+                            onTap: () => _onCategorySelected('STONE_MATRIX'),
                           ),
                         ] else ...[
                           _FilterChip(
@@ -297,6 +335,11 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                   ),
 
                   const SizedBox(height: 16),
+
+                  // ── 0. LIVE STONE STOCK MATRIX (Zero Currency) ────────────
+                  if (_selectedCategory == 'STONE_MATRIX') ...[
+                    const StoneStockMatrixView(),
+                  ],
 
                   // ── 1. GOLDSMITH MATERIAL & STONES REQUISITION SECTION ────
                   if (_selectedCategory == 'REQUISITIONS') ...[
@@ -360,7 +403,7 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: filteredReqs.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (ctx, i) {
                           final req = filteredReqs[i];
                           return _RequisitionCard(
@@ -427,9 +470,22 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                                   }
                                   return;
                                 }
+                                final stonesBreakdown = req.stoneSpecs
+                                    .where((s) => s.count > 0)
+                                    .map(
+                                      (s) => StoneBreakdownItem(
+                                        size: s.size.isNotEmpty ? s.size : '1.5mm',
+                                        color: s.color.isNotEmpty ? s.color : 'White',
+                                        stoneType: s.shape.isNotEmpty ? s.shape : 'Round',
+                                        quantity: s.count,
+                                      ),
+                                    )
+                                    .toList();
+
                                 await repo.issueMaterialsForOrderPart(
                                   req.orderPartId,
                                   items: items,
+                                  stonesBreakdown: stonesBreakdown,
                                   notes: req.artisanName.isNotEmpty
                                       ? 'Handed over to Artisan ${req.artisanName}'
                                       : 'Issued from Stockist Vault',
@@ -508,7 +564,7 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: filteredItems.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (ctx, i) {
                           final item = filteredItems[i];
                           return _StockistItemCard(item: item);
@@ -533,14 +589,14 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
           style: TextStyle(
             color: color,
             fontWeight: FontWeight.w900,
-            fontSize: 16,
-            letterSpacing: -0.4,
+            fontSize: 12.5.sp,
+            letterSpacing: -0.3,
           ),
         ),
-        const SizedBox(height: 2),
+        SizedBox(height: 1.h),
         Text(
           label,
-          style: const TextStyle(color: Colors.white70, fontSize: 10),
+          style: TextStyle(color: Colors.white70, fontSize: 9.sp),
         ),
       ],
     );
@@ -562,13 +618,13 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(14.r),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.5.h),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.emeraldDark : AppColors.paper,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14.r),
           border: Border.all(
             color: isSelected ? AppColors.emeraldDark : AppColors.outlineLight,
           ),
@@ -578,7 +634,7 @@ class _FilterChip extends StatelessWidget {
           style: TextStyle(
             color: isSelected ? Colors.white : AppColors.ink,
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-            fontSize: 11,
+            fontSize: 10.sp,
           ),
         ),
       ),
@@ -624,7 +680,7 @@ class _RequisitionCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.paper,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10.r),
         border: Border.all(
           color: isPending
               ? AppColors.warning.withValues(alpha: 0.5)
@@ -634,8 +690,8 @@ class _RequisitionCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: statusColor.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -648,9 +704,9 @@ class _RequisitionCard extends StatelessWidget {
             onIssue,
             storeName: storeName,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10.r),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 7.h),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -662,36 +718,36 @@ class _RequisitionCard extends StatelessWidget {
                         children: [
                           Flexible(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 6.w,
+                                vertical: 2.h,
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.ink,
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(5.r),
                               ),
                               child: Text(
                                 requisition.id.startsWith('REQ-') ||
                                         requisition.id.length <= 10
                                     ? requisition.id
                                     : 'REQ-${requisition.id.substring(0, 6).toUpperCase()}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: 11,
+                                  fontSize: 10.5.sp,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 6.w),
                           Flexible(
                             child: Text(
                               requisition.timestamp,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.muted,
-                                fontSize: 11,
+                                fontSize: 10.5.sp,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -700,16 +756,16 @@ class _RequisitionCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 6.w),
                     Flexible(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 4,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 7.w,
+                          vertical: 2.5.h,
                         ),
                         decoration: BoxDecoration(
                           color: statusBg,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(8.r),
                         ),
                         child: Text(
                           statusText,
@@ -717,7 +773,7 @@ class _RequisitionCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: statusColor,
-                            fontSize: 10,
+                            fontSize: 9.5.sp,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -725,7 +781,7 @@ class _RequisitionCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 8.h),
 
                 // Assigned Goldsmith Info
                 Row(
@@ -772,12 +828,12 @@ class _RequisitionCard extends StatelessWidget {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+                    horizontal: 10,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.canvas,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AppColors.outlineLight),
                   ),
                   child: Row(
@@ -936,14 +992,14 @@ class _RequisitionCard extends StatelessWidget {
                             )
                           : isPending
                           ? CommonButton.primary(
-                              height: 40,
+                              height: 32,
                               label: 'Issue',
                               isLoading: isIssuing,
                               icon: Icons.output_rounded,
                               onPressed: onIssue,
                             )
                           : Container(
-                              height: 40,
+                              height: 32,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: AppColors.emeraldLight,
@@ -955,7 +1011,7 @@ class _RequisitionCard extends StatelessWidget {
                                 children: [
                                   Icon(
                                     Icons.check_circle_rounded,
-                                    size: 15,
+                                    size: 14,
                                     color: AppColors.emeraldDark,
                                   ),
                                   SizedBox(width: 4),
@@ -964,7 +1020,7 @@ class _RequisitionCard extends StatelessWidget {
                                     style: TextStyle(
                                       color: AppColors.emeraldDark,
                                       fontWeight: FontWeight.w900,
-                                      fontSize: 11,
+                                      fontSize: 10.5,
                                     ),
                                   ),
                                 ],
@@ -1360,23 +1416,18 @@ class _StockistItemCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.paper,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10.r),
         border: Border.all(color: AppColors.outlineLight),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: Colors.white.withValues(alpha: 0.8),
-            blurRadius: 1,
-            offset: const Offset(0, -1),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 7.h),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1386,48 +1437,48 @@ class _StockistItemCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     item.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.sp,
                       color: AppColors.ink,
                     ),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 6.w,
+                    vertical: 2.h,
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.emeraldLight,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(6.r),
                   ),
                   child: Text(
                     item.purity.isNotEmpty ? item.purity : item.category,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.emeraldDark,
-                      fontSize: 10,
+                      fontSize: 9.sp,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 2.h),
             Text(
               'Location: ${item.location}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w600,
-                fontSize: 11,
+                fontSize: 10.sp,
                 color: AppColors.muted,
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 5.h),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 4.h),
               decoration: BoxDecoration(
                 color: AppColors.canvas,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6.r),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1463,14 +1514,19 @@ class _StockistItemCard extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 12,
             color: color,
+            fontWeight: FontWeight.w800,
+            fontSize: 10.5.sp,
           ),
         ),
+        SizedBox(height: 1.h),
         Text(
           label,
-          style: const TextStyle(fontSize: 10, color: AppColors.muted),
+          style: TextStyle(
+            color: AppColors.muted,
+            fontSize: 8.5.sp,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );

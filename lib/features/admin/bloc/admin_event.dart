@@ -9,7 +9,9 @@ sealed class AdminEvent {
 
 /// Fetch admin executive overview, stock stats & registered employees
 final class FetchAdminDashboardEvent extends AdminEvent {
-  const FetchAdminDashboardEvent();
+  const FetchAdminDashboardEvent({this.overviewOnly = false});
+
+  final bool overviewOnly;
 }
 
 /// Fetch stock vault inventory

@@ -24,6 +24,8 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
        super(const OrdersInitial()) {
     on<FetchOrdersEvent>(_onFetchOrders);
     on<FetchFrontOfficeDataEvent>(_onFetchFrontOfficeData);
+    on<FetchDesignsCatalogEvent>(_onFetchDesignsCatalog);
+    on<FetchCustomersEvent>(_onFetchCustomers);
     on<CreateOrderEvent>(_onCreateOrder);
     on<CreateLiveOrderEvent>(_onCreateLiveOrder);
     on<CreateAndCheckoutOrderEvent>(_onCreateAndCheckoutOrder);
@@ -84,6 +86,16 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
           loadingMore: true,
         ),
       );
+    } else if (previous != null) {
+      // Keep existing orders visible on background search / filter refresh
+      // Do not clear the UI with OrdersLoading()
+      emit(
+        loaded(
+          previous.orders,
+          page: 1,
+          hasMore: previous.hasMore,
+        ),
+      );
     } else {
       emit(const OrdersLoading());
     }
@@ -107,14 +119,19 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
       if (result.page != page) {
         throw const FormatException('Unexpected order page returned.');
       }
+      final newOrders = result.orders.map(ApiDomainMapper.order).toList();
       final merged = <String, CustomerOrder>{
-        if (event.loadMore)
-          for (final order in previous!.orders)
+        if (event.loadMore && previous != null)
+          for (final order in previous.orders)
             order.apiId.isNotEmpty ? order.apiId : order.id: order,
-        for (final order in result.orders.map(ApiDomainMapper.order))
+        for (final order in newOrders)
           order.apiId.isNotEmpty ? order.apiId : order.id: order,
       }.values.toList();
-      _store.setOrders(merged);
+      if (search.isEmpty && status.isEmpty) {
+        _store.setOrders(merged);
+      } else {
+        _store.upsertOrders(newOrders);
+      }
       emit(loaded(merged, page: result.page, hasMore: result.hasMore));
     } catch (error) {
       if (request != _ordersRequest || emit.isDone) return;
@@ -165,6 +182,34 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     } catch (error) {
       emit(OrdersError('Failed to load live front-office data: $error'));
     }
+  }
+
+  Future<void> _onFetchDesignsCatalog(
+    FetchDesignsCatalogEvent event,
+    Emitter<OrdersState> emit,
+  ) async {
+    try {
+      final sketches = await _api.listAllSketches(status: '');
+      List<ApiThreeDDesign> threeD = await _api.listAllCatalog();
+      if (threeD.isEmpty) {
+        threeD = await _api.listAllThreeDDesigns(status: '');
+      }
+      final catalogueDesigns = _buildCatalogue(threeD, sketches);
+      _store.setDesigns(catalogueDesigns);
+      AppLocalCacheService.instance.saveThreeDDesigns(threeD);
+      AppLocalCacheService.instance.saveSketches(sketches);
+    } catch (_) {}
+  }
+
+  Future<void> _onFetchCustomers(
+    FetchCustomersEvent event,
+    Emitter<OrdersState> emit,
+  ) async {
+    try {
+      final customers = await _api.listCustomers(limit: 200);
+      _store.setClients(customers.map(ApiDomainMapper.customer).toList());
+      AppLocalCacheService.instance.saveCustomers(customers);
+    } catch (_) {}
   }
 
   List<JewelleryDesign> _buildCatalogue(
@@ -296,7 +341,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
         parts: event.parts,
       );
       emit(const OrderOperationSuccess('Order created successfully.'));
-      add(const FetchFrontOfficeDataEvent());
+      add(const FetchOrdersEvent());
     } catch (error) {
       emit(OrdersError('Failed to create order: $error'));
     }
@@ -324,7 +369,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
           'Order ${order.orderNumber} created and checked out.',
         ),
       );
-      add(const FetchFrontOfficeDataEvent());
+      add(const FetchOrdersEvent());
     } catch (error) {
       emit(OrdersError('Failed to create and checkout order: $error'));
     }
@@ -337,7 +382,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     try {
       await _api.addOrderParts(orderId: event.orderId, parts: event.parts);
       emit(const OrderOperationSuccess('Designs added to order.'));
-      add(const FetchFrontOfficeDataEvent());
+      add(const FetchOrdersEvent());
     } catch (error) {
       emit(OrdersError('Failed to add order designs: $error'));
     }
@@ -350,7 +395,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     try {
       await _api.checkoutOrder(event.orderId);
       emit(const OrderOperationSuccess('Order checked out successfully.'));
-      add(const FetchFrontOfficeDataEvent());
+      add(const FetchOrdersEvent());
     } catch (error) {
       emit(OrdersError('Failed to checkout order: $error'));
     }
@@ -384,7 +429,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
         notes: event.notes,
       );
       emit(const OrderOperationSuccess('Customer registered successfully.'));
-      add(const FetchFrontOfficeDataEvent());
+      add(const FetchCustomersEvent());
     } catch (error) {
       emit(OrdersError('Failed to register customer: $error'));
     }

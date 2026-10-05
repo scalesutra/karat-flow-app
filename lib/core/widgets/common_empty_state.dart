@@ -49,6 +49,11 @@ class CommonEmptyState extends StatelessWidget {
               const SizedBox(height: AppDimensions.space20),
               CommonButton.primary(
                 isFullWidth: false,
+                height: 36,
+                icon: actionLabel!.toLowerCase().contains('catalogue') ||
+                        actionLabel!.toLowerCase().contains('browse')
+                    ? Icons.grid_view_rounded
+                    : null,
                 label: actionLabel!,
                 onPressed: onAction,
               ),

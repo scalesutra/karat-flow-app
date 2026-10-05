@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_colors.dart';
 
@@ -216,31 +217,31 @@ class CommonText extends StatelessWidget {
   Widget build(BuildContext context) {
     TextStyle style = switch (_variant) {
       _TextVariant.headlineLarge => GoogleFonts.outfit(
-        fontSize: fontSize ?? 32,
+        fontSize: (fontSize ?? 20).sp,
         fontWeight: fontWeight ?? FontWeight.w700,
-        letterSpacing: letterSpacing ?? -0.8,
-        height: height ?? 1.1,
+        letterSpacing: letterSpacing ?? -0.4,
+        height: height ?? 1.15,
         color: color ?? AppColors.ink,
         decoration: decoration,
       ),
       _TextVariant.headlineMedium => GoogleFonts.outfit(
-        fontSize: fontSize ?? 26,
+        fontSize: (fontSize ?? 18).sp,
         fontWeight: fontWeight ?? FontWeight.w700,
-        letterSpacing: letterSpacing ?? -0.5,
+        letterSpacing: letterSpacing ?? -0.3,
         height: height ?? 1.15,
         color: color ?? AppColors.ink,
         decoration: decoration,
       ),
       _TextVariant.headlineSmall => GoogleFonts.outfit(
-        fontSize: fontSize ?? 22,
+        fontSize: (fontSize ?? 16).sp,
         fontWeight: fontWeight ?? FontWeight.w700,
-        letterSpacing: letterSpacing ?? -0.3,
+        letterSpacing: letterSpacing ?? -0.2,
         height: height ?? 1.2,
         color: color ?? AppColors.ink,
         decoration: decoration,
       ),
       _TextVariant.titleLarge => GoogleFonts.outfit(
-        fontSize: fontSize ?? 20,
+        fontSize: (fontSize ?? 15).sp,
         fontWeight: fontWeight ?? FontWeight.w700,
         letterSpacing: letterSpacing,
         height: height,
@@ -248,7 +249,7 @@ class CommonText extends StatelessWidget {
         decoration: decoration,
       ),
       _TextVariant.titleMedium => GoogleFonts.outfit(
-        fontSize: fontSize ?? 16,
+        fontSize: (fontSize ?? 13.5).sp,
         fontWeight: fontWeight ?? FontWeight.w700,
         letterSpacing: letterSpacing,
         height: height,
@@ -256,7 +257,7 @@ class CommonText extends StatelessWidget {
         decoration: decoration,
       ),
       _TextVariant.titleSmall => GoogleFonts.outfit(
-        fontSize: fontSize ?? 14,
+        fontSize: (fontSize ?? 13).sp,
         fontWeight: fontWeight ?? FontWeight.w600,
         letterSpacing: letterSpacing,
         height: height,
@@ -264,7 +265,7 @@ class CommonText extends StatelessWidget {
         decoration: decoration,
       ),
       _TextVariant.bodyLarge => GoogleFonts.inter(
-        fontSize: fontSize ?? 16,
+        fontSize: (fontSize ?? 15).sp,
         fontWeight: fontWeight ?? FontWeight.w400,
         letterSpacing: letterSpacing,
         height: height ?? 1.45,
@@ -272,7 +273,7 @@ class CommonText extends StatelessWidget {
         decoration: decoration,
       ),
       _TextVariant.bodyMedium => GoogleFonts.inter(
-        fontSize: fontSize ?? 14,
+        fontSize: (fontSize ?? 13).sp,
         fontWeight: fontWeight ?? FontWeight.w400,
         letterSpacing: letterSpacing,
         height: height ?? 1.45,
@@ -280,7 +281,7 @@ class CommonText extends StatelessWidget {
         decoration: decoration,
       ),
       _TextVariant.bodySmall => GoogleFonts.inter(
-        fontSize: fontSize ?? 12,
+        fontSize: (fontSize ?? 11).sp,
         fontWeight: fontWeight ?? FontWeight.w400,
         letterSpacing: letterSpacing,
         height: height ?? 1.4,
@@ -288,7 +289,7 @@ class CommonText extends StatelessWidget {
         decoration: decoration,
       ),
       _TextVariant.labelLarge => GoogleFonts.inter(
-        fontSize: fontSize ?? 14,
+        fontSize: (fontSize ?? 13).sp,
         fontWeight: fontWeight ?? FontWeight.w700,
         letterSpacing: letterSpacing,
         height: height,
@@ -296,7 +297,7 @@ class CommonText extends StatelessWidget {
         decoration: decoration,
       ),
       _TextVariant.labelMedium => GoogleFonts.inter(
-        fontSize: fontSize ?? 12,
+        fontSize: (fontSize ?? 11.5).sp,
         fontWeight: fontWeight ?? FontWeight.w700,
         letterSpacing: letterSpacing,
         height: height,
@@ -304,7 +305,7 @@ class CommonText extends StatelessWidget {
         decoration: decoration,
       ),
       _TextVariant.labelSmall => GoogleFonts.inter(
-        fontSize: fontSize ?? 11,
+        fontSize: (fontSize ?? 10).sp,
         fontWeight: fontWeight ?? FontWeight.w600,
         letterSpacing: letterSpacing ?? 0.5,
         height: height,

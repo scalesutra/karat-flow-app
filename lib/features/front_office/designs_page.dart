@@ -23,6 +23,7 @@ class _DesignsPageState extends State<DesignsPage> {
   JewelleryCategory _category = JewelleryCategory.all;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -31,7 +32,15 @@ class _DesignsPageState extends State<DesignsPage> {
   }
 
   Future<void> _fetchLiveCatalogue() async {
-    context.read<OrdersBloc>().add(const FetchFrontOfficeDataEvent());
+    if (widget.store.designs.isEmpty) {
+      setState(() => _isLoading = true);
+    }
+    context.read<OrdersBloc>().add(const FetchDesignsCatalogEvent());
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted && _isLoading) {
+        setState(() => _isLoading = false);
+      }
+    });
   }
 
   @override
@@ -135,7 +144,7 @@ class _DesignsPageState extends State<DesignsPage> {
               ),
               const SizedBox(height: 12),
               Expanded(
-                child: context.watch<OrdersBloc>().state is OrdersLoading
+                child: (_isLoading && widget.store.designs.isEmpty)
                     ? const Center(
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),
@@ -148,6 +157,7 @@ class _DesignsPageState extends State<DesignsPage> {
                       )
                     : CommonRefreshIndicator(
                         theme: IndicatorTheme.cad,
+                        showIndicator: false,
                         onRefresh: _fetchLiveCatalogue,
                         child: filteredDesigns.isEmpty
                             ? SingleChildScrollView(

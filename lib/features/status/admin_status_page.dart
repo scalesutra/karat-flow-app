@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:jewellery_ops_mobile/core/services/live_data_bloc_coordinator.dart';
 import 'package:jewellery_ops_mobile/data/mappers/api_domain_mapper.dart';
 import '../../core/constants/app_colors.dart';
@@ -7,6 +8,7 @@ import '../../core/localization/localization.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../domain/models.dart';
+import '../admin/bloc/admin_bloc.dart';
 import '../instructions/instruction_composer.dart';
 import 'status_detail_page.dart';
 
@@ -43,6 +45,40 @@ class _AdminStatusPageState extends State<AdminStatusPage> {
 
   @override
   Widget build(BuildContext context) {
+    return BlocBuilder<AdminBloc, AdminState>(
+      builder: (context, state) {
+        if (widget.store.orders.isEmpty) {
+          if (state is AdminInitial || state is AdminLoading) {
+            return const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 12),
+                  Text('Loading orders...'),
+                ],
+              ),
+            );
+          }
+          if (state is AdminError) {
+            return CommonEmptyState(
+              icon: Icons.error_outline,
+              title: 'Could not load orders',
+              description: state.message,
+              actionLabel: 'Retry',
+              onAction: () => LiveDataBlocCoordinator.refreshForRole(
+                context,
+                AppRole.admin,
+              ),
+            );
+          }
+        }
+        return _buildDashboard(context);
+      },
+    );
+  }
+
+  Widget _buildDashboard(BuildContext context) {
     final all = widget.store.workItemsFor(_pivot);
     final items = all.where((item) {
       if (_exceptionsOnly && item.tone == HealthTone.healthy) {
@@ -61,10 +97,13 @@ class _AdminStatusPageState extends State<AdminStatusPage> {
 
     return SafeArea(
       top: false,
-      child: CommonRefreshIndicator(
+      child: RefreshIndicator(
         onRefresh: () async {
+          final refreshed = context.read<AdminBloc>().stream.firstWhere(
+            (state) => state is AdminLoaded || state is AdminError,
+          );
           LiveDataBlocCoordinator.refreshForRole(context, AppRole.admin);
-          await Future<void>.delayed(const Duration(milliseconds: 500));
+          await refreshed;
         },
         child: CustomScrollView(
           slivers: [

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:jewellery_ops_mobile/core/constants/app_colors.dart';
 import 'package:jewellery_ops_mobile/core/constants/app_dimensions.dart';
 import 'package:jewellery_ops_mobile/core/widgets/common_empty_state.dart';
@@ -50,6 +51,23 @@ class LiveOrdersTab extends StatelessWidget {
           );
         }
         if (state is! OrdersLoaded) {
+          if (store.orders.isNotEmpty) {
+            return Column(
+              children: [
+                Expanded(child: _buildOrders(context, store.orders)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+                  child: Text(
+                    '${store.orders.length} orders loaded',
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
           return const Center(child: CircularProgressIndicator());
         }
         return Column(
@@ -106,7 +124,35 @@ class LiveOrdersTab extends StatelessWidget {
               );
             }
 
-            final filteredOrders = orders;
+            final allOrdersMap = <String, CustomerOrder>{
+              for (final o in store.orders)
+                (o.apiId.isNotEmpty ? o.apiId : o.id): o,
+              for (final o in orders)
+                (o.apiId.isNotEmpty ? o.apiId : o.id): o,
+            };
+            final allOrders = allOrdersMap.values.toList();
+            final q = searchQuery.trim().toLowerCase();
+            final filteredOrders = q.isEmpty
+                ? allOrders
+                : allOrders.where((o) {
+                    final idMatch = o.id.toLowerCase().contains(q) ||
+                        o.apiId.toLowerCase().contains(q);
+                    final clientMatch =
+                        o.clientFirmName.toLowerCase().contains(q) ||
+                        o.clientCity.toLowerCase().contains(q);
+                    final summaryMatch =
+                        o.itemsSummary.toLowerCase().contains(q);
+                    final stageMatch =
+                        o.currentWorkshopStage.toLowerCase().contains(q);
+                    final designMatch = o.designs.any((d) =>
+                        d.designNumber.toLowerCase().contains(q) ||
+                        d.displayName.toLowerCase().contains(q));
+                    return idMatch ||
+                        clientMatch ||
+                        summaryMatch ||
+                        stageMatch ||
+                        designMatch;
+                  }).toList();
 
             // Build derived card data only for rows requested by the lazy list.
             Map<String, Object?> buildOrder(CustomerOrder o) {
@@ -350,6 +396,7 @@ class LiveOrdersTab extends StatelessWidget {
 
             return CommonRefreshIndicator(
               theme: IndicatorTheme.workshop,
+              showIndicator: false,
               onRefresh: () async {
                 context.read<OrdersBloc>().add(
                   FetchOrdersEvent(search: searchQuery, statusFilter: ''),
@@ -360,9 +407,9 @@ class LiveOrdersTab extends StatelessWidget {
               },
               child: ListView.separated(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 6, 20, 28),
+                padding: EdgeInsets.fromLTRB(14.w, 4.h, 14.w, 20.h),
                 itemCount: filteredOrders.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                separatorBuilder: (_, _) => SizedBox(height: 6.h),
                 itemBuilder: (context, index) {
                   final order = buildOrder(filteredOrders[index]);
                   final isBlocked = order['isBlocked'] as bool? ?? false;
@@ -382,24 +429,27 @@ class LiveOrdersTab extends StatelessWidget {
                         arguments: {...order, 'allowStageChange': true},
                       );
                     },
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(10.r),
                     child: Container(
-                      padding: const EdgeInsets.all(14),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10.w,
+                        vertical: 7.h,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.paper,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(10.r),
                         border: Border.all(
                           color: isBlocked
                               ? AppColors.danger
                               : statusColor.withValues(alpha: 0.8),
-                          width: isBlocked ? 2.0 : 1.5,
+                          width: isBlocked ? 1.5 : 1.0,
                         ),
                         boxShadow: [
                           BoxShadow(
                             color: isBlocked
                                 ? AppColors.danger.withValues(alpha: 0.08)
-                                : Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 6,
+                                : Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 5,
                             offset: const Offset(0, 2),
                           ),
                         ],
@@ -415,18 +465,18 @@ class LiveOrdersTab extends StatelessWidget {
                                   '${ApiDomainMapper.formatOrderNumber(order['id'] as String? ?? '')} - ${order['title']}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 14,
+                                    fontSize: 12.sp,
                                     color: AppColors.ink,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              SizedBox(width: 5.w),
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 6.w,
+                                  vertical: 2.h,
                                 ),
                                 decoration: BoxDecoration(
                                   color: statusColor.withValues(alpha: 0.12),
@@ -443,18 +493,18 @@ class LiveOrdersTab extends StatelessWidget {
                                   style: TextStyle(
                                     color: statusColor,
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 10,
+                                    fontSize: 9.5.sp,
                                   ),
                                 ),
                               ),
                             ],
                           ),
                           if (isBlocked) ...[
-                            const SizedBox(height: 6),
+                            SizedBox(height: 5.h),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 7.w,
+                                vertical: 3.h,
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.dangerLight,
@@ -594,24 +644,24 @@ class LiveOrdersTab extends StatelessWidget {
                               ),
                             ),
                           ],
-                          const SizedBox(height: 6),
+                          SizedBox(height: 5.h),
                           Text(
                             order['client'] as String,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.muted,
-                              fontSize: 12,
+                              fontSize: 11.sp,
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          SizedBox(height: 7.h),
                           // Dynamic Production Progress Bar
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8.w,
+                              vertical: 6.h,
                             ),
                             decoration: BoxDecoration(
                               color: AppColors.canvas,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(6.r),
                               border: Border.all(color: AppColors.outline),
                             ),
                             child: Column(
@@ -621,11 +671,11 @@ class LiveOrdersTab extends StatelessWidget {
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'Production Progress',
                                       style: TextStyle(
                                         color: AppColors.muted,
-                                        fontSize: 10,
+                                        fontSize: 9.5.sp,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -635,21 +685,21 @@ class LiveOrdersTab extends StatelessWidget {
                                         color: progressPercent >= 100
                                             ? AppColors.emerald
                                             : AppColors.goldDark,
-                                        fontSize: 11,
+                                        fontSize: 10.sp,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 5),
+                                SizedBox(height: 4.h),
                                 ClipRRect(
-                                  borderRadius: BorderRadius.circular(3),
+                                  borderRadius: BorderRadius.circular(3.r),
                                   child: LinearProgressIndicator(
                                     value: (progressPercent / 100.0).clamp(
                                       0.0,
                                       1.0,
                                     ),
-                                    minHeight: 5,
+                                    minHeight: 4.h,
                                     backgroundColor: AppColors.outline
                                         .withValues(alpha: 0.35),
                                     valueColor: AlwaysStoppedAnimation<Color>(
@@ -662,21 +712,21 @@ class LiveOrdersTab extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 6.h),
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.all(10),
+                            padding: EdgeInsets.all(8.r),
                             decoration: BoxDecoration(
                               color: AppColors.canvas,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(6.r),
                               border: Border.all(color: AppColors.outline),
                             ),
                             child: designRows.isEmpty
-                                ? const Text(
+                                ? Text(
                                     'No design parts returned by the API.',
                                     style: TextStyle(
                                       color: AppColors.muted,
-                                      fontSize: 11,
+                                      fontSize: 10.5.sp,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   )
@@ -693,20 +743,20 @@ class LiveOrdersTab extends StatelessWidget {
                                               order['showDesignStages'] as bool,
                                         ),
                                         if (designIndex < designRows.length - 1)
-                                          const Divider(height: 14),
+                                          Divider(height: 10.h),
                                       ],
                                     ],
                                   ),
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 6.h),
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8.w,
+                              vertical: 6.h,
                             ),
                             decoration: BoxDecoration(
                               color: AppColors.canvas,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(6.r),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -714,12 +764,12 @@ class LiveOrdersTab extends StatelessWidget {
                                 Expanded(
                                   child: Row(
                                     children: [
-                                      const Icon(
+                                      Icon(
                                         Icons.layers_outlined,
-                                        size: 14,
+                                        size: 13.sp,
                                         color: AppColors.muted,
                                       ),
-                                      const SizedBox(width: 4),
+                                      SizedBox(width: 4.w),
                                       Flexible(
                                         child: Text(
                                           order['stage'] as String,
@@ -727,7 +777,7 @@ class LiveOrdersTab extends StatelessWidget {
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
                                             fontWeight: FontWeight.w700,
-                                            fontSize: 11,
+                                            fontSize: 10.5.sp,
                                             color: isBlocked
                                                 ? AppColors.danger
                                                 : (order['statusColor']
@@ -738,12 +788,12 @@ class LiveOrdersTab extends StatelessWidget {
                                     ],
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 6.w),
                                 Text(
                                   order['details'] as String,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: AppColors.muted,
-                                    fontSize: 11,
+                                    fontSize: 10.5.sp,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -816,12 +866,12 @@ class _OrderDesignStageRow extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(
+            Icon(
               Icons.diamond_outlined,
-              size: 15,
+              size: 13.sp,
               color: AppColors.emerald,
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: 5.w),
             Expanded(
               child: Text(
                 designNumber.isEmpty
@@ -829,16 +879,16 @@ class _OrderDesignStageRow extends StatelessWidget {
                     : designNumber,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.ink,
-                  fontSize: 12,
+                  fontSize: 11.5.sp,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 6.w),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
               decoration: BoxDecoration(
                 color: AppColors.paper,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
@@ -846,24 +896,24 @@ class _OrderDesignStageRow extends StatelessWidget {
               ),
               child: Text(
                 '$quantity pcs',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.ink,
-                  fontSize: 10,
+                  fontSize: 9.5.sp,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 5.h),
         Wrap(
-          spacing: 8,
-          runSpacing: 4,
+          spacing: 6.w,
+          runSpacing: 3.h,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             // Stage Badge
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
               decoration: BoxDecoration(
                 color: stageColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
@@ -877,7 +927,7 @@ class _OrderDesignStageRow extends StatelessWidget {
                     : stage,
                 style: TextStyle(
                   color: stageColor,
-                  fontSize: 10,
+                  fontSize: 9.5.sp,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -886,7 +936,7 @@ class _OrderDesignStageRow extends StatelessWidget {
             // Ready for Dispatch Badge
             if (isReadyForDispatch)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
                 decoration: BoxDecoration(
                   color: AppColors.emerald.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
@@ -898,19 +948,19 @@ class _OrderDesignStageRow extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 5,
-                      height: 5,
+                      width: 4.r,
+                      height: 4.r,
                       decoration: const BoxDecoration(
                         color: AppColors.emerald,
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4.w),
                     Text(
                       'Ready for Dispatch ($quantity Pcs)',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.emerald,
-                        fontSize: 10,
+                        fontSize: 9.5.sp,
                         fontWeight: FontWeight.w800,
                       ),
                     ),

@@ -57,6 +57,7 @@ class StagesPipelineTab extends StatelessWidget {
 
         return CommonRefreshIndicator(
           theme: IndicatorTheme.workshop,
+          showIndicator: false,
           onRefresh: () async =>
               context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent()),
           child: ListView(

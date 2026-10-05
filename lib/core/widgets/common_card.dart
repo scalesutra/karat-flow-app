@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../constants/app_colors.dart';
-import '../constants/app_dimensions.dart';
 
 class CommonCard extends StatelessWidget {
   const CommonCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(AppDimensions.space16),
-    this.margin = EdgeInsets.zero,
+    this.padding,
+    this.margin,
     this.backgroundColor = AppColors.paper,
     this.borderColor = AppColors.outline,
     this.borderRadius,
@@ -16,8 +16,8 @@ class CommonCard extends StatelessWidget {
   });
 
   final Widget child;
-  final EdgeInsetsGeometry padding;
-  final EdgeInsetsGeometry margin;
+  final EdgeInsetsGeometry? padding;
+  final EdgeInsetsGeometry? margin;
   final Color backgroundColor;
   final Color borderColor;
   final BorderRadius? borderRadius;
@@ -27,9 +27,12 @@ class CommonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveRadius =
-        borderRadius ?? BorderRadius.circular(AppDimensions.radiusLarge);
+        borderRadius ?? BorderRadius.circular(10.r);
+    final effectivePadding =
+        padding ?? EdgeInsets.symmetric(horizontal: 11.w, vertical: 8.h);
+    final effectiveMargin = margin ?? EdgeInsets.zero;
 
-    Widget cardContent = Padding(padding: padding, child: child);
+    Widget cardContent = Padding(padding: effectivePadding, child: child);
 
     if (onTap != null) {
       cardContent = InkWell(
@@ -40,7 +43,7 @@ class CommonCard extends StatelessWidget {
     }
 
     return Container(
-      margin: margin,
+      margin: effectiveMargin,
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: effectiveRadius,

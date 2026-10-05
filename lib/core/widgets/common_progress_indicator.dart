@@ -1537,7 +1537,7 @@ class CommonRefreshIndicator extends StatefulWidget {
     required this.child,
     required this.onRefresh,
     this.theme = IndicatorTheme.universal,
-    this.showIndicator = true,
+    this.showIndicator = false,
     this.enabled = true,
   });
 
@@ -1571,17 +1571,29 @@ class _CommonRefreshIndicatorState extends State<CommonRefreshIndicator> {
   Widget build(BuildContext context) {
     if (!widget.enabled) return widget.child;
 
+    final indicatorColor = switch (widget.theme) {
+      IndicatorTheme.workshop => AppColors.goldDark,
+      IndicatorTheme.frontOffice => AppColors.emerald,
+      IndicatorTheme.cad => const Color(0xFF6366F1),
+      IndicatorTheme.stockist => const Color(0xFFD97706),
+      IndicatorTheme.rawDesigner => const Color(0xFFEC4899),
+      IndicatorTheme.artisan => AppColors.goldDark,
+      IndicatorTheme.universal => AppColors.emerald,
+    };
+
     return Stack(
       children: [
         RefreshIndicator(
-          color: Colors.transparent,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          strokeWidth: 0.01,
+          color: widget.showIndicator ? Colors.transparent : indicatorColor,
+          backgroundColor: widget.showIndicator
+              ? Colors.transparent
+              : AppColors.paper,
+          elevation: widget.showIndicator ? 0 : 2,
+          strokeWidth: widget.showIndicator ? 0.01 : 2.5,
           onRefresh: _handleRefresh,
           child: widget.child,
         ),
-        if (_isRefreshing)
+        if (_isRefreshing && widget.showIndicator)
           Positioned.fill(
             child: IgnorePointer(
               child: Container(

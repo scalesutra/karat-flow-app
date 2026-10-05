@@ -44,6 +44,25 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     Emitter<AdminState> emit,
   ) async {
     emit(const AdminLoading());
+    // Publish orders independently of the management-page reference data.
+    try {
+      final orders = await _api.listOrders(limit: 100);
+      _store.setOrders(orders.map(ApiDomainMapper.order).toList());
+      if (event.overviewOnly) {
+        emit(
+          AdminLoaded(
+            team: _store.team,
+            clients: _store.clients,
+            designs: _store.designs,
+            directives: const [],
+          ),
+        );
+        return;
+      }
+    } catch (error) {
+      emit(AdminError('Failed to fetch orders from API: $error'));
+      return;
+    }
     // ── 0. Instant Cache Render: Production Stages ─────────────────
     try {
       final cachedStages = await AppLocalCacheService.instance
@@ -59,14 +78,12 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       final sketches = await _api.listSketches(limit: 100);
       final stages = await _api.listStages();
       final threeDDesigns = await _api.listThreeDDesigns(limit: 100);
-      final orders = await _api.listOrders(limit: 100);
 
       final team = employees.map(ApiDomainMapper.employee).toList();
       final clients = customers.map(ApiDomainMapper.customer).toList();
       final designs = sketches.map(ApiDomainMapper.sketch).toList();
       final cadTasks = threeDDesigns.map(ApiDomainMapper.cadTask).toList();
       final stockItems = threeDDesigns.map(ApiDomainMapper.stockItem).toList();
-      final customerOrders = orders.map(ApiDomainMapper.order).toList();
 
       _store
         ..setTeam(team)
@@ -74,8 +91,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         ..setDesigns(designs)
         ..setStages(stages)
         ..setCadTasks(cadTasks)
-        ..setStock(stockItems)
-        ..setOrders(customerOrders);
+        ..setStock(stockItems);
 
       // Save stages & customers to persistent local cache
       AppLocalCacheService.instance.saveStages(stages);

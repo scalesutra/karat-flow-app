@@ -146,24 +146,38 @@ class _CartPageState extends State<CartPage> {
                         ),
                       ],
                     ),
-                    TextButton.icon(
-                      onPressed: () {
-                        widget.store.clearCart();
-                        CommonSnackbar.info(
-                          context,
-                          title: 'Cart Cleared',
-                          message: 'All items removed from cart.',
-                        );
-                      },
-                      icon: const Icon(
-                        Icons.delete_sweep,
-                        size: 18,
-                        color: AppColors.danger,
-                      ),
-                      label: const Text(
-                        'Clear',
-                        style: TextStyle(color: AppColors.danger),
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.onBrowseDesigns != null)
+                          CommonButton.primary(
+                            isFullWidth: false,
+                            height: 36,
+                            icon: Icons.grid_view_rounded,
+                            label: 'Browse Catalogue',
+                            onPressed: widget.onBrowseDesigns,
+                          ),
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: () {
+                            widget.store.clearCart();
+                            CommonSnackbar.info(
+                              context,
+                              title: 'Cart Cleared',
+                              message: 'All items removed from cart.',
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.delete_sweep,
+                            size: 18,
+                            color: AppColors.danger,
+                          ),
+                          label: const Text(
+                            'Clear',
+                            style: TextStyle(color: AppColors.danger),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

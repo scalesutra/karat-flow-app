@@ -2582,3 +2582,780 @@ class ApiOrdersPage {
     );
   }
 }
+
+// ── 16. Department Operations & Floor Logs DTOs ─────────────────────────────
+
+class CastingSubmitPayload {
+  const CastingSubmitPayload({
+    required this.metalType,
+    required this.previousBalance,
+    required this.freshIssueWeight,
+    required this.finishedWeight,
+    required this.runnerScrapWeight,
+    required this.closingBalance,
+    this.notes = '',
+  });
+
+  final String metalType;
+  final double previousBalance;
+  final double freshIssueWeight;
+  final double finishedWeight;
+  final double runnerScrapWeight;
+  final double closingBalance;
+  final String notes;
+
+  Map<String, dynamic> toJson() => {
+    'metalType': metalType,
+    'previousBalance': previousBalance,
+    'freshIssueWeight': freshIssueWeight,
+    'finishedWeight': finishedWeight,
+    'runnerScrapWeight': runnerScrapWeight,
+    'closingBalance': closingBalance,
+    if (notes.isNotEmpty) 'notes': notes,
+  };
+}
+
+class CastingLogResponse {
+  const CastingLogResponse({
+    required this.id,
+    required this.metalType,
+    required this.previousBalance,
+    required this.freshIssueWeight,
+    required this.finishedWeight,
+    required this.runnerScrapWeight,
+    required this.closingBalance,
+    this.notes = '',
+    this.createdAt = '',
+  });
+
+  final String id;
+  final String metalType;
+  final double previousBalance;
+  final double freshIssueWeight;
+  final double finishedWeight;
+  final double runnerScrapWeight;
+  final double closingBalance;
+  final String notes;
+  final String createdAt;
+
+  factory CastingLogResponse.fromJson(Map<String, dynamic> json) {
+    return CastingLogResponse(
+      id: json['id']?.toString() ?? '',
+      metalType: json['metalType']?.toString() ?? 'Gold',
+      previousBalance: (json['previousBalance'] as num?)?.toDouble() ?? 0.0,
+      freshIssueWeight: (json['freshIssueWeight'] as num?)?.toDouble() ?? 0.0,
+      finishedWeight: (json['finishedWeight'] as num?)?.toDouble() ?? 0.0,
+      runnerScrapWeight: (json['runnerScrapWeight'] as num?)?.toDouble() ?? 0.0,
+      closingBalance: (json['closingBalance'] as num?)?.toDouble() ?? 0.0,
+      notes: json['notes']?.toString() ?? '',
+      createdAt: json['createdAt']?.toString() ?? '',
+    );
+  }
+}
+
+class CastingLastBalanceResponse {
+  const CastingLastBalanceResponse({
+    required this.metalType,
+    required this.lastClosingBalance,
+  });
+
+  final String metalType;
+  final double lastClosingBalance;
+
+  factory CastingLastBalanceResponse.fromJson(Map<String, dynamic> json) {
+    return CastingLastBalanceResponse(
+      metalType: json['metalType']?.toString() ?? 'Gold',
+      lastClosingBalance:
+          (json['closingBalance'] as num?)?.toDouble() ??
+          (json['lastClosingBalance'] as num?)?.toDouble() ??
+          (json['balance'] as num?)?.toDouble() ??
+          0.0,
+    );
+  }
+}
+
+class FilingSubmitPayload {
+  const FilingSubmitPayload({
+    required this.craftsmanId,
+    this.orderPartId,
+    required this.issueWeight,
+    required this.fineReceivedWeight,
+    required this.runnerReturnWeight,
+    required this.wastageDifference,
+    this.notes = '',
+  });
+
+  final String craftsmanId;
+  final String? orderPartId;
+  final double issueWeight;
+  final double fineReceivedWeight;
+  final double runnerReturnWeight;
+  final double wastageDifference;
+  final String notes;
+
+  Map<String, dynamic> toJson() => {
+    'craftsmanId': craftsmanId,
+    if (orderPartId != null && orderPartId!.isNotEmpty)
+      'orderPartId': orderPartId,
+    'issueWeight': issueWeight,
+    'fineReceivedWeight': fineReceivedWeight,
+    'runnerReturnWeight': runnerReturnWeight,
+    'wastageDifference': wastageDifference,
+    if (notes.isNotEmpty) 'notes': notes,
+  };
+}
+
+class FilingLogResponse {
+  const FilingLogResponse({
+    required this.id,
+    required this.craftsmanId,
+    this.craftsmanName = '',
+    this.orderPartId,
+    required this.issueWeight,
+    required this.fineReceivedWeight,
+    required this.runnerReturnWeight,
+    required this.wastageDifference,
+    this.notes = '',
+    this.createdAt = '',
+  });
+
+  final String id;
+  final String craftsmanId;
+  final String craftsmanName;
+  final String? orderPartId;
+  final double issueWeight;
+  final double fineReceivedWeight;
+  final double runnerReturnWeight;
+  final double wastageDifference;
+  final String notes;
+  final String createdAt;
+
+  factory FilingLogResponse.fromJson(Map<String, dynamic> json) {
+    final craftsmanMap = json['craftsman'] as Map<String, dynamic>?;
+    return FilingLogResponse(
+      id: json['id']?.toString() ?? '',
+      craftsmanId: json['craftsmanId']?.toString() ?? '',
+      craftsmanName: craftsmanMap?['name']?.toString() ??
+          json['craftsmanName']?.toString() ??
+          '',
+      orderPartId: json['orderPartId']?.toString(),
+      issueWeight: (json['issueWeight'] as num?)?.toDouble() ?? 0.0,
+      fineReceivedWeight:
+          (json['fineReceivedWeight'] as num?)?.toDouble() ?? 0.0,
+      runnerReturnWeight:
+          (json['runnerReturnWeight'] as num?)?.toDouble() ?? 0.0,
+      wastageDifference: (json['wastageDifference'] as num?)?.toDouble() ?? 0.0,
+      notes: json['notes']?.toString() ?? '',
+      createdAt: json['createdAt']?.toString() ?? '',
+    );
+  }
+}
+
+class PolishingSubmitPayload {
+  const PolishingSubmitPayload({
+    required this.craftsmanId,
+    this.orderPartId,
+    required this.directPcs,
+    required this.indirectPcs,
+    required this.filingPcs,
+    required this.beltPcs,
+    required this.totalPcs,
+    this.notes = '',
+  });
+
+  final String craftsmanId;
+  final String? orderPartId;
+  final int directPcs;
+  final int indirectPcs;
+  final int filingPcs;
+  final int beltPcs;
+  final int totalPcs;
+  final String notes;
+
+  Map<String, dynamic> toJson() => {
+    'craftsmanId': craftsmanId,
+    if (orderPartId != null && orderPartId!.isNotEmpty)
+      'orderPartId': orderPartId,
+    'directPcs': directPcs,
+    'indirectPcs': indirectPcs,
+    'filingPcs': filingPcs,
+    'beltPcs': beltPcs,
+    'totalPcs': totalPcs,
+    if (notes.isNotEmpty) 'notes': notes,
+  };
+}
+
+class PolishingLogResponse {
+  const PolishingLogResponse({
+    required this.id,
+    required this.craftsmanId,
+    this.craftsmanName = '',
+    this.orderPartId,
+    required this.directPcs,
+    required this.indirectPcs,
+    required this.filingPcs,
+    required this.beltPcs,
+    required this.totalPcs,
+    this.notes = '',
+    this.createdAt = '',
+  });
+
+  final String id;
+  final String craftsmanId;
+  final String craftsmanName;
+  final String? orderPartId;
+  final int directPcs;
+  final int indirectPcs;
+  final int filingPcs;
+  final int beltPcs;
+  final int totalPcs;
+  final String notes;
+  final String createdAt;
+
+  factory PolishingLogResponse.fromJson(Map<String, dynamic> json) {
+    final craftsmanMap = json['craftsman'] as Map<String, dynamic>?;
+    return PolishingLogResponse(
+      id: json['id']?.toString() ?? '',
+      craftsmanId: json['craftsmanId']?.toString() ?? '',
+      craftsmanName: craftsmanMap?['name']?.toString() ??
+          json['craftsmanName']?.toString() ??
+          '',
+      orderPartId: json['orderPartId']?.toString(),
+      directPcs: (json['directPcs'] as num?)?.toInt() ?? 0,
+      indirectPcs: (json['indirectPcs'] as num?)?.toInt() ?? 0,
+      filingPcs: (json['filingPcs'] as num?)?.toInt() ?? 0,
+      beltPcs: (json['beltPcs'] as num?)?.toInt() ?? 0,
+      totalPcs: (json['totalPcs'] as num?)?.toInt() ?? 0,
+      notes: json['notes']?.toString() ?? '',
+      createdAt: json['createdAt']?.toString() ?? '',
+    );
+  }
+}
+
+class HandSettingSubmitPayload {
+  const HandSettingSubmitPayload({
+    required this.craftsmanId,
+    this.orderPartId,
+    required this.stoneType,
+    required this.shape,
+    required this.color,
+    required this.size,
+    required this.usedStonesCount,
+    required this.brokenStonesCount,
+    this.replacementRequested = false,
+    this.notes = '',
+  });
+
+  final String craftsmanId;
+  final String? orderPartId;
+  final String stoneType;
+  final String shape;
+  final String color;
+  final String size;
+  final int usedStonesCount;
+  final int brokenStonesCount;
+  final bool replacementRequested;
+  final String notes;
+
+  Map<String, dynamic> toJson() => {
+    'craftsmanId': craftsmanId,
+    if (orderPartId != null && orderPartId!.isNotEmpty)
+      'orderPartId': orderPartId,
+    'stoneType': stoneType,
+    'shape': shape,
+    'color': color,
+    'size': size,
+    'usedStonesCount': usedStonesCount,
+    'brokenStonesCount': brokenStonesCount,
+    'replacementRequested': replacementRequested,
+    if (notes.isNotEmpty) 'notes': notes,
+  };
+}
+
+class HandSettingLogResponse {
+  const HandSettingLogResponse({
+    required this.id,
+    required this.craftsmanId,
+    this.craftsmanName = '',
+    this.orderPartId,
+    required this.stoneType,
+    required this.shape,
+    required this.color,
+    required this.size,
+    required this.usedStonesCount,
+    required this.brokenStonesCount,
+    this.replacementRequested = false,
+    this.notes = '',
+    this.createdAt = '',
+  });
+
+  final String id;
+  final String craftsmanId;
+  final String craftsmanName;
+  final String? orderPartId;
+  final String stoneType;
+  final String shape;
+  final String color;
+  final String size;
+  final int usedStonesCount;
+  final int brokenStonesCount;
+  final bool replacementRequested;
+  final String notes;
+  final String createdAt;
+
+  factory HandSettingLogResponse.fromJson(Map<String, dynamic> json) {
+    final craftsmanMap = json['craftsman'] as Map<String, dynamic>?;
+    return HandSettingLogResponse(
+      id: json['id']?.toString() ?? '',
+      craftsmanId: json['craftsmanId']?.toString() ?? '',
+      craftsmanName: craftsmanMap?['name']?.toString() ??
+          json['craftsmanName']?.toString() ??
+          '',
+      orderPartId: json['orderPartId']?.toString(),
+      stoneType: json['stoneType']?.toString() ?? '',
+      shape: json['shape']?.toString() ?? '',
+      color: json['color']?.toString() ?? '',
+      size: json['size']?.toString() ?? '',
+      usedStonesCount: (json['usedStonesCount'] as num?)?.toInt() ?? 0,
+      brokenStonesCount: (json['brokenStonesCount'] as num?)?.toInt() ?? 0,
+      replacementRequested: json['replacementRequested'] as bool? ?? false,
+      notes: json['notes']?.toString() ?? '',
+      createdAt: json['createdAt']?.toString() ?? '',
+    );
+  }
+}
+
+// ── 17. Physical Stone Inventory Models (Strictly Zero Currency) ─────────────
+
+class StoneInwardPayload {
+  const StoneInwardPayload({
+    required this.stoneType,
+    required this.shape,
+    required this.color,
+    required this.size,
+    required this.quantity,
+    this.lotNumber,
+    this.supplierRef,
+    this.notes = '',
+  });
+
+  final String stoneType;
+  final String shape;
+  final String color;
+  final String size;
+  final int quantity;
+  final String? lotNumber;
+  final String? supplierRef;
+  final String notes;
+
+  Map<String, dynamic> toJson() => {
+    'stoneType': stoneType,
+    'shape': shape,
+    'color': color,
+    'size': size,
+    'quantity': quantity,
+    if (lotNumber != null && lotNumber!.isNotEmpty) 'lotNumber': lotNumber,
+    if (supplierRef != null && supplierRef!.isNotEmpty)
+      'supplierRef': supplierRef,
+    if (notes.isNotEmpty) 'notes': notes,
+  };
+}
+
+class StoneDeductPayload {
+  const StoneDeductPayload({
+    required this.stoneType,
+    required this.shape,
+    required this.color,
+    required this.size,
+    required this.quantity,
+    required this.reason,
+    this.notes = '',
+  });
+
+  final String stoneType;
+  final String shape;
+  final String color;
+  final String size;
+  final int quantity;
+  final String reason;
+  final String notes;
+
+  Map<String, dynamic> toJson() => {
+    'stoneType': stoneType,
+    'shape': shape,
+    'color': color,
+    'size': size,
+    'quantity': quantity,
+    'reason': reason,
+    if (notes.isNotEmpty) 'notes': notes,
+  };
+}
+
+class StoneBreakdownItem {
+  const StoneBreakdownItem({
+    required this.size,
+    required this.color,
+    required this.stoneType,
+    required this.quantity,
+  });
+
+  final String size;
+  final String color;
+  final String stoneType;
+  final int quantity;
+
+  Map<String, dynamic> toJson() => {
+    'size': size,
+    'color': color,
+    'stoneType': stoneType,
+    'quantity': quantity,
+  };
+
+  factory StoneBreakdownItem.fromJson(Map<String, dynamic> json) {
+    return StoneBreakdownItem(
+      size: json['size']?.toString() ?? '',
+      color: json['color']?.toString() ?? '',
+      stoneType: json['stoneType']?.toString() ?? '',
+      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class StoneMatrixItem {
+  const StoneMatrixItem({
+    required this.size,
+    required this.color,
+    this.stoneType = 'Round',
+    required this.quantity,
+    this.availableQuantity,
+    this.reservedQuantity,
+  });
+
+  final String size;
+  final String color;
+  final String stoneType;
+  final int quantity;
+  final int? availableQuantity;
+  final int? reservedQuantity;
+
+  factory StoneMatrixItem.fromJson(Map<String, dynamic> json) {
+    return StoneMatrixItem(
+      size: json['size']?.toString() ?? '',
+      color: json['color']?.toString() ?? '',
+      stoneType: json['stoneType']?.toString() ?? 'Round',
+      quantity: (json['quantity'] as num?)?.toInt() ??
+          (json['count'] as num?)?.toInt() ??
+          (json['total'] as num?)?.toInt() ??
+          0,
+      availableQuantity: (json['availableQuantity'] as num?)?.toInt() ??
+          (json['available'] as num?)?.toInt(),
+      reservedQuantity: (json['reservedQuantity'] as num?)?.toInt() ??
+          (json['reserved'] as num?)?.toInt(),
+    );
+  }
+}
+
+class StoneMatrixResponse {
+  const StoneMatrixResponse({
+    this.sizes = const [],
+    this.colors = const [],
+    this.items = const [],
+    this.grid = const {},
+  });
+
+  final List<String> sizes;
+  final List<String> colors;
+  final List<StoneMatrixItem> items;
+  final Map<String, Map<String, int>> grid;
+
+  factory StoneMatrixResponse.fromJson(dynamic json) {
+    final items = <StoneMatrixItem>[];
+    final sizeSet = <String>{};
+    final colorSet = <String>{};
+    final grid = <String, Map<String, int>>{};
+
+    if (json is List) {
+      for (final raw in json) {
+        if (raw is Map) {
+          final item = StoneMatrixItem.fromJson(
+            Map<String, dynamic>.from(raw),
+          );
+          items.add(item);
+          if (item.size.isNotEmpty) sizeSet.add(item.size);
+          if (item.color.isNotEmpty) colorSet.add(item.color);
+
+          grid.putIfAbsent(item.size, () => {})[item.color] = item.quantity;
+        }
+      }
+    } else if (json is Map) {
+      if (json['items'] is List) {
+        for (final raw in json['items'] as List) {
+          if (raw is Map) {
+            final item = StoneMatrixItem.fromJson(
+              Map<String, dynamic>.from(raw),
+            );
+            items.add(item);
+            if (item.size.isNotEmpty) sizeSet.add(item.size);
+            if (item.color.isNotEmpty) colorSet.add(item.color);
+
+            grid.putIfAbsent(item.size, () => {})[item.color] = item.quantity;
+          }
+        }
+      }
+      if (json['sizes'] is List) {
+        for (final s in json['sizes'] as List) {
+          if (s != null) sizeSet.add(s.toString());
+        }
+      }
+      if (json['colors'] is List) {
+        for (final c in json['colors'] as List) {
+          if (c != null) colorSet.add(c.toString());
+        }
+      }
+      if (json['matrix'] is Map || json['grid'] is Map) {
+        final matrixMap = (json['matrix'] ?? json['grid']) as Map;
+        for (final sizeKey in matrixMap.keys) {
+          final sStr = sizeKey.toString();
+          sizeSet.add(sStr);
+          final inner = matrixMap[sizeKey];
+          if (inner is Map) {
+            for (final colorKey in inner.keys) {
+              final cStr = colorKey.toString();
+              colorSet.add(cStr);
+              final qty = (inner[colorKey] as num?)?.toInt() ?? 0;
+              grid.putIfAbsent(sStr, () => {})[cStr] = qty;
+            }
+          }
+        }
+      }
+    }
+
+    return StoneMatrixResponse(
+      sizes: sizeSet.toList(),
+      colors: colorSet.toList(),
+      items: items,
+      grid: grid,
+    );
+  }
+
+  int getQuantity(String size, String color) {
+    return grid[size]?[color] ?? 0;
+  }
+}
+
+// ── 18. Craftsman Monthly Ledger Models (Physical Weights & Pieces ONLY) ───
+
+class CraftsmanLedgerJobSheet {
+  const CraftsmanLedgerJobSheet({
+    required this.id,
+    this.date = '',
+    this.department = '',
+    this.orderNumber = '',
+    this.partName = '',
+    this.issueWeight = 0.0,
+    this.fineWeight = 0.0,
+    this.runnerReturnWeight = 0.0,
+    this.wastageWeight = 0.0,
+    this.pieces = 0,
+    this.stonesSet = 0,
+    this.stonesBroken = 0,
+    this.notes = '',
+  });
+
+  final String id;
+  final String date;
+  final String department;
+  final String orderNumber;
+  final String partName;
+  final double issueWeight;
+  final double fineWeight;
+  final double runnerReturnWeight;
+  final double wastageWeight;
+  final int pieces;
+  final int stonesSet;
+  final int stonesBroken;
+  final String notes;
+
+  factory CraftsmanLedgerJobSheet.fromJson(Map<String, dynamic> json) {
+    return CraftsmanLedgerJobSheet(
+      id: json['id']?.toString() ?? '',
+      date: json['date']?.toString() ?? json['createdAt']?.toString() ?? '',
+      department: json['department']?.toString() ?? '',
+      orderNumber: json['orderNumber']?.toString() ?? '',
+      partName: json['partName']?.toString() ?? '',
+      issueWeight: (json['issueWeight'] as num?)?.toDouble() ?? 0.0,
+      fineWeight: (json['fineWeight'] as num?)?.toDouble() ??
+          (json['fineReceivedWeight'] as num?)?.toDouble() ??
+          0.0,
+      runnerReturnWeight:
+          (json['runnerReturnWeight'] as num?)?.toDouble() ?? 0.0,
+      wastageWeight: (json['wastageWeight'] as num?)?.toDouble() ??
+          (json['wastageDifference'] as num?)?.toDouble() ??
+          0.0,
+      pieces: (json['pieces'] as num?)?.toInt() ??
+          (json['totalPcs'] as num?)?.toInt() ??
+          0,
+      stonesSet: (json['stonesSet'] as num?)?.toInt() ??
+          (json['usedStonesCount'] as num?)?.toInt() ??
+          0,
+      stonesBroken: (json['stonesBroken'] as num?)?.toInt() ??
+          (json['brokenStonesCount'] as num?)?.toInt() ??
+          0,
+      notes: json['notes']?.toString() ?? '',
+    );
+  }
+}
+
+class CraftsmanDeptSummary {
+  const CraftsmanDeptSummary({
+    required this.department,
+    this.gramsHandled = 0.0,
+    this.fineReceived = 0.0,
+    this.runnerReturn = 0.0,
+    this.wastageGrams = 0.0,
+    this.pieces = 0,
+    this.stonesHandled = 0,
+  });
+
+  final String department;
+  final double gramsHandled;
+  final double fineReceived;
+  final double runnerReturn;
+  final double wastageGrams;
+  final int pieces;
+  final int stonesHandled;
+
+  factory CraftsmanDeptSummary.fromJson(Map<String, dynamic> json) {
+    return CraftsmanDeptSummary(
+      department: json['department']?.toString() ?? '',
+      gramsHandled: (json['gramsHandled'] as num?)?.toDouble() ??
+          (json['issueWeight'] as num?)?.toDouble() ??
+          0.0,
+      fineReceived: (json['fineReceived'] as num?)?.toDouble() ?? 0.0,
+      runnerReturn: (json['runnerReturn'] as num?)?.toDouble() ?? 0.0,
+      wastageGrams: (json['wastageGrams'] as num?)?.toDouble() ?? 0.0,
+      pieces: (json['pieces'] as num?)?.toInt() ??
+          (json['totalPcs'] as num?)?.toInt() ??
+          0,
+      stonesHandled: (json['stonesHandled'] as num?)?.toInt() ??
+          (json['usedStonesCount'] as num?)?.toInt() ??
+          0,
+    );
+  }
+}
+
+class CraftsmanMonthlyLedger {
+  const CraftsmanMonthlyLedger({
+    required this.craftsmanId,
+    this.craftsmanName = '',
+    required this.yearMonth,
+    this.totalGramsHandled = 0.0,
+    this.totalFineReceived = 0.0,
+    this.totalRunnerScrap = 0.0,
+    this.totalWastageGrams = 0.0,
+    this.wastagePercentage = 0.0,
+    this.totalPiecesDone = 0,
+    this.totalStonesSet = 0,
+    this.totalStonesBroken = 0,
+    this.departmentSummaries = const [],
+    this.jobSheets = const [],
+  });
+
+  final String craftsmanId;
+  final String craftsmanName;
+  final String yearMonth;
+  final double totalGramsHandled;
+  final double totalFineReceived;
+  final double totalRunnerScrap;
+  final double totalWastageGrams;
+  final double wastagePercentage;
+  final int totalPiecesDone;
+  final int totalStonesSet;
+  final int totalStonesBroken;
+  final List<CraftsmanDeptSummary> departmentSummaries;
+  final List<CraftsmanLedgerJobSheet> jobSheets;
+
+  factory CraftsmanMonthlyLedger.fromJson(Map<String, dynamic> json) {
+    final summaries = <CraftsmanDeptSummary>[];
+    if (json['departmentSummaries'] is List) {
+      for (final s in json['departmentSummaries'] as List) {
+        if (s is Map) {
+          summaries.add(
+            CraftsmanDeptSummary.fromJson(Map<String, dynamic>.from(s)),
+          );
+        }
+      }
+    }
+
+    final jobs = <CraftsmanLedgerJobSheet>[];
+    final rawJobs = json['jobSheets'] ?? json['logs'] ?? json['entries'];
+    if (rawJobs is List) {
+      for (final j in rawJobs) {
+        if (j is Map) {
+          jobs.add(
+            CraftsmanLedgerJobSheet.fromJson(Map<String, dynamic>.from(j)),
+          );
+        }
+      }
+    }
+
+    final grams = (json['totalGramsHandled'] as num?)?.toDouble() ??
+        (json['totalGrams'] as num?)?.toDouble() ??
+        0.0;
+    final wastage = (json['totalWastageGrams'] as num?)?.toDouble() ??
+        (json['totalWastage'] as num?)?.toDouble() ??
+        0.0;
+    final calculatedPercent = grams > 0 ? (wastage / grams) * 100 : 0.0;
+
+    return CraftsmanMonthlyLedger(
+      craftsmanId: json['craftsmanId']?.toString() ?? '',
+      craftsmanName: json['craftsmanName']?.toString() ??
+          json['craftsman']?['name']?.toString() ??
+          '',
+      yearMonth: json['yearMonth']?.toString() ?? '',
+      totalGramsHandled: grams,
+      totalFineReceived:
+          (json['totalFineReceived'] as num?)?.toDouble() ?? 0.0,
+      totalRunnerScrap: (json['totalRunnerScrap'] as num?)?.toDouble() ?? 0.0,
+      totalWastageGrams: wastage,
+      wastagePercentage: (json['wastagePercentage'] as num?)?.toDouble() ??
+          calculatedPercent,
+      totalPiecesDone: (json['totalPiecesDone'] as num?)?.toInt() ??
+          (json['totalPieces'] as num?)?.toInt() ??
+          0,
+      totalStonesSet: (json['totalStonesSet'] as num?)?.toInt() ?? 0,
+      totalStonesBroken: (json['totalStonesBroken'] as num?)?.toInt() ?? 0,
+      departmentSummaries: summaries,
+      jobSheets: jobs,
+    );
+  }
+}
+
+// ── 19. Master Colors & Shapes DTOs ─────────────────────────────────────────
+
+class ApiMasterAttribute {
+  const ApiMasterAttribute({
+    required this.id,
+    required this.name,
+    this.code = '',
+  });
+
+  final String id;
+  final String name;
+  final String code;
+
+  factory ApiMasterAttribute.fromJson(dynamic json) {
+    if (json is String) {
+      return ApiMasterAttribute(id: json, name: json);
+    }
+    if (json is Map) {
+      return ApiMasterAttribute(
+        id: json['id']?.toString() ?? json['name']?.toString() ?? '',
+        name: json['name']?.toString() ?? json['label']?.toString() ?? '',
+        code: json['code']?.toString() ?? json['value']?.toString() ?? '',
+      );
+    }
+    return const ApiMasterAttribute(id: '', name: '');
+  }
+}
+

@@ -1700,6 +1700,21 @@ class DemoStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void upsertOrders(List<CustomerOrder> newOrders) {
+    if (newOrders.isEmpty) return;
+    final map = <String, CustomerOrder>{
+      for (final o in _orders) (o.apiId.isNotEmpty ? o.apiId : o.id): o,
+    };
+    for (final o in newOrders) {
+      final key = o.apiId.isNotEmpty ? o.apiId : o.id;
+      map[key] = o;
+    }
+    _orders
+      ..clear()
+      ..addAll(map.values);
+    notifyListeners();
+  }
+
   void setClients(List<ClientInfo> clients) {
     _clients
       ..clear()
