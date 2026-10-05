@@ -35,6 +35,57 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   late final bool _allowStageChange;
   late List<ParentJewelleryItem> _parentItems;
   bool _requestedLiveData = false;
+  StreamSubscription<WorkshopState>? _operationSubscription;
+
+  String get _displayOrderNumber {
+    final matchingOrder = DemoStore.instance.orders
+        .where(
+          (o) =>
+              o.id == _orderId ||
+              o.apiId == _orderId ||
+              (_apiOrderId.isNotEmpty && o.apiId == _apiOrderId),
+        )
+        .firstOrNull;
+    for (final value in [
+      widget.orderData['orderNumber'],
+      matchingOrder?.id,
+      _orderId,
+    ]) {
+      final label = value?.toString().trim() ?? '';
+      if (label.isNotEmpty &&
+          label.toLowerCase() != 'order' &&
+          !KaratFlowApiRepository.isValidUuid(label)) {
+        return label;
+      }
+    }
+    return 'Number unavailable';
+  }
+
+  String _designLabel(JewelleryPart part) {
+    final rawRows = widget.orderData['designs'];
+    final rows = rawRows is List ? rawRows.whereType<Map>() : const <Map>[];
+    final row = rows
+        .where(
+          (r) =>
+              part.orderPartId != null &&
+              (r['partId'] == part.orderPartId || r['id'] == part.orderPartId),
+        )
+        .firstOrNull;
+    final design = DemoStore.instance.designs
+        .where((d) => d.id == part.code || d.code == part.code)
+        .firstOrNull;
+    for (final value in [row?['designNumber'], design?.code, part.code]) {
+      final label = (value?.toString() ?? '')
+          .split('#')
+          .first
+          .replaceFirst(RegExp(r'-assign-\d+$'), '')
+          .trim();
+      if (label.isNotEmpty && !KaratFlowApiRepository.isValidUuid(label)) {
+        return label;
+      }
+    }
+    return 'Design';
+  }
 
   @override
   void initState() {
@@ -62,17 +113,27 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     super.didChangeDependencies();
     if (_requestedLiveData) return;
     _requestedLiveData = true;
-    context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent());
-    unawaited(_loadLiveWorkerTasks());
-  }
-
-  Future<void> _loadLiveWorkerTasks() async {
-    try {
-      final tasks = await KaratFlowApiRepository().listWorkerTasks();
-      if (mounted && tasks.isNotEmpty) {
-        DemoStore.instance.setWorkerTasks(tasks);
+    _operationSubscription = context.read<WorkshopBloc>().stream.listen((
+      state,
+    ) {
+      if (!mounted) return;
+      if (state is WorkshopError) {
+        CommonSnackbar.error(
+          context,
+          title: 'Production update failed',
+          message: state.message,
+        );
+      } else if (state is WorkshopStageUpdated) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(state.message)));
       }
-    } catch (_) {}
+    });
+    final workshopBloc = context.read<WorkshopBloc>();
+    if (workshopBloc.state is WorkshopInitial ||
+        workshopBloc.state is WorkshopError) {
+      workshopBloc.add(const FetchWorkshopLotsEvent());
+    }
   }
 
   void _onStoreChanged() {
@@ -86,44 +147,99 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
   @override
   void dispose() {
+    _operationSubscription?.cancel();
     DemoStore.instance.removeListener(_onStoreChanged);
     super.dispose();
   }
 
   String? _livePartId(JewelleryPart part) {
-    final pCodeLower = part.code.toLowerCase();
-    final pNameLower = part.name.toLowerCase();
+    if (part.lotId != null && KaratFlowApiRepository.isValidUuid(part.lotId)) {
+      return part.lotId;
+    }
+    if (KaratFlowApiRepository.isValidUuid(part.orderPartId)) {
+      return part.orderPartId;
+    }
+    // 0. If part.code itself is a valid UUID or contains one
+    final cleanPartCode = KaratFlowApiRepository.extractCleanUuid(part.code);
+    if (KaratFlowApiRepository.isValidUuid(cleanPartCode)) {
+      return cleanPartCode;
+    }
 
-    // 1. Search raw order parts inside widget.orderData['parts'] or widget.orderData['orderParts']
+    final pCodeLower =
+        (part.code.contains('#') ? part.code.split('#').first : part.code)
+            .trim()
+            .toLowerCase();
+    final pNameLower = part.name.trim().toLowerCase();
+
+    // 1. Search in widget.orderData['designs'] (each row contains partId: OrderPart.id)
+    final rawDesigns = widget.orderData['designs'];
+    if (rawDesigns is List && rawDesigns.isNotEmpty) {
+      for (final r in rawDesigns) {
+        if (r is Map) {
+          final rDNum = (r['designNumber'] as String? ?? '')
+              .trim()
+              .toLowerCase();
+          final rCode = (r['code'] as String? ?? '').trim().toLowerCase();
+          final rName =
+              (r['designName'] as String? ?? r['name'] as String? ?? '')
+                  .trim()
+                  .toLowerCase();
+          final matches =
+              (rDNum.isNotEmpty && rDNum == pCodeLower) ||
+              (rCode.isNotEmpty && rCode == pCodeLower) ||
+              (pNameLower.isNotEmpty && rName == pNameLower);
+
+          if (matches) {
+            final pid = KaratFlowApiRepository.extractCleanUuid(
+              r['partId'] as String? ??
+                  r['orderPartId'] as String? ??
+                  r['id'] as String? ??
+                  '',
+            );
+            if (KaratFlowApiRepository.isValidUuid(pid)) {
+              return pid;
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Search raw order parts inside widget.orderData['parts'] or widget.orderData['orderParts']
     final rawParts =
         widget.orderData['parts'] ?? widget.orderData['orderParts'];
     if (rawParts is List && rawParts.isNotEmpty) {
       for (final p in rawParts) {
         if (p is Map) {
-          final pid = p['id'] as String? ?? '';
-          final dNum = (p['designNumber'] as String? ?? '').toLowerCase();
-          final pName = (p['name'] as String? ?? '').toLowerCase();
-          final sId = (p['sketchId'] as String? ?? '').toLowerCase();
-          final tId = (p['threeDDesignId'] as String? ?? '').toLowerCase();
+          final pid = KaratFlowApiRepository.extractCleanUuid(
+            p['id'] as String? ??
+                p['partId'] as String? ??
+                p['orderPartId'] as String? ??
+                '',
+          );
+          final dNum = (p['designNumber'] as String? ?? '')
+              .trim()
+              .toLowerCase();
+          final pName = (p['name'] as String? ?? '').trim().toLowerCase();
+          final sId = (p['sketchId'] as String? ?? '').trim().toLowerCase();
+          final tId = (p['threeDDesignId'] as String? ?? '')
+              .trim()
+              .toLowerCase();
 
           final matches =
-              pid == part.code ||
+              (pid.isNotEmpty && pid.toLowerCase() == pCodeLower) ||
               (dNum.isNotEmpty && dNum == pCodeLower) ||
               (pName.isNotEmpty && pName == pNameLower) ||
               (sId.isNotEmpty && sId == pCodeLower) ||
               (tId.isNotEmpty && tId == pCodeLower);
 
-          if (matches &&
-              pid.length > 20 &&
-              pid.contains('-') &&
-              !pid.toUpperCase().startsWith('ORD-')) {
+          if (matches && KaratFlowApiRepository.isValidUuid(pid)) {
             return pid;
           }
         }
       }
     }
 
-    // 2. Match API lots from DemoStore belonging to this order/part.
+    // 3. Match API lots from DemoStore belonging to this order/part.
     for (final lot in DemoStore.instance.lots) {
       final matchesOrder =
           lot.orderId == _orderId ||
@@ -131,34 +247,25 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       final matchesPart =
           lot.id.toLowerCase() == pCodeLower ||
           (matchesOrder &&
-              (lot.designCode.toLowerCase() == pCodeLower ||
-                  lot.productTitle.toLowerCase() == pNameLower));
+              (lot.designCode.trim().toLowerCase() == pCodeLower ||
+                  lot.productTitle.trim().toLowerCase() == pNameLower));
       if (matchesPart) {
-        if (lot.id.length > 20 &&
-            lot.id.contains('-') &&
-            !lot.id.toUpperCase().startsWith('ORD-')) {
-          return lot.id;
+        final cleanId = KaratFlowApiRepository.extractCleanUuid(lot.id);
+        if (KaratFlowApiRepository.isValidUuid(cleanId)) {
+          return cleanId;
         }
       }
     }
 
-    // 3. Direct API part ID from payload
-    final directPartId =
-        widget.orderData['orderPartId'] as String? ??
-        widget.orderData['partId'] as String? ??
-        widget.orderData['livePartId'] as String? ??
-        '';
-    if (directPartId.length > 20 &&
-        directPartId.contains('-') &&
-        !directPartId.toUpperCase().startsWith('ORD-')) {
+    // 4. Direct API part ID from payload
+    final directPartId = KaratFlowApiRepository.extractCleanUuid(
+      widget.orderData['orderPartId'] as String? ??
+          widget.orderData['partId'] as String? ??
+          widget.orderData['livePartId'] as String? ??
+          '',
+    );
+    if (KaratFlowApiRepository.isValidUuid(directPartId)) {
       return directPartId;
-    }
-
-    // 4. Direct part UUID from part.code if nothing else matched
-    if (part.code.length > 20 &&
-        part.code.contains('-') &&
-        !part.code.toUpperCase().startsWith('ORD-')) {
-      return part.code;
     }
 
     return null;
@@ -167,8 +274,10 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   void _assignLivePart(
     BuildContext context,
     JewelleryPart part,
-    String workerName,
-  ) {
+    String workerName, {
+    int? splitQuantity,
+    String? instructions,
+  }) {
     final partId = _livePartId(part);
     final selectedMember = DemoStore.instance.team
         .where(
@@ -179,17 +288,29 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         )
         .firstOrNull;
     final workerId = selectedMember?.id ?? workerName;
+    final cleanWorkerId = KaratFlowApiRepository.extractCleanUuid(workerId);
     final workerDisplayName = selectedMember?.name ?? workerName;
 
     final stages =
         DemoStore.instance.stages.where((stage) => stage.isActive).toList()
           ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
 
-    if (partId == null || workerName.trim().isEmpty) {
+    if (partId == null || !KaratFlowApiRepository.isValidUuid(partId)) {
       CommonSnackbar.error(
         context,
         title: 'Assignment Unavailable',
-        message: 'Live part and artisan details are required.',
+        message:
+            'Could not resolve a valid OrderPart UUID for ${_designLabel(part)}.',
+      );
+      return;
+    }
+
+    if (!KaratFlowApiRepository.isValidUuid(cleanWorkerId)) {
+      CommonSnackbar.error(
+        context,
+        title: 'Artisan Unavailable',
+        message:
+            'Could not resolve employee UUID for "$workerName". Please sync employees.',
       );
       return;
     }
@@ -210,53 +331,30 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     final sortedStages = List<ApiStage>.from(stages)
       ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
 
-    final firstStage = sortedStages.isNotEmpty ? sortedStages.first : null;
-
-    final currentStageMatches = sortedStages
-        .where((stage) => _domainStage(stage) == part.stage)
-        .toList();
-
-    final targetStage =
-        (part.stage == WorkshopStage.inQueue && firstStage != null)
-        ? firstStage
-        : (currentStageMatches.isNotEmpty
-              ? currentStageMatches.first
-              : (sortedStages
-                        .where(
-                          (stage) =>
-                              _domainStage(stage).index >= part.stage.index,
-                        )
-                        .firstOrNull ??
-                    firstStage));
-
-    final String stageId = targetStage != null
-        ? targetStage.id
-        : (sortedStages.firstOrNull?.id ??
-              'b467cd15-4845-4ba3-a30e-cbcc42809b76');
+    final stageIndex = ApiDomainMapper.productionStageIndex(
+      sortedStages,
+      stageId: part.apiStageId,
+      stageName: part.stageName,
+    );
+    final String? stageId = stageIndex < 0 ? null : sortedStages[stageIndex].id;
+    if (stageId == null || stageId.isEmpty) {
+      CommonSnackbar.error(
+        context,
+        title: 'Stage Unavailable',
+        message: 'No active production stage available for assignment.',
+      );
+      return;
+    }
 
     context.read<WorkshopBloc>().add(
       AllocateLotArtisanEvent(
-        lotId: partId,
+        lotId: part.lotId ?? partId,
         artisanName: workerDisplayName,
-        artisanId: workerId,
+        artisanId: cleanWorkerId,
         stageId: stageId,
+        splitQuantity: splitQuantity,
+        instructions: instructions,
       ),
-    );
-
-    final String oId =
-        (widget.orderData['orderNumber'] as String?)?.isNotEmpty == true
-        ? widget.orderData['orderNumber'] as String
-        : ((widget.orderData['id'] as String?)?.isNotEmpty == true
-              ? widget.orderData['id'] as String
-              : 'ORD-${partId.length > 4 ? partId.substring(0, 4) : partId}');
-
-    DemoStore.instance.createRequisitionForAssignment(
-      designNumber: part.code.isNotEmpty ? part.code : part.name,
-      orderId: oId,
-      artisanName: workerDisplayName,
-      stageName: targetStage != null ? targetStage.name : part.stage.label,
-      quantity: part.pieces,
-      grossWeight: part.weight,
     );
   }
 
@@ -283,89 +381,73 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         DemoStore.instance.stages.where((stage) => stage.isActive).toList()
           ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
 
-    final curIdx = stages.indexWhere(
-      (s) =>
-          _domainStage(s) == part.stage ||
-          s.name.trim().toLowerCase() ==
-              (part.stageName ?? '').trim().toLowerCase(),
+    final curIdx = ApiDomainMapper.productionStageIndex(
+      stages,
+      stageId: part.apiStageId,
+      stageName: part.stageName,
     );
-    final ApiStage? nextApiStage = (curIdx != -1 && curIdx + 1 < stages.length)
-        ? stages[curIdx + 1]
-        : null;
-    final WorkshopStage? nextStage = nextApiStage != null
-        ? _domainStage(nextApiStage)
-        : null;
-
-    final movingWholePart = quantity == null || quantity >= part.pieces;
-    if (movingWholePart) {
-      if (nextStage != null) {
-        widget.orderData['currentStageName'] =
-            nextApiStage?.name ?? nextStage.label;
-        widget.orderData['stage'] = nextApiStage?.name ?? nextStage.label;
-      } else {
-        widget.orderData['status'] = 'complete';
-        widget.orderData['currentStageName'] = 'Completed';
-        DemoStore.instance.updateOrderStatus(_orderId, OrderStatus.ready);
-      }
-    }
-
-    final partId = _livePartId(part);
-    if (partId == null) {
+    if (curIdx < 0) {
       CommonSnackbar.error(
         context,
-        title: 'Part Not Found',
-        message: 'Order part ID is required.',
+        title: 'Stage unavailable',
+        message: 'Refresh production stages before moving this part.',
       );
       return;
     }
-    context.read<WorkshopBloc>().add(
-      AdvanceLotStageEvent(partId, quantity: quantity),
-    );
-
-    if (nextWorkerName != null &&
+    final ApiStage? nextApiStage = (curIdx != -1 && curIdx + 1 < stages.length)
+        ? stages[curIdx + 1]
+        : null;
+    final partId = _livePartId(part);
+    final movingQuantity = quantity ?? part.pieces;
+    if (partId == null || movingQuantity <= 0 || movingQuantity > part.pieces) {
+      CommonSnackbar.error(
+        context,
+        title: 'Cannot move part',
+        message: 'A valid order part and quantity are required.',
+      );
+      return;
+    }
+    String? workerId;
+    if (nextApiStage != null &&
+        nextWorkerName != null &&
         nextWorkerName.isNotEmpty &&
         nextWorkerName.toLowerCase() != 'unassigned') {
-      final selectedMember = DemoStore.instance.team
+      final member = DemoStore.instance.team
           .where(
             (m) =>
                 m.name.toLowerCase() == nextWorkerName.toLowerCase() ||
                 m.id == nextWorkerName,
           )
           .firstOrNull;
-      final workerId = selectedMember?.id ?? nextWorkerName;
-      final workerDisplayName = selectedMember?.name ?? nextWorkerName;
-
-      final targetStage =
-          nextApiStage ??
-          (nextStage != null
-              ? stages
-                    .where((stage) => _domainStage(stage) == nextStage)
-                    .firstOrNull
-              : null) ??
-          (stages.isNotEmpty ? stages.last : null);
-
-      if (targetStage != null) {
-        context.read<WorkshopBloc>().add(
-          AllocateLotArtisanEvent(
-            lotId: partId,
-            artisanName: workerDisplayName,
-            artisanId: workerId,
-            stageId: targetStage.id,
-          ),
+      workerId = member?.id ?? nextWorkerName;
+      if (!KaratFlowApiRepository.isValidUuid(workerId)) {
+        CommonSnackbar.error(
+          context,
+          title: 'Worker unavailable',
+          message: 'Please select a valid employee.',
         );
+        return;
       }
     }
+    context.read<WorkshopBloc>().add(
+      AdvanceLotStageEvent(
+        partId,
+        quantity: movingQuantity,
+        nextStageId: nextApiStage?.id,
+        nextArtisanId: workerId,
+      ),
+    );
   }
 
   void _rollbackLivePart(
     BuildContext context,
     JewelleryPart part,
-    WorkshopStage target, {
+    ApiStage target, {
     int? quantity,
   }) {
     final partId = _livePartId(part);
     final stages = DemoStore.instance.stages.where(
-      (stage) => _domainStage(stage) == target,
+      (stage) => stage.id == target.id,
     );
     if (partId == null || stages.isEmpty) {
       CommonSnackbar.error(
@@ -374,10 +456,6 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         message: 'Live part and target stage IDs are required.',
       );
       return;
-    }
-    if (quantity == null || quantity >= part.pieces) {
-      widget.orderData['currentStageName'] = target.label;
-      widget.orderData['stage'] = target.label;
     }
     context.read<WorkshopBloc>().add(
       RollbackLotStageEvent(
@@ -435,9 +513,28 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         .where((id) => id.isNotEmpty)
         .toSet();
 
+    final cleanPartIdParam = partIdParam.contains('#')
+        ? partIdParam.split('#').first
+        : partIdParam;
+
+    final cleanPartIds = partIds
+        .map((id) => id.contains('#') ? id.split('#').first : id)
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
     final storeLots = DemoStore.instance.lots.where((l) {
-      if (partIdParam.isNotEmpty && l.id == partIdParam) return true;
-      if (partIds.contains(l.id)) return true;
+      final cleanLotId = l.id.contains('#') ? l.id.split('#').first : l.id;
+      if (cleanPartIdParam.isNotEmpty &&
+          (l.id == cleanPartIdParam ||
+              cleanLotId == cleanPartIdParam ||
+              l.id.startsWith('$cleanPartIdParam#'))) {
+        return true;
+      }
+      if (cleanPartIds.any(
+        (id) => l.id == id || cleanLotId == id || l.id.startsWith('$id#'),
+      )) {
+        return true;
+      }
       return l.orderId == _orderId ||
           (_apiOrderId.isNotEmpty && l.orderId == _apiOrderId) ||
           (rawId.isNotEmpty && l.orderId == rawId) ||
@@ -445,51 +542,207 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     }).toList();
 
     if (storeLots.isNotEmpty) {
-      final parts = storeLots.map((lot) {
+      final Map<String, List<WorkshopLot>> groupedLots = {};
+      for (final lot in storeLots) {
+        final cleanId = lot.id.contains('#') ? lot.id.split('#').first : lot.id;
+        final key = cleanId.isNotEmpty ? cleanId : lot.designCode;
+        groupedLots.putIfAbsent(key, () => []).add(lot);
+      }
+
+      final List<JewelleryPart> parts = [];
+      for (final entry in groupedLots.entries) {
+        final groupLots = entry.value;
+        final cleanId = entry.key.contains('#')
+            ? entry.key.split('#').first
+            : entry.key;
+
+        final matchedRow = designRows.firstWhere((r) {
+          final rPartId = r['partId'] as String? ?? '';
+          final cleanRPartId = rPartId.contains('#')
+              ? rPartId.split('#').first
+              : rPartId;
+          return (cleanId.isNotEmpty &&
+                  (cleanRPartId == cleanId || rPartId == cleanId)) ||
+              (r['designNumber'] != null &&
+                  groupLots.any((l) => l.designCode == r['designNumber']));
+        }, orElse: () => const <String, Object?>{});
         final matchedDesign = DemoStore.instance.designs
             .where(
               (d) =>
-                  (lot.designCode.isNotEmpty &&
-                      d.code.toLowerCase() == lot.designCode.toLowerCase()) ||
-                  (d.id.isNotEmpty && d.id == lot.id) ||
-                  (lot.productTitle.isNotEmpty &&
-                      d.name.toLowerCase() == lot.productTitle.toLowerCase()),
+                  groupLots.any(
+                    (l) =>
+                        l.designCode.isNotEmpty &&
+                        d.code.toLowerCase() == l.designCode.toLowerCase(),
+                  ) ||
+                  (d.id.isNotEmpty && d.id == cleanId),
             )
             .firstOrNull;
 
         final designTitle = (matchedDesign?.name.isNotEmpty == true)
             ? matchedDesign!.name
-            : (lot.productTitle.isNotEmpty ? lot.productTitle : lot.designCode);
+            : (groupLots.first.productTitle.isNotEmpty
+                  ? groupLots.first.productTitle
+                  : groupLots.first.designCode);
 
-        final apiStageName = DemoStore.instance.stages
-            .where((s) => _domainStage(s) == lot.stage)
-            .firstOrNull
-            ?.name;
-
-        final isLotComplete =
-            isCompletedOrder ||
-            lot.apiStageName.toLowerCase() == 'completed' ||
-            lot.apiStageName.toUpperCase() == 'ALL_STAGES_COMPLETED' ||
-            lot.apiStageName.toUpperCase() == 'STAGE_COMPLETED' ||
-            (lot.stage == WorkshopStage.readyForDispatch && isCompletedOrder);
-
-        return JewelleryPart(
-          name: designTitle,
-          code: lot.designCode.isNotEmpty ? lot.designCode : lot.id,
-          pieces: lot.pieces,
-          passedPieces: lot.pieces,
-          stage: lot.stage,
-          stageName: apiStageName ?? lot.stage.label,
-          assignedEmployee:
-              ((lot.assignedEmployee.isEmpty ||
-                  lot.assignedEmployee == 'Unassigned')
-              ? _extractWorkerName(widget.orderData)
-              : lot.assignedEmployee),
-          blockerReason: isOrderExplicitlyUnblocked ? null : lot.blockerReason,
-          weight: lot.issueWeightGrams,
-          isCompleted: isLotComplete,
+        final totalGroupPieces = groupLots.fold<int>(
+          0,
+          (sum, l) => sum + l.pieces,
         );
-      }).toList();
+        final totalGroupWeight = groupLots.fold<double>(
+          0.0,
+          (sum, l) => sum + l.issueWeightGrams,
+        );
+        final rowWeight =
+            (matchedRow['grossWeight'] as num?)?.toDouble() ??
+            (matchedRow['weight'] as num?)?.toDouble() ??
+            0.0;
+        final fallbackWeight =
+            (widget.orderData['totalGrossGrams'] as num?)?.toDouble() ??
+            (widget.orderData['weight'] as num?)?.toDouble() ??
+            0.0;
+        final effectiveTotalWeight = totalGroupWeight > 0
+            ? totalGroupWeight
+            : (rowWeight > 0 ? rowWeight : fallbackWeight);
+
+        if (groupLots.length == 1) {
+          final primaryLot = groupLots.first;
+          final effectiveTotalPieces = primaryLot.pieces;
+
+          final apiStageName = primaryLot.apiStageName.trim().isNotEmpty
+              ? primaryLot.apiStageName.trim()
+              : (DemoStore.instance.stages
+                        .where((s) => s.id == primaryLot.apiStageId)
+                        .firstOrNull
+                        ?.name ??
+                    '');
+
+          final isLotComplete =
+              isCompletedOrder ||
+              primaryLot.apiStageName.toLowerCase() == 'completed' ||
+              primaryLot.apiStageName.toUpperCase() == 'ALL_STAGES_COMPLETED' ||
+              primaryLot.apiStageName.toUpperCase() == 'STAGE_COMPLETED' ||
+              (primaryLot.stage == WorkshopStage.readyForDispatch &&
+                  isCompletedOrder);
+
+          String resolvedPartCode = '';
+          if (primaryLot.designCode.isNotEmpty &&
+              !KaratFlowApiRepository.isValidUuid(primaryLot.designCode)) {
+            resolvedPartCode = primaryLot.designCode;
+          } else if (matchedDesign?.code.isNotEmpty == true &&
+              !KaratFlowApiRepository.isValidUuid(matchedDesign!.code)) {
+            resolvedPartCode = matchedDesign.code;
+          } else if (matchedRow['designNumber'] is String &&
+              (matchedRow['designNumber'] as String).isNotEmpty &&
+              !KaratFlowApiRepository.isValidUuid(
+                matchedRow['designNumber'] as String,
+              )) {
+            resolvedPartCode = matchedRow['designNumber'] as String;
+          } else if (matchedRow['designCode'] is String &&
+              (matchedRow['designCode'] as String).isNotEmpty &&
+              !KaratFlowApiRepository.isValidUuid(
+                matchedRow['designCode'] as String,
+              )) {
+            resolvedPartCode = matchedRow['designCode'] as String;
+          } else if (primaryLot.designCode.isNotEmpty) {
+            resolvedPartCode = ApiDomainMapper.formatCleanDesignCode(
+              primaryLot.designCode,
+            );
+          } else {
+            resolvedPartCode = ApiDomainMapper.formatCleanDesignCode(cleanId);
+          }
+
+          parts.add(
+            JewelleryPart(
+              name: designTitle,
+              code: resolvedPartCode,
+              orderPartId: cleanId,
+              lotId: primaryLot.id,
+              pieces: effectiveTotalPieces,
+              passedPieces: effectiveTotalPieces,
+              stage: primaryLot.stage,
+              stageName: apiStageName,
+              apiStageId: primaryLot.apiStageId,
+              assignedEmployee:
+                  ((primaryLot.assignedEmployee.isEmpty ||
+                      primaryLot.assignedEmployee == 'Unassigned')
+                  ? _extractWorkerName(widget.orderData)
+                  : primaryLot.assignedEmployee),
+              blockerReason: isOrderExplicitlyUnblocked
+                  ? null
+                  : primaryLot.blockerReason,
+              weight: effectiveTotalWeight,
+              isCompleted: isLotComplete,
+            ),
+          );
+        } else {
+          // Multiple split assignments / remainder for this design part
+          for (final lot in groupLots) {
+            final apiStageName = lot.apiStageName.trim().isNotEmpty
+                ? lot.apiStageName.trim()
+                : (DemoStore.instance.stages
+                          .where((s) => s.id == lot.apiStageId)
+                          .firstOrNull
+                          ?.name ??
+                      '');
+            final isAssigned =
+                lot.assignedEmployee.isNotEmpty &&
+                lot.assignedEmployee.toLowerCase() != 'unassigned';
+            final batchName = isAssigned
+                ? '$designTitle · ${lot.assignedEmployee}'
+                : '$designTitle · Remaining Unassigned';
+
+            final isLotComplete =
+                isCompletedOrder ||
+                lot.apiStageName.toLowerCase() == 'completed' ||
+                lot.apiStageName.toUpperCase() == 'ALL_STAGES_COMPLETED' ||
+                lot.apiStageName.toUpperCase() == 'STAGE_COMPLETED' ||
+                (lot.stage == WorkshopStage.readyForDispatch &&
+                    isCompletedOrder);
+
+            String lotPartCode = '';
+            if (lot.designCode.isNotEmpty &&
+                !KaratFlowApiRepository.isValidUuid(lot.designCode)) {
+              lotPartCode = lot.designCode;
+            } else if (matchedDesign?.code.isNotEmpty == true &&
+                !KaratFlowApiRepository.isValidUuid(matchedDesign!.code)) {
+              lotPartCode = matchedDesign.code;
+            } else if (lot.designCode.isNotEmpty) {
+              lotPartCode = ApiDomainMapper.formatCleanDesignCode(
+                lot.designCode,
+              );
+            } else {
+              lotPartCode = ApiDomainMapper.formatCleanDesignCode(cleanId);
+            }
+
+            parts.add(
+              JewelleryPart(
+                name: batchName,
+                code: lotPartCode,
+                orderPartId: cleanId,
+                lotId: lot.id,
+                pieces: lot.pieces,
+                passedPieces: lot.pieces,
+                stage: lot.stage,
+                stageName: apiStageName,
+                apiStageId: lot.apiStageId,
+                assignedEmployee: isAssigned
+                    ? lot.assignedEmployee
+                    : 'Unassigned',
+                blockerReason: isOrderExplicitlyUnblocked
+                    ? null
+                    : lot.blockerReason,
+                weight: lot.issueWeightGrams > 0
+                    ? lot.issueWeightGrams
+                    : (totalGroupPieces > 0
+                          ? effectiveTotalWeight *
+                                (lot.pieces / totalGroupPieces)
+                          : 0.0),
+                isCompleted: isLotComplete,
+              ),
+            );
+          }
+        }
+      }
 
       items.add(
         ParentJewelleryItem(
@@ -554,7 +807,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 
         return JewelleryPart(
           name: designTitle,
-          code: dNumber.isNotEmpty ? dNumber : (pId.isNotEmpty ? pId : 'Part'),
+          code: dNumber,
+          orderPartId: pId,
           pieces: qty,
           passedPieces: qty,
           stage: stg,
@@ -931,10 +1185,13 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
             part.assignedEmployee != 'Unassigned')
         ? part.assignedEmployee!
         : workers.first.name;
+    String workerQuery = '';
     int selectedQuantity = part.pieces;
     final TextEditingController quantityController = TextEditingController(
       text: '$selectedQuantity',
     );
+    final TextEditingController instructionsController =
+        TextEditingController();
 
     if (!context.mounted) return;
     showModalBottomSheet<void>(
@@ -947,7 +1204,14 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Padding(
+            final filteredWorkers = workers
+                .where(
+                  (member) =>
+                      member.name.toLowerCase().contains(workerQuery) ||
+                      member.craft.toLowerCase().contains(workerQuery),
+                )
+                .toList();
+            return SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
                 20,
                 20,
@@ -970,7 +1234,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Assign Worker & Set Quantity · ${part.code}',
+                    'Assign Worker & Set Quantity · ${_designLabel(part)}',
                     style: const TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
@@ -1180,14 +1444,29 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
+                  CommonSearchBar(
+                    hintText: 'Search workers by name or craft...',
+                    onChanged: (value) => setModalState(() {
+                      workerQuery = value.trim().toLowerCase();
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  if (filteredWorkers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'No workers found.',
+                        style: TextStyle(color: AppColors.muted),
+                      ),
+                    ),
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxHeight: 200),
                     child: ListView.separated(
                       shrinkWrap: true,
-                      itemCount: workers.length,
+                      itemCount: filteredWorkers.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
-                        final member = workers[index];
+                        final member = filteredWorkers[index];
                         final isSelected = member.name == selectedWorker;
                         final isSkillMatch = _isWorkerSkillMatch(
                           member,
@@ -1306,11 +1585,61 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                       },
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Artisan Assignment Instructions (Optional):',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: instructionsController,
+                    decoration: InputDecoration(
+                      hintText: 'e.g., Handle ring sizing for batch A',
+                      hintStyle: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.muted,
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.outline),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.outline),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(
+                          color: AppColors.emerald,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    style: const TextStyle(fontSize: 12, color: AppColors.ink),
+                  ),
                   const SizedBox(height: 16),
                   CommonButton.primary(
                     label: 'Confirm Assignment',
                     onPressed: () {
-                      _assignLivePart(context, part, selectedWorker);
+                      _assignLivePart(
+                        context,
+                        part,
+                        selectedWorker,
+                        splitQuantity: selectedQuantity,
+                        instructions:
+                            instructionsController.text.trim().isNotEmpty
+                            ? instructionsController.text.trim()
+                            : null,
+                      );
                       Navigator.pop(ctx);
                     },
                   ),
@@ -1329,10 +1658,15 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     int defectivePcs = totalPcs - passedPcs;
     final passedController = TextEditingController(text: '$passedPcs');
 
-    final values = WorkshopStage.values;
-    final currentIdx = values.indexOf(part.stage);
-    final nextStageLabel = (currentIdx < values.length - 1)
-        ? values[currentIdx + 1].label
+    final values = DemoStore.instance.stages.where((s) => s.isActive).toList()
+      ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+    final currentIdx = ApiDomainMapper.productionStageIndex(
+      values,
+      stageId: part.apiStageId,
+      stageName: part.stageName,
+    );
+    final nextStageLabel = (currentIdx >= 0 && currentIdx < values.length - 1)
+        ? values[currentIdx + 1].name
         : '';
     final nextCraftWorkers = _getCraftWorkersForStage(nextStageLabel);
     final workers = nextCraftWorkers.isNotEmpty
@@ -1346,6 +1680,8 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         ? part.assignedEmployee!
         : (workers.isNotEmpty ? workers.first.name : '');
 
+    String workerQuery = '';
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1356,7 +1692,14 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Padding(
+            final filteredWorkers = workers
+                .where(
+                  (member) =>
+                      member.name.toLowerCase().contains(workerQuery) ||
+                      member.craft.toLowerCase().contains(workerQuery),
+                )
+                .toList();
+            return SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
                 20,
                 20,
@@ -1388,7 +1731,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${part.name} (${part.code}) · Total $totalPcs Pcs',
+                    '${part.name} (${_designLabel(part)}) · Total $totalPcs Pcs',
                     style: const TextStyle(
                       color: AppColors.muted,
                       fontSize: 12,
@@ -1640,13 +1983,28 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
+                  CommonSearchBar(
+                    hintText: 'Search workers by name or craft...',
+                    onChanged: (value) => setModalState(() {
+                      workerQuery = value.trim().toLowerCase();
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  if (filteredWorkers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'No workers found.',
+                        style: TextStyle(color: AppColors.muted),
+                      ),
+                    ),
                   Container(
                     constraints: const BoxConstraints(maxHeight: 160),
                     child: ListView.builder(
                       shrinkWrap: true,
-                      itemCount: workers.length,
+                      itemCount: filteredWorkers.length,
                       itemBuilder: (ctx, i) {
-                        final member = workers[i];
+                        final member = filteredWorkers[i];
                         final isSelected = member.name == selectedNextWorker;
                         final isSkillMatch = _isWorkerSkillMatch(
                           member,
@@ -1779,71 +2137,42 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                               (a, b) => a.stageNumber.compareTo(b.stageNumber),
                             );
 
-                      final currentIdx = activeStages.indexWhere(
-                        (s) =>
-                            _domainStage(s) == part.stage ||
-                            s.name.trim().toLowerCase() ==
-                                (part.stageName ?? '').trim().toLowerCase(),
+                      final currentIdx = ApiDomainMapper.productionStageIndex(
+                        activeStages,
+                        stageId: part.apiStageId,
+                        stageName: part.stageName,
                       );
                       final ApiStage? nextStage =
                           (currentIdx != -1 &&
                               currentIdx + 1 < activeStages.length)
                           ? activeStages[currentIdx + 1]
                           : null;
-                      final bool isLast =
-                          currentIdx != -1 &&
-                          currentIdx >= activeStages.length - 1;
 
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (!isLast || nextStage != null)
-                            CommonButton.primary(
-                              label: nextStage != null
-                                  ? 'Move $passedPcs Pcs to Next Stage (${nextStage.name}) →'
-                                  : 'Complete Order / Dispatch ($passedPcs Pcs) ✅',
-                              onPressed: () {
-                                final partId = _livePartId(part);
+                          CommonButton.primary(
+                            label: currentIdx < 0
+                                ? 'Stage unavailable — refresh required'
+                                : nextStage != null
+                                ? 'Move $passedPcs Pcs to Next Stage (${nextStage.name}) →'
+                                : 'Complete Order / Dispatch ($passedPcs Pcs) ✅',
+                            onPressed: () {
+                              final partId = _livePartId(part);
 
-                                if (partId != null) {
-                                  if (passedPcs > 0) {
-                                    _advanceLivePart(
-                                      context,
-                                      part,
-                                      quantity: passedPcs,
-                                      nextWorkerName: selectedNextWorker,
-                                    );
-                                  }
-                                  if (passedPcs >= totalPcs &&
-                                      nextStage == null) {
-                                    widget.orderData['status'] = 'complete';
-                                    DemoStore.instance.updateOrderStatus(
-                                      _orderId,
-                                      OrderStatus.ready,
-                                    );
-                                  }
+                              if (partId != null) {
+                                if (passedPcs > 0) {
+                                  _advanceLivePart(
+                                    context,
+                                    part,
+                                    quantity: passedPcs,
+                                    nextWorkerName: selectedNextWorker,
+                                  );
                                 }
-                                Navigator.pop(ctx);
-                                setState(() {
-                                  _parentItems = _getParentItems();
-                                });
-                                ScaffoldMessenger.of(context).clearSnackBars();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    duration: const Duration(seconds: 2),
-                                    behavior: SnackBarBehavior.floating,
-                                    content: Text(
-                                      defectivePcs > 0
-                                          ? 'Moved $passedPcs pcs → ${nextStage?.name ?? "Next Stage"} (Assigned to $selectedNextWorker). $defectivePcs pcs remaining in ${part.stage.label}!'
-                                          : (nextStage != null
-                                                ? 'Moved $passedPcs pcs → ${nextStage.name} (Assigned to $selectedNextWorker)!'
-                                                : 'Completed $passedPcs pcs! Order is ready.'),
-                                    ),
-                                    backgroundColor: AppColors.emerald,
-                                  ),
-                                );
-                              },
-                            ),
+                              }
+                              Navigator.pop(ctx);
+                            },
+                          ),
                           if (DemoStore.instance.activeRole ==
                               AppRole.processManager) ...[
                             const SizedBox(height: 10),
@@ -1869,8 +2198,13 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   }
 
   void _movePartBackStage(BuildContext context, JewelleryPart part) {
-    final values = WorkshopStage.values;
-    final currentIdx = values.indexOf(part.stage);
+    final values = DemoStore.instance.stages.where((s) => s.isActive).toList()
+      ..sort((a, b) => a.stageNumber.compareTo(b.stageNumber));
+    final currentIdx = ApiDomainMapper.productionStageIndex(
+      values,
+      stageId: part.apiStageId,
+      stageName: part.stageName,
+    );
 
     if (currentIdx <= 0) {
       CommonSnackbar.error(
@@ -1932,7 +2266,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${part.name} (${part.code}) · Currently at ${part.stage.label}',
+                    '${part.name} (${_designLabel(part)}) · Currently at ${part.stage.label}',
                     style: const TextStyle(
                       color: AppColors.muted,
                       fontSize: 12,
@@ -2113,6 +2447,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                         final stage =
                             previousStages[previousStages.length - 1 - index];
                         final stageIdx = values.indexOf(stage);
+                        final displayStage = _domainStage(stage);
                         final stepsBack = currentIdx - stageIdx;
 
                         return InkWell(
@@ -2135,7 +2470,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                 duration: const Duration(seconds: 2),
                                 behavior: SnackBarBehavior.floating,
                                 content: Text(
-                                  'Moved $selectedPieces pcs of ${part.name} ↺ back to ${stage.label}',
+                                  'Requested move of $selectedPieces pcs of ${part.name} back to ${stage.name}',
                                 ),
                                 backgroundColor: AppColors.warning,
                               ),
@@ -2164,14 +2499,14 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
                                     color: _getStageColor(
-                                      stage,
+                                      displayStage,
                                     ).withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Icon(
-                                    _getStageIcon(stage),
+                                    _getStageIcon(displayStage),
                                     size: 18,
-                                    color: _getStageColor(stage),
+                                    color: _getStageColor(displayStage),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -2181,7 +2516,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        stage.label,
+                                        stage.name,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w700,
                                           fontSize: 14,
@@ -2308,7 +2643,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${part.name} (${part.code}) · Stage: ${part.stage.label}',
+                          '${part.name} (${_designLabel(part)}) · Stage: ${part.stage.label}',
                           style: const TextStyle(
                             color: AppColors.muted,
                             fontSize: 12,
@@ -2494,11 +2829,31 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     );
   }
 
-  int _getPiecesCountForStage(WorkshopStage stage) {
+  /// Checks if a JewelleryPart belongs to a specific ApiStage.
+  bool _isPartInApiStage(JewelleryPart part, ApiStage apiStage) {
+    final stageId = apiStage.id.trim();
+    final stageName = apiStage.name.trim().toLowerCase();
+    final pApiStageId = (part.apiStageId ?? '').trim();
+    final pStageName = (part.stageName ?? '').trim().toLowerCase();
+
+    if (pApiStageId.isNotEmpty && stageId.isNotEmpty) {
+      return pApiStageId == stageId;
+    }
+    if (pStageName.isNotEmpty && stageName.isNotEmpty) {
+      return pStageName == stageName;
+    }
+    return false;
+  }
+
+  /// Counts pieces by matching the raw API stage ID or name directly.
+  /// Uses exact ID and name matching to avoid cross-stage leakage
+  /// (e.g. 'WAX INJECT' matching 'Waxing').
+  int _getPiecesCountForApiStage(ApiStage apiStage) {
     int count = 0;
     for (var item in _parentItems) {
       for (var part in item.parts) {
-        if (part.stage == stage && !part.isCompleted) {
+        if (part.isCompleted) continue;
+        if (_isPartInApiStage(part, apiStage)) {
           count += part.pieces;
         }
       }
@@ -2543,8 +2898,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         showBrand: false,
         showBackButton: true,
         title: 'Stage Overview',
-        subtitle:
-            'Order ${ApiDomainMapper.formatOrderNumber(_orderId)} · $_client',
+        subtitle: '$_displayOrderNumber · $_client',
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -2687,18 +3041,30 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       ),
     );
 
+    final bool allPartsReadyOrDone =
+        _parentItems.isNotEmpty &&
+        _parentItems.every(
+          (item) =>
+              item.parts.isNotEmpty &&
+              item.parts.every(
+                (p) =>
+                    p.isCompleted || p.stage == WorkshopStage.readyForDispatch,
+              ),
+        );
+
     final bool isCompleted =
-        !hasUnfinishedParts &&
-        (statusStr == 'complete' ||
-            statusStr == 'completed' ||
-            statusStr == 'ready' ||
-            statusStr == 'delivered' ||
-            stageStr == 'completed' ||
-            stageStr == 'all_stages_completed' ||
-            (_parentItems.isNotEmpty &&
-                _parentItems.every(
-                  (item) => item.parts.every((p) => p.isCompleted),
-                )));
+        allPartsReadyOrDone ||
+        (!hasUnfinishedParts &&
+            (statusStr == 'complete' ||
+                statusStr == 'completed' ||
+                statusStr == 'ready' ||
+                statusStr == 'delivered' ||
+                stageStr == 'completed' ||
+                stageStr == 'all_stages_completed' ||
+                (_parentItems.isNotEmpty &&
+                    _parentItems.every(
+                      (item) => item.parts.every((p) => p.isCompleted),
+                    ))));
 
     final hasBlockedPart = _parentItems.any(
       (item) => item.parts.any((p) => p.blockerReason != null),
@@ -2736,18 +3102,20 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       CommonText.titleMedium(
-                        _title,
+                        _displayOrderNumber,
                         fontWeight: FontWeight.w800,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
-                      CommonText.bodySmall(
-                        'Purity Details: $_purity',
-                        color: AppColors.muted,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      if (_purity.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        CommonText.bodySmall(
+                          _purity,
+                          color: AppColors.muted,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -3044,19 +3412,30 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
   }
 
   Widget _buildStagesList() {
-    final seen = <WorkshopStage>{};
-    final apiStages = <ApiStage>[];
-    for (final s in DemoStore.instance.stages) {
-      final domain = _domainStage(s);
-      if (seen.add(domain)) {
-        apiStages.add(s);
-      }
-    }
+    final apiStages = DemoStore.instance.stages
+        .where((s) => s.isActive)
+        .toList();
     final String statusStr = (widget.orderData['status'] as String? ?? '')
         .toLowerCase();
     final String stageStr = (widget.orderData['stage'] as String? ?? '')
         .toLowerCase();
+    // Also treat as complete if every part has been dispatched / is done
+    final bool allPartsCompleted =
+        _parentItems.isNotEmpty &&
+        _parentItems.every(
+          (item) =>
+              item.parts.isNotEmpty &&
+              item.parts.every(
+                (p) =>
+                    p.isCompleted ||
+                    p.stage == WorkshopStage.readyForDispatch ||
+                    ((p.stageName ?? '').toUpperCase() ==
+                        'ALL_STAGES_COMPLETED'),
+              ),
+        );
+
     final bool isEntireOrderCompleted =
+        allPartsCompleted ||
         statusStr == 'complete' ||
         statusStr == 'completed' ||
         statusStr == 'ready' ||
@@ -3067,30 +3446,23 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
     int highestReachedStageIndex = -1;
     for (final item in _parentItems) {
       for (final p in item.parts) {
-        final pIdx = apiStages.indexWhere(
-          (s) =>
-              _domainStage(s) == p.stage ||
-              s.name.trim().toLowerCase() ==
-                  (p.stageName ?? '').trim().toLowerCase() ||
-              (s.name.toLowerCase().contains('fil') &&
-                  p.stage == WorkshopStage.filingAndAssembly) ||
-              (s.name.toLowerCase().contains('wax') &&
-                  p.stage == WorkshopStage.cadAndWax) ||
-              (s.name.toLowerCase().contains('cast') &&
-                  p.stage == WorkshopStage.casting) ||
-              (s.name.toLowerCase().contains('set') &&
-                  p.stage == WorkshopStage.stoneSetting) ||
-              (s.name.toLowerCase().contains('pol') &&
-                  p.stage == WorkshopStage.polishing) ||
-              (s.name.toLowerCase().contains('qc') &&
-                  p.stage == WorkshopStage.qualityCheck) ||
-              (s.name.toLowerCase().contains('pack') &&
-                  p.stage == WorkshopStage.readyForDispatch),
+        final pIdx = ApiDomainMapper.productionStageIndex(
+          apiStages,
+          stageId: p.apiStageId,
+          stageName: p.stageName,
         );
         if (pIdx > highestReachedStageIndex) {
           highestReachedStageIndex = pIdx;
         }
       }
+    }
+
+    // When all parts are at readyForDispatch, they don't match any real ApiStage
+    // so highestReachedStageIndex stays -1. Pin it to the last stage so all cards go green.
+    if (isEntireOrderCompleted &&
+        highestReachedStageIndex == -1 &&
+        apiStages.isNotEmpty) {
+      highestReachedStageIndex = apiStages.length - 1;
     }
 
     return ListView.separated(
@@ -3101,7 +3473,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
       itemBuilder: (context, index) {
         final apiStage = apiStages[index];
         final stage = _domainStage(apiStage);
-        final count = _getPiecesCountForStage(stage);
+        final count = _getPiecesCountForApiStage(apiStage);
         final isSelected = _selectedStageFilter == stage;
         final stageColor = _getStageColor(stage);
 
@@ -3333,16 +3705,12 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
         final isStageDone =
             isEntireOrderCompleted || isStagePast || isCurrentStageCompleted;
 
-        // Find parts in this stage (or completed for this stage)
+        // Find parts belonging to this specific stage
         final stageParts = <JewelleryPart>[];
         for (final parent in _parentItems) {
           for (final part in parent.parts) {
-            if (isCurrentStage || (isStagePast && isStageDone)) {
-              if (part.stage == stage ||
-                  (isStagePast && part.stage.index >= stage.index) ||
-                  isCurrentStage) {
-                stageParts.add(part);
-              }
+            if (_isPartInApiStage(part, apiStage)) {
+              stageParts.add(part);
             }
           }
         }
@@ -3585,10 +3953,22 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Top Row: Code Badge + Title + Pieces/Weight
-                                    Row(
+                                    Text(
+                                      part.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                        color: AppColors.ink,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
                                       crossAxisAlignment:
-                                          CrossAxisAlignment.center,
+                                          WrapCrossAlignment.center,
                                       children: [
                                         Container(
                                           padding: const EdgeInsets.symmetric(
@@ -3602,7 +3982,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                             ),
                                           ),
                                           child: Text(
-                                            part.code,
+                                            _designLabel(part),
                                             style: const TextStyle(
                                               color: AppColors.emeraldDark,
                                               fontWeight: FontWeight.w800,
@@ -3610,45 +3990,16 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            part.name,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 13,
-                                              color: AppColors.ink,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 2.5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.paper,
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            border: Border.all(
-                                              color: AppColors.outlineLight,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '${part.pieces} pcs${part.weight != null ? " · ${part.weight}g" : ""}',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 11,
-                                              color: AppColors.muted,
-                                            ),
+                                        Text(
+                                          '${part.pieces} pcs${part.weight != null ? " · ${part.weight!.toStringAsFixed(1)}g" : ""}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 11,
+                                            color: AppColors.muted,
                                           ),
                                         ),
                                       ],
                                     ),
-
                                     const SizedBox(height: 8),
 
                                     // Worker Assignment & Status Row (Wrap prevents any overflow)
@@ -3860,9 +4211,13 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                     ],
 
                                     // Unified Action Bar for Process Manager
-                                    if (_allowStageChange ||
-                                        DemoStore.instance.activeRole ==
-                                            AppRole.processManager) ...[
+                                    // Hidden once the part is dispatched or completed — no further actions allowed
+                                    if (part.stage !=
+                                            WorkshopStage.readyForDispatch &&
+                                        !part.isCompleted &&
+                                        (_allowStageChange ||
+                                            DemoStore.instance.activeRole ==
+                                                AppRole.processManager)) ...[
                                       const SizedBox(height: 10),
                                       const Divider(
                                         height: 1,
@@ -4350,7 +4705,7 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     CommonText.bodySmall(
-                                      '${item.code} · ${item.parts.length} lots/parts in stage',
+                                      '$_displayOrderNumber · ${item.parts.length} lots/parts in stage',
                                       color: AppColors.muted,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -4427,23 +4782,28 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                         part.code.toLowerCase() != part.name.toLowerCase()) ...[
                       const SizedBox(height: 3),
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1.5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.paper,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: AppColors.outline),
-                            ),
-                            child: Text(
-                              'Design #${part.code}',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.muted,
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.paper,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: AppColors.outline),
+                              ),
+                              child: Text(
+                                'Design #${_designLabel(part)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.muted,
+                                ),
                               ),
                             ),
                           ),
@@ -4511,19 +4871,26 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
                 ],
               ),
               if (part.assignedEmployee != null)
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.person_outline,
-                      size: 13,
-                      color: AppColors.muted,
-                    ),
-                    const SizedBox(width: 4),
-                    CommonText.bodySmall(
-                      part.assignedEmployee!,
-                      color: AppColors.muted,
-                    ),
-                  ],
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.person_outline,
+                        size: 13,
+                        color: AppColors.muted,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: CommonText.bodySmall(
+                          part.assignedEmployee!,
+                          color: AppColors.muted,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
             ],
           ),
@@ -4661,11 +5028,14 @@ class _StageOverviewScreenState extends State<StageOverviewScreen> {
 class JewelleryPart {
   final String name;
   final String code;
+  final String? orderPartId;
+  final String? lotId;
   final int pieces;
   final int passedPieces;
   final int defectivePieces;
   final WorkshopStage stage;
   final String? stageName;
+  final String? apiStageId;
   final String? assignedEmployee;
   final String? blockerReason;
   final double? weight;
@@ -4676,9 +5046,12 @@ class JewelleryPart {
     required this.code,
     required this.pieces,
     required this.passedPieces,
+    this.orderPartId,
+    this.lotId,
     this.defectivePieces = 0,
     required this.stage,
     this.stageName,
+    this.apiStageId,
     this.assignedEmployee,
     this.blockerReason,
     this.weight,
@@ -4693,6 +5066,7 @@ class JewelleryPart {
     int? defectivePieces,
     WorkshopStage? stage,
     String? stageName,
+    String? apiStageId,
     String? assignedEmployee,
     String? blockerReason,
     bool clearBlocker = false,
@@ -4702,11 +5076,14 @@ class JewelleryPart {
     return JewelleryPart(
       name: name ?? this.name,
       code: code ?? this.code,
+      orderPartId: orderPartId,
+      lotId: lotId,
       pieces: pieces ?? this.pieces,
       passedPieces: passedPieces ?? this.passedPieces,
       defectivePieces: defectivePieces ?? this.defectivePieces,
       stage: stage ?? this.stage,
       stageName: stageName ?? this.stageName,
+      apiStageId: apiStageId ?? this.apiStageId,
       assignedEmployee: assignedEmployee ?? this.assignedEmployee,
       blockerReason: clearBlocker
           ? null

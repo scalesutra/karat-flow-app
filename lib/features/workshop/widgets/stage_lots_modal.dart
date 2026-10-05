@@ -37,308 +37,331 @@ class StageLotsModal extends StatelessWidget {
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
-        final liveLots = store.lots
+        final lots = store.lots
             .where(
               (l) =>
-                  l.stage.label.toLowerCase() ==
-                  (stage['name'] as String? ?? '').toLowerCase(),
+                  l.apiStageId.isNotEmpty && l.apiStageId == stage['stageId'],
             )
             .toList();
-        final lots = liveLots.isNotEmpty
-            ? liveLots
-            : ((stage['lots'] as List<WorkshopLot>?) ?? []);
 
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.outline,
-                    borderRadius: BorderRadius.circular(2),
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.outline,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    stage['name'] as String,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.emeraldLight,
-                      borderRadius: BorderRadius.circular(
-                        AppDimensions.radiusFull,
-                      ),
-                    ),
-                    child: Text(
-                      '${lots.length} lots',
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      stage['name'] as String,
                       style: const TextStyle(
-                        color: AppColors.emeraldDark,
                         fontWeight: FontWeight.w800,
-                        fontSize: 11,
+                        fontSize: 16,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Active Lots on Bench:',
-                    style: TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (store.activeRole == AppRole.processManager &&
-                      lots.isNotEmpty)
-                    InkWell(
-                      onTap: () {
-                        for (final lot in lots) {
-                          context.read<WorkshopBloc>().add(
-                            AdvanceLotStageEvent(lot.id),
-                          );
-                        }
-                        Navigator.pop(context);
-                        CommonSnackbar.success(
-                          context,
-                          title: 'Bulk Stage Advance',
-                          message:
-                              'All ${lots.length} lots moved to next stage.',
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.emerald,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.fast_forward_rounded,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Advance All (${lots.length})',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
                       ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (lots.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(
-                    child: Text(
-                      'No lots currently in this stage.',
-                      style: TextStyle(color: AppColors.muted, fontSize: 12),
-                    ),
-                  ),
-                )
-              else
-                for (final lot in lots)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.canvas,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.outline),
+                        color: AppColors.emeraldLight,
+                        borderRadius: BorderRadius.circular(
+                          AppDimensions.radiusFull,
+                        ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                      child: Text(
+                        '${lots.length} lots',
+                        style: const TextStyle(
+                          color: AppColors.emeraldDark,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Active Lots on Bench:',
+                      style: TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (store.activeRole == AppRole.processManager &&
+                        lots.isNotEmpty)
+                      InkWell(
+                        onTap: () {
+                          for (final lot in lots) {
+                            context.read<WorkshopBloc>().add(
+                              AdvanceLotStageEvent(lot.id),
+                            );
+                          }
+                          Navigator.pop(context);
+                          CommonSnackbar.success(
+                            context,
+                            title: 'Bulk Stage Advance',
+                            message:
+                                'All ${lots.length} lots moved to next stage.',
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.emerald,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.emeraldLight,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  ApiDomainMapper.formatCleanDesignCode(
-                                    lot.designCode.isNotEmpty
-                                        ? lot.designCode
-                                        : lot.id,
-                                  ),
-                                  style: const TextStyle(
-                                    color: AppColors.emeraldDark,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 11,
-                                  ),
-                                ),
+                              const Icon(
+                                Icons.fast_forward_rounded,
+                                size: 14,
+                                color: Colors.white,
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  lot.productTitle,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
+                              const SizedBox(width: 4),
                               Text(
-                                '${lot.issueWeightGrams} g',
+                                'Advance All (${lots.length})',
                                 style: const TextStyle(
+                                  color: Colors.white,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: 12,
-                                  color: AppColors.ink,
+                                  fontSize: 11,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Order: ${lot.orderId} · Worker: ${lot.assignedEmployee}',
-                            style: const TextStyle(
-                              color: AppColors.muted,
-                              fontSize: 11,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              if (store.activeRole ==
-                                  AppRole.processManager) ...[
-                                InkWell(
-                                  onTap: () {
-                                    _showRollbackDialog(context, lot, store);
-                                  },
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.warning.withValues(
-                                        alpha: 0.15,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: AppColors.warning.withValues(
-                                          alpha: 0.4,
-                                        ),
-                                      ),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (lots.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: Text(
+                        'No lots currently in this stage.',
+                        style: TextStyle(color: AppColors.muted, fontSize: 12),
+                      ),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final lot in lots)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.canvas,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.outline),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
                                       children: [
-                                        Icon(
-                                          Icons.undo,
-                                          size: 12,
-                                          color: AppColors.warning,
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.emeraldLight,
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            ApiDomainMapper.formatCleanDesignCode(
+                                              lot.designCode.isNotEmpty
+                                                  ? lot.designCode
+                                                  : lot.id,
+                                            ),
+                                            style: const TextStyle(
+                                              color: AppColors.emeraldDark,
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 11,
+                                            ),
+                                          ),
                                         ),
-                                        SizedBox(width: 4),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            lot.productTitle,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
                                         Text(
-                                          '↺ Revert Stage',
-                                          style: TextStyle(
-                                            color: AppColors.warning,
+                                          '${lot.issueWeightGrams} g',
+                                          style: const TextStyle(
                                             fontWeight: FontWeight.w800,
-                                            fontSize: 11,
+                                            fontSize: 12,
+                                            color: AppColors.ink,
                                           ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                              ],
-                              InkWell(
-                                onTap: () {
-                                  context.read<WorkshopBloc>().add(
-                                    AdvanceLotStageEvent(lot.id),
-                                  );
-                                  Navigator.pop(context);
-                                  CommonSnackbar.success(
-                                    context,
-                                    title: 'Stage Advanced',
-                                    message:
-                                        '${lot.id} (${lot.productTitle}) moved to next stage.',
-                                  );
-                                },
-                                borderRadius: BorderRadius.circular(8),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.emerald,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        'Next Stage ➡️',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 11,
-                                        ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Order: ${lot.orderId.length > 8 ? '${lot.orderId.substring(0, 8).toUpperCase()}…' : lot.orderId.toUpperCase()} · Worker: ${lot.assignedEmployee}',
+                                      style: const TextStyle(
+                                        color: AppColors.muted,
+                                        fontSize: 11,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        if (store.activeRole ==
+                                            AppRole.processManager) ...[
+                                          InkWell(
+                                            onTap: () {
+                                              _showRollbackDialog(
+                                                context,
+                                                lot,
+                                                store,
+                                              );
+                                            },
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 5,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.warning
+                                                    .withValues(alpha: 0.15),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: AppColors.warning
+                                                      .withValues(alpha: 0.4),
+                                                ),
+                                              ),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.undo,
+                                                    size: 12,
+                                                    color: AppColors.warning,
+                                                  ),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    '↺ Revert Stage',
+                                                    style: TextStyle(
+                                                      color: AppColors.warning,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      fontSize: 11,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                        ],
+                                        InkWell(
+                                          onTap: () {
+                                            context.read<WorkshopBloc>().add(
+                                              AdvanceLotStageEvent(lot.id),
+                                            );
+                                            Navigator.pop(context);
+                                            CommonSnackbar.success(
+                                              context,
+                                              title: 'Stage Advanced',
+                                              message:
+                                                  '${lot.id} (${lot.productTitle}) moved to next stage.',
+                                            );
+                                          },
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 5,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.emerald,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  'Next Stage ➡️',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
                         ],
                       ),
                     ),
                   ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: CommonButton.primary(
-                  height: 40,
-                  label: 'Done',
-                  onPressed: () => Navigator.pop(context),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: CommonButton.primary(
+                    height: 40,
+                    label: 'Done',
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

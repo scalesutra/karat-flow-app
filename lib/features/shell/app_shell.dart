@@ -26,8 +26,8 @@ import '../tasks/task_pages.dart';
 import '../workshop/product_manager_page.dart';
 import '../workshop/team_page.dart';
 import '../workshop/workshop_more_page.dart';
-import '../workshop_artisan/artisan_dashboard_page.dart';
-import '../worker/worker_dashboard_page.dart';
+// import '../workshop_artisan/artisan_dashboard_page.dart'; // DISABLED: Factory workers don't use phones
+// import '../worker/worker_dashboard_page.dart'; // DISABLED: Factory workers don't use phones
 import '../stockist/stockist_dashboard_page.dart';
 
 class AppShell extends StatefulWidget {
@@ -190,23 +190,17 @@ class _AppShellState extends State<AppShell> {
         role: AppRole.rawDesigner,
       ),
     ],
+    // DISABLED: Factory workers don't use phones — Process Manager handles stage/complete
     AppRole.workshopArtisan => [
-      WorkerDashboardPage(store: widget.store),
-      RoleProfilePage(
-        title: 'Workshop Artisan Profile',
-        description: 'Review your authenticated workshop identity and session.',
-        store: widget.store,
-        role: AppRole.workshopArtisan,
-      ),
+      ProductManagerPage(store: widget.store),
+      TeamWorkloadPage(store: widget.store),
+      WorkshopMorePage(store: widget.store),
     ],
+    // DISABLED: Factory workers don't use phones — Process Manager handles stage/complete
     AppRole.worker => [
-      WorkerDashboardPage(store: widget.store),
-      RoleProfilePage(
-        title: 'Worker Bench Profile',
-        description: 'Review your authenticated worker bench identity and session.',
-        store: widget.store,
-        role: AppRole.worker,
-      ),
+      ProductManagerPage(store: widget.store),
+      TeamWorkloadPage(store: widget.store),
+      WorkshopMorePage(store: widget.store),
     ],
     AppRole.stockist => [
       StockistDashboardPage(
@@ -235,8 +229,8 @@ class _AppShellState extends State<AppShell> {
     AppRole.processManager => AppStrings.workshopSubtitle.trClean,
     AppRole.cadDesigner => AppStrings.cadSubtitle.trClean,
     AppRole.rawDesigner => 'Raw Design Studio',
-    AppRole.workshopArtisan => 'My Workshop Bench',
-    AppRole.worker => 'Worker Bench Operations',
+    AppRole.workshopArtisan => 'Workshop (Process Manager View)', // DISABLED: No worker phones
+    AppRole.worker => 'Workshop (Process Manager View)', // DISABLED: No worker phones
     AppRole.stockist => 'Vault Stockist Portal',
   };
 
@@ -245,8 +239,8 @@ class _AppShellState extends State<AppShell> {
     AppRole.frontOffice => IndicatorTheme.frontOffice,
     AppRole.cadDesigner => IndicatorTheme.cad,
     AppRole.rawDesigner => IndicatorTheme.cad,
-    AppRole.workshopArtisan => IndicatorTheme.workshop,
-    AppRole.worker => IndicatorTheme.workshop,
+    AppRole.workshopArtisan => IndicatorTheme.workshop, // redirected to processManager view
+    AppRole.worker => IndicatorTheme.workshop, // redirected to processManager view
     AppRole.stockist => IndicatorTheme.universal,
     AppRole.admin => IndicatorTheme.universal,
   };
@@ -321,13 +315,17 @@ List<_Destination> _destinations(AppRole role, DemoStore store) {
       _Destination('Sketches', Icons.draw_outlined),
       _Destination('Profile', Icons.person_outline_rounded),
     ],
+    // DISABLED: Factory workers don't use phones
     AppRole.workshopArtisan => [
-      _Destination('My Tasks', Icons.handyman_outlined),
-      _Destination('Profile', Icons.person_outline_rounded),
+      _Destination('Workshop', Icons.space_dashboard_outlined),
+      _Destination('Team', Icons.groups_outlined),
+      _Destination('More', Icons.more_horiz),
     ],
+    // DISABLED: Factory workers don't use phones
     AppRole.worker => [
-      _Destination('Bench Tasks', Icons.precision_manufacturing_outlined),
-      _Destination('Profile', Icons.person_outline_rounded),
+      _Destination('Workshop', Icons.space_dashboard_outlined),
+      _Destination('Team', Icons.groups_outlined),
+      _Destination('More', Icons.more_horiz),
     ],
     AppRole.stockist => [
       _Destination(

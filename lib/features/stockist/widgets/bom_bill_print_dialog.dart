@@ -20,12 +20,19 @@ class BomBillPrintDialog extends StatelessWidget {
     required VaultRequisition requisition,
     required String storeName,
   }) {
+    if (requisition.quantity <= 0) {
+      CommonSnackbar.error(
+        context,
+        title: 'Jewellery quantity unavailable',
+        message:
+            'Backend batch quantity is required before printing a BOM total.',
+      );
+      return Future<void>.value();
+    }
     return showDialog<void>(
       context: context,
-      builder: (_) => BomBillPrintDialog(
-        requisition: requisition,
-        storeName: storeName,
-      ),
+      builder: (_) =>
+          BomBillPrintDialog(requisition: requisition, storeName: storeName),
     );
   }
 
@@ -43,12 +50,13 @@ class BomBillPrintDialog extends StatelessWidget {
     final hourStr = h.toString().padLeft(2, '0');
     final minuteStr = now.minute.toString().padLeft(2, '0');
     final amPm = now.hour >= 12 ? 'PM' : 'AM';
-    final realDateStr = '$dayStr/$monthStr/${now.year} $hourStr:$minuteStr $amPm';
+    final realDateStr =
+        '$dayStr/$monthStr/${now.year} $hourStr:$minuteStr $amPm';
 
     final headerTitle = storeName.trim().toUpperCase();
 
-    final voucherNo = requisition.id.startsWith('REQ-') ||
-            requisition.id.length <= 10
+    final voucherNo =
+        requisition.id.startsWith('REQ-') || requisition.id.length <= 10
         ? requisition.id
         : 'REQ-${requisition.id.substring(0, 6).toUpperCase()}';
 
@@ -73,10 +81,7 @@ class BomBillPrintDialog extends StatelessWidget {
           children: [
             // Top Modal Header Bar
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: const BoxDecoration(
                 color: AppColors.ink,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -223,99 +228,13 @@ class BomBillPrintDialog extends StatelessWidget {
                               'STAGE NAME :',
                               requisition.stageName.toUpperCase(),
                             ),
+                            _thermalRow(
+                              'JEWELLERY QTY:',
+                              '${requisition.quantity} Pcs',
+                            ),
                           ],
                         ),
                       ),
-
-                      // SECTION 1: METAL ALLOCATION (High-Impact Card)
-                      if (requisition.goldWeightGrams > 0) ...[
-                        Container(
-                          margin: const EdgeInsets.only(top: 8),
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFAF8F5),
-                            border: Border.all(
-                              color: Colors.black87,
-                              width: 1.4,
-                            ),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    '[1] BULLION / METAL ISSUED',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 10,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                      vertical: 1,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black,
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                    child: const Text(
-                                      'VAULT CERTIFIED',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.baseline,
-                                textBaseline: TextBaseline.alphabetic,
-                                children: [
-                                  const Text(
-                                    'Net Gold Allocation:',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      fontSize: 10.5,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${requisition.goldWeightGrams.toStringAsFixed(2)} g',
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w900,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              const Text(
-                                'Accuracy: 0.01g Calibrated • Scale Tag Verified',
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 8.5,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
 
                       // SECTION 2: GEMSTONES BOM
                       Container(
@@ -330,17 +249,21 @@ class BomBillPrintDialog extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text(
-                                  '[2] GEMSTONES BOM',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 10,
-                                    letterSpacing: 0.5,
+                                Expanded(
+                                  child: Text(
+                                    'DIAMOND BREAKDOWN (${requisition.designNumber} · ${requisition.quantity} Pcs)',
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 9,
+                                      letterSpacing: 0.3,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
+                                const SizedBox(width: 4),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 5,
@@ -369,7 +292,7 @@ class BomBillPrintDialog extends StatelessWidget {
                               const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 4),
                                 child: Text(
-                                  '* Plain Metal / No Gemstones Required',
+                                  '* No Gemstones Required',
                                   style: TextStyle(
                                     fontFamily: 'monospace',
                                     fontSize: 9.5,
@@ -380,63 +303,206 @@ class BomBillPrintDialog extends StatelessWidget {
                               )
                             else ...[
                               const Padding(
-                                padding: EdgeInsets.only(bottom: 4),
+                                padding: EdgeInsets.only(bottom: 6),
                                 child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      'STONE SPEC',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 8.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black54,
+                                    SizedBox(
+                                      width: 18,
+                                      child: Text(
+                                        '#',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black54,
+                                        ),
                                       ),
                                     ),
-                                    Text(
-                                      'QTY',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 8.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black54,
+                                    Expanded(
+                                      child: Text(
+                                        'SHAPE / SIZE',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: 48,
+                                      child: Text(
+                                        'CLR',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: 45,
+                                      child: Text(
+                                        'PCS',
+                                        textAlign: TextAlign.right,
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black54,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              for (final s in requisition.stoneSpecs)
+                              for (var i = 0;
+                                  i < requisition.stoneSpecs.length;
+                                  i++)
                                 Padding(
-                                  padding: const EdgeInsets.only(bottom: 3.0),
+                                  padding: const EdgeInsets.only(bottom: 4.0),
                                   child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(
+                                      SizedBox(
+                                        width: 18,
                                         child: Text(
-                                          '• ${s.name} (${s.shape} ${s.size})',
+                                          '${i + 1}',
                                           style: const TextStyle(
                                             fontFamily: 'monospace',
                                             fontSize: 9.5,
-                                            color: Colors.black87,
+                                            color: Colors.black54,
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-                                      Text(
-                                        '${s.count} Pcs',
-                                        style: const TextStyle(
-                                          fontFamily: 'monospace',
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black,
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              requisition.stoneSpecs[i].shape
+                                                      .isNotEmpty
+                                                  ? requisition
+                                                      .stoneSpecs[i].shape
+                                                  : requisition
+                                                      .stoneSpecs[i].name,
+                                              style: const TextStyle(
+                                                fontFamily: 'monospace',
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                            if (requisition
+                                                .stoneSpecs[i].size.isNotEmpty)
+                                              Text(
+                                                requisition
+                                                    .stoneSpecs[i].size,
+                                                style: const TextStyle(
+                                                  fontFamily: 'monospace',
+                                                  fontSize: 8.5,
+                                                  color: Colors.black54,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 48,
+                                        child: Text(
+                                          requisition.stoneSpecs[i].color
+                                                  .isNotEmpty
+                                              ? requisition
+                                                  .stoneSpecs[i].color
+                                              : 'White',
+                                          style: const TextStyle(
+                                            fontFamily: 'monospace',
+                                            fontSize: 9,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 45,
+                                        child: Text(
+                                          '${requisition.stoneSpecs[i].count}',
+                                          textAlign: TextAlign.right,
+                                          style: const TextStyle(
+                                            fontFamily: 'monospace',
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black,
+                                          ),
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
+                              const Divider(color: Colors.black54, height: 8),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'SUBTOTAL (${requisition.stoneSpecs.length} SIZES)',
+                                      style: const TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$totalStones Pcs',
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(
+                                color: Colors.black87,
+                                height: 6,
+                                thickness: 1.2,
+                              ),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Expanded(
+                                    child: Text(
+                                      'GRAND TOTAL DIAMONDS',
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.black,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$totalStones Pcs',
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ],
                           ],
                         ),
@@ -466,7 +532,7 @@ class BomBillPrintDialog extends StatelessWidget {
                             ),
                             const SizedBox(height: 3),
                             const Text(
-                              '☑ Verified Material Weight & Purity',
+                              '☑ Verified Jewellery Quantity',
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 fontSize: 9,
@@ -643,13 +709,18 @@ class BomBillPrintDialog extends StatelessWidget {
               color: Colors.black87,
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

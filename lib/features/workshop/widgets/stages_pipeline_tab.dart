@@ -28,12 +28,14 @@ class StagesPipelineTab extends StatelessWidget {
         }
 
         final allLots = store.lots;
-        final seen = <WorkshopStage>{};
+        final seen = <String>{};
         final stageGroups = <Map<String, dynamic>>[];
         for (final apiStage in store.stages) {
           final st = _domainStage(apiStage);
-          if (!seen.add(st)) continue;
-          final stageLots = allLots.where((l) => l.stage == st).toList();
+          if (!seen.add(apiStage.id)) continue;
+          final stageLots = allLots
+              .where((l) => l.apiStageId == apiStage.id)
+              .toList();
           stageGroups.add({
             'stageEnum': st,
             'stageId': apiStage.id,
@@ -54,93 +56,95 @@ class StagesPipelineTab extends StatelessWidget {
         }
 
         return CommonRefreshIndicator(
-      theme: IndicatorTheme.workshop,
-      onRefresh: () async =>
-          context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent()),
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 6, 20, 28),
-        children: [
-          for (final st in stageGroups)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: InkWell(
-                onTap: () =>
-                    StageLotsModal.show(context, stage: st, store: store),
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.paper,
+          theme: IndicatorTheme.workshop,
+          onRefresh: () async =>
+              context.read<WorkshopBloc>().add(const FetchWorkshopLotsEvent()),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 6, 20, 28),
+            children: [
+              for (final st in stageGroups)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: InkWell(
+                    onTap: () =>
+                        StageLotsModal.show(context, stage: st, store: store),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.outline),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: (st['color'] as Color).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.token,
-                          color: st['color'] as Color,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          st['name'] as String,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.paper,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.outline),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
                           ),
-                        ),
+                        ],
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.emeraldLight,
-                          borderRadius: BorderRadius.circular(
-                            AppDimensions.radiusFull,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: (st['color'] as Color).withValues(
+                                alpha: 0.15,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.token,
+                              color: st['color'] as Color,
+                              size: 20,
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          '${st['count']} lots',
-                          style: const TextStyle(
-                            color: AppColors.emeraldDark,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 11,
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              st['name'] as String,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
                           ),
-                        ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.emeraldLight,
+                              borderRadius: BorderRadius.circular(
+                                AppDimensions.radiusFull,
+                              ),
+                            ),
+                            child: Text(
+                              '${st['count']} lots',
+                              style: const TextStyle(
+                                color: AppColors.emeraldDark,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.chevron_right,
+                            size: 16,
+                            color: AppColors.muted,
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      const Icon(
-                        Icons.chevron_right,
-                        size: 16,
-                        color: AppColors.muted,
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-        ],
-      ),
-    );
+            ],
+          ),
+        );
       },
     );
   }

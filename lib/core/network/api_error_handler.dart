@@ -49,9 +49,21 @@ abstract final class ApiErrorHandler {
         if (data['message'] is String &&
             (data['message'] as String).trim().isNotEmpty) {
           serverMsg = data['message'] as String;
+        } else if (data['message'] is List &&
+            (data['message'] as List).isNotEmpty) {
+          serverMsg = (data['message'] as List).join(', ');
         } else if (data['error'] is Map &&
             (data['error'] as Map)['message'] is String) {
           serverMsg = (data['error'] as Map)['message'] as String;
+        } else if (data['error'] is String &&
+            (data['error'] as String).trim().isNotEmpty) {
+          serverMsg = data['error'] as String;
+        } else if (data['errors'] is List &&
+            (data['errors'] as List).isNotEmpty) {
+          serverMsg = (data['errors'] as List).join(', ');
+        } else if (data['detail'] is String &&
+            (data['detail'] as String).trim().isNotEmpty) {
+          serverMsg = data['detail'] as String;
         }
 
         if (serverMsg != null && serverMsg.trim().isNotEmpty) {

@@ -5,6 +5,8 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/localization.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
+import '../../data/repositories/karatflow_api_repository.dart';
+import '../../data/mappers/api_domain_mapper.dart';
 import '../../domain/models.dart';
 import 'bloc/orders_bloc.dart';
 
@@ -277,8 +279,11 @@ class _DesignCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CommonRemoteImage(
-                  imageUrl: design.imageUrl,
+                CadImageToggle(
+                  croppedUrl: design.imageUrl,
+                  rawCadSheetUrl: design.rawCadSheetUrl,
+                  width: double.infinity,
+                  height: 120,
                   fit: BoxFit.cover,
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(AppDimensions.radiusLarge),
@@ -421,15 +426,34 @@ class _DesignCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        design.hasBackendPrice
-                            ? '₹${_formatPrice(design.estimatedPrice)}'
-                            : 'Price unavailable',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.emerald,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            design.hasBackendPrice
+                                ? '₹${_formatPrice(design.estimatedPrice)}'
+                                : 'Price unavailable',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.emerald,
+                            ),
+                          ),
+                          if (design.priceBreakdown != null &&
+                              (design.priceBreakdown!.gstPercent > 0 ||
+                                  design.priceBreakdown!.gstAmount > 0)) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              '+${design.priceBreakdown!.gstPercent > 0 ? '${design.priceBreakdown!.gstPercent.toInt()}% ' : ''}GST',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.muted,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 6),
                       if (cartQuantity == 0)
@@ -501,17 +525,72 @@ class _DesignCard extends StatelessWidget {
   }
 }
 
-class _DesignDetailModal extends StatelessWidget {
+class _DesignDetailModal extends StatefulWidget {
   const _DesignDetailModal({required this.design, required this.store});
 
   final JewelleryDesign design;
   final DemoStore store;
 
   @override
+  State<_DesignDetailModal> createState() => _DesignDetailModalState();
+}
+
+class _DesignDetailModalState extends State<_DesignDetailModal> {
+  late JewelleryDesign _design;
+  int _selectedImageIndex = 0;
+  bool _isLoadingDetails = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _design = widget.design;
+    _fetchFullDetailsIfNeeded();
+  }
+
+  Future<void> _fetchFullDetailsIfNeeded() async {
+    if (_design.priceBreakdown != null && _design.galleryImages.isNotEmpty)
+      return;
+    setState(() => _isLoadingDetails = true);
+    try {
+      final repo = KaratFlowApiRepository();
+      final fullApiDesign = await repo.getCatalogItemDetails(_design.id);
+      if (mounted) {
+        setState(() {
+          _design = ApiDomainMapper.threeDDesign(fullApiDesign);
+          _isLoadingDetails = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingDetails = false);
+    }
+  }
+
+  List<String> get _allImages {
+    final list = <String>[];
+    if (_design.heroImageUrl.isNotEmpty) list.add(_design.heroImageUrl);
+    for (final img in _design.galleryImages) {
+      if (img.url.isNotEmpty && !list.contains(img.url)) list.add(img.url);
+    }
+    if (_design.imageUrl.isNotEmpty && !list.contains(_design.imageUrl)) {
+      list.add(_design.imageUrl);
+    }
+    return list;
+  }
+
+  String get _currentImageUrl {
+    final images = _allImages;
+    if (images.isEmpty) return _design.imageUrl;
+    if (_selectedImageIndex >= 0 && _selectedImageIndex < images.length) {
+      return images[_selectedImageIndex];
+    }
+    return images.first;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.88,
+        maxHeight: MediaQuery.of(context).size.height * 0.90,
       ),
       decoration: const BoxDecoration(
         color: AppColors.paper,
@@ -533,110 +612,156 @@ class _DesignDetailModal extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
+
+            // Header: Purity Badge & SKU
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                CommonRemoteImage(
-                  imageUrl: design.imageUrl,
-                  width: 64,
-                  height: 64,
-                  borderRadius: BorderRadius.circular(16),
-                  fallbackWidget: Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: design.accentColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(
-                      design.category.icon,
-                      size: 36,
-                      color: design.accentColor,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.ink,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _design.purity.isNotEmpty ? _design.purity : '22K Gold',
+                    style: const TextStyle(
+                      color: AppColors.pureWhite,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.ink,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              design.purity,
-                              style: const TextStyle(
-                                color: AppColors.pureWhite,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _formatDesignCode(design.code),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.muted,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      CommonText.titleLarge(design.name),
-                    ],
+                Text(
+                  _formatDesignCode(_design.code),
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            CommonText.titleLarge(_design.name),
+            const SizedBox(height: 12),
+
+            // Main Featured Image
+            Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: _design.accentColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.outlineLight),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: CadImageToggle(
+                  croppedUrl: _currentImageUrl,
+                  rawCadSheetUrl: _design.rawCadSheetUrl,
+                  width: double.infinity,
+                  height: 200,
+                  fit: BoxFit.contain,
+                  borderRadius: BorderRadius.circular(16),
+                  fallbackWidget: Center(
+                    child: Icon(
+                      _design.category.icon,
+                      size: 64,
+                      color: _design.accentColor,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Gallery Thumbnails Strip (Priority 1 Gallery Images)
+            if (_allImages.length > 1) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 56,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _allImages.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, i) {
+                    final isSelected = i == _selectedImageIndex;
+                    final imgUrl = _allImages[i];
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedImageIndex = i),
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.emerald
+                                : AppColors.outlineLight,
+                            width: isSelected ? 2.5 : 1,
+                          ),
+                          color: AppColors.canvas,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: CadImageToggle(
+                            croppedUrl: imgUrl,
+                            rawCadSheetUrl: '',
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 14),
+            CommonText.bodyMedium(_design.description, color: AppColors.muted),
+
+
+
             const SizedBox(height: 16),
-            CommonText.bodyMedium(design.description, color: AppColors.muted),
-            const SizedBox(height: 18),
+
             CommonCard(
               backgroundColor: AppColors.canvas,
               child: Column(
                 children: [
                   _specRow(
                     'Metal & Purity',
-                    design.purity.isNotEmpty
-                        ? design.purity
+                    _design.purity.isNotEmpty
+                        ? _design.purity
                         : 'Not Specified',
                     isBold: true,
                   ),
-                  if (design.sizeDimensions != null &&
-                      design.sizeDimensions!.trim().isNotEmpty) ...[
+                  if (_design.sizeDimensions != null &&
+                      _design.sizeDimensions!.trim().isNotEmpty) ...[
                     const Divider(height: 14),
                     _specRow(
                       'Size / Dimensions',
-                      design.sizeDimensions!.trim(),
+                      _design.sizeDimensions!.trim(),
                     ),
                   ],
                   const Divider(height: 14),
                   _specRow(
                     'Gem Summary',
-                    design.gemQuantity > 0 || design.diamondCarats > 0
-                        ? '${design.gemQuantity > 0 ? "${design.gemQuantity} Gems · " : ""}${design.diamondCarats} ct TW'
+                    _design.gemQuantity > 0 || _design.diamondCarats > 0
+                        ? '${_design.gemQuantity > 0 ? "${_design.gemQuantity} Gems · " : ""}${_design.diamondCarats} ct TW'
                         : 'None',
                   ),
                   const Divider(height: 14),
                   _specRow(
                     'Backend Price',
-                    design.hasBackendPrice
-                        ? '₹${design.estimatedPrice.toStringAsFixed(0)}'
+                    _design.hasBackendPrice
+                        ? '₹${_design.estimatedPrice.toStringAsFixed(0)}'
                         : 'Not provided',
                     isBold: true,
                   ),
@@ -644,18 +769,32 @@ class _DesignDetailModal extends StatelessWidget {
               ),
             ),
 
-            // ── Detailed Price Breakdown (If available from API) ────────────────
-            if (design.priceBreakdown != null &&
-                (design.priceBreakdown!.finalPrice > 0 ||
-                 design.priceBreakdown!.totalGoldCost > 0 ||
-                 design.priceBreakdown!.totalGemCost > 0)) ...[
+            // ── Detailed Price Breakdown with Live GST ────────────────
+            if (_isLoadingDetails) ...[
+              const SizedBox(height: 14),
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
+            ] else if (_design.priceBreakdown != null &&
+                (_design.priceBreakdown!.finalPrice > 0 ||
+                    _design.priceBreakdown!.totalGoldCost > 0 ||
+                    _design.priceBreakdown!.totalGemCost > 0)) ...[
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.emerald.withOpacity(0.06),
+                  color: AppColors.emerald.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.emerald.withOpacity(0.2)),
+                  border: Border.all(
+                    color: AppColors.emerald.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -680,28 +819,28 @@ class _DesignDetailModal extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     _specRow(
-                      'Gold Cost (${design.priceBreakdown!.netGoldWeight}g @ ₹${design.priceBreakdown!.goldRatePerGram.toStringAsFixed(0)}/g)',
-                      '₹${design.priceBreakdown!.totalGoldCost.toStringAsFixed(0)}',
+                      'Gold Cost (${_design.priceBreakdown!.netGoldWeight}g @ ₹${_design.priceBreakdown!.goldRatePerGram.toStringAsFixed(0)}/g)',
+                      '₹${_design.priceBreakdown!.totalGoldCost.toStringAsFixed(0)}',
                     ),
                     const SizedBox(height: 6),
                     _specRow(
-                      'Gem Cost (${design.priceBreakdown!.gemQuantity} Gems)',
-                      '₹${design.priceBreakdown!.totalGemCost.toStringAsFixed(0)}',
+                      'Gem Cost (${_design.priceBreakdown!.gemQuantity} Gems)',
+                      '₹${_design.priceBreakdown!.totalGemCost.toStringAsFixed(0)}',
                     ),
                     const SizedBox(height: 6),
                     _specRow(
                       'Subtotal',
-                      '₹${design.priceBreakdown!.subtotal.toStringAsFixed(0)}',
+                      '₹${_design.priceBreakdown!.subtotal.toStringAsFixed(0)}',
                     ),
                     const SizedBox(height: 6),
                     _specRow(
-                      'GST (${design.priceBreakdown!.gstPercent}%)',
-                      '₹${design.priceBreakdown!.gstAmount.toStringAsFixed(0)}',
+                      'GST (${_design.priceBreakdown!.gstPercent}%)',
+                      '₹${_design.priceBreakdown!.gstAmount.toStringAsFixed(0)}',
                     ),
                     const Divider(height: 12),
                     _specRow(
                       'Final Price',
-                      '₹${design.priceBreakdown!.finalPrice.toStringAsFixed(0)}',
+                      '₹${_design.priceBreakdown!.finalPrice.toStringAsFixed(0)}',
                       isBold: true,
                     ),
                   ],
@@ -709,8 +848,8 @@ class _DesignDetailModal extends StatelessWidget {
               ),
             ],
 
-            // ── Detailed Gem Breakdown Table (If available from API) ─────────────
-            if (design.gemBreakdown.isNotEmpty) ...[
+            // ── Detailed Gem Breakdown Table ─────────────────────────────
+            if (_design.gemBreakdown.isNotEmpty) ...[
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(14),
@@ -744,7 +883,7 @@ class _DesignDetailModal extends StatelessWidget {
                           ],
                         ),
                         Text(
-                          'Total ${design.gemQuantity} Gems',
+                          'Total ${_design.gemQuantity} Gems',
                           style: const TextStyle(
                             color: AppColors.muted,
                             fontSize: 11,
@@ -754,7 +893,7 @@ class _DesignDetailModal extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    ...design.gemBreakdown.map(
+                    ..._design.gemBreakdown.map(
                       (g) => Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Row(
@@ -786,18 +925,18 @@ class _DesignDetailModal extends StatelessWidget {
             ],
             const SizedBox(height: 20),
             CommonButton.primary(
-              label: design.hasBackendPrice
+              label: _design.hasBackendPrice
                   ? 'Add to Order Cart'
                   : 'Backend Price Required',
               icon: Icons.shopping_bag_outlined,
-              onPressed: design.hasBackendPrice
+              onPressed: _design.hasBackendPrice
                   ? () {
-                      store.addToCart(design);
+                      widget.store.addToCart(_design);
                       Navigator.pop(context);
                       CommonSnackbar.success(
                         context,
                         title: 'Added to Cart',
-                        message: '${design.name} has been added.',
+                        message: '${_design.name} has been added.',
                         duration: const Duration(seconds: 2),
                       );
                     }

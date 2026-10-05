@@ -1,5 +1,7 @@
 library;
 
+import 'package:jewellery_ops_mobile/core/network/api_endpoints.dart';
+
 /// Centralized Data Transfer Objects (DTOs) for KaratFlow Live Backend
 
 // ── 1. Auth Models ──────────────────────────────────────────────────
@@ -513,19 +515,73 @@ class ApiPriceBreakdown {
   });
 
   factory ApiPriceBreakdown.fromJson(Map<String, dynamic> json) {
+    final subtotalVal =
+        (json['subtotal'] as num?)?.toDouble() ??
+        (json['sub_total'] as num?)?.toDouble() ??
+        0.0;
+    final gstPercentVal =
+        (json['gstPercent'] as num?)?.toDouble() ??
+        (json['gst_percent'] as num?)?.toDouble() ??
+        (json['gstPercentage'] as num?)?.toDouble() ??
+        (json['taxPercent'] as num?)?.toDouble() ??
+        (json['tax_percent'] as num?)?.toDouble() ??
+        (json['gstRate'] as num?)?.toDouble() ??
+        (json['gst_rate'] as num?)?.toDouble() ??
+        0.0;
+    final gstAmountVal =
+        (json['gstAmount'] as num?)?.toDouble() ??
+        (json['gst_amount'] as num?)?.toDouble() ??
+        (json['gst'] as num?)?.toDouble() ??
+        (json['taxAmount'] as num?)?.toDouble() ??
+        (json['tax_amount'] as num?)?.toDouble() ??
+        (json['tax'] as num?)?.toDouble() ??
+        (gstPercentVal > 0 && subtotalVal > 0
+            ? (subtotalVal * gstPercentVal / 100)
+            : 0.0);
+    final finalPriceVal =
+        (json['finalPrice'] as num?)?.toDouble() ??
+        (json['final_price'] as num?)?.toDouble() ??
+        (json['totalPrice'] as num?)?.toDouble() ??
+        (json['total_price'] as num?)?.toDouble() ??
+        (json['total'] as num?)?.toDouble() ??
+        0.0;
+
     return ApiPriceBreakdown(
       purity: json['purity'] as String? ?? '',
-      goldRatePerGram: (json['goldRatePerGram'] as num?)?.toDouble() ?? 0.0,
-      netGoldWeight: (json['netGoldWeight'] as num?)?.toDouble() ?? 0.0,
-      grossWeight: (json['grossWeight'] as num?)?.toDouble() ?? 0.0,
-      totalGoldCost: (json['totalGoldCost'] as num?)?.toDouble() ?? 0.0,
-      gemQuantity: (json['gemQuantity'] as num?)?.toInt() ?? 0,
-      gemRate: (json['gemRate'] as num?)?.toDouble() ?? 0.0,
-      totalGemCost: (json['totalGemCost'] as num?)?.toDouble() ?? 0.0,
-      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
-      gstPercent: (json['gstPercent'] as num?)?.toDouble() ?? 0.0,
-      gstAmount: (json['gstAmount'] as num?)?.toDouble() ?? 0.0,
-      finalPrice: (json['finalPrice'] as num?)?.toDouble() ?? 0.0,
+      goldRatePerGram:
+          (json['goldRatePerGram'] as num?)?.toDouble() ??
+          (json['gold_rate_per_gram'] as num?)?.toDouble() ??
+          0.0,
+      netGoldWeight:
+          (json['netGoldWeight'] as num?)?.toDouble() ??
+          (json['net_gold_weight'] as num?)?.toDouble() ??
+          0.0,
+      grossWeight:
+          (json['grossWeight'] as num?)?.toDouble() ??
+          (json['gross_weight'] as num?)?.toDouble() ??
+          0.0,
+      totalGoldCost:
+          (json['totalGoldCost'] as num?)?.toDouble() ??
+          (json['total_gold_cost'] as num?)?.toDouble() ??
+          0.0,
+      gemQuantity:
+          (json['gemQuantity'] as num?)?.toInt() ??
+          (json['gem_quantity'] as num?)?.toInt() ??
+          0,
+      gemRate:
+          (json['gemRate'] as num?)?.toDouble() ??
+          (json['gem_rate'] as num?)?.toDouble() ??
+          0.0,
+      totalGemCost:
+          (json['totalGemCost'] as num?)?.toDouble() ??
+          (json['total_gem_cost'] as num?)?.toDouble() ??
+          0.0,
+      subtotal: subtotalVal,
+      gstPercent: gstPercentVal,
+      gstAmount: gstAmountVal,
+      finalPrice: finalPriceVal > 0
+          ? finalPriceVal
+          : (subtotalVal + gstAmountVal),
     );
   }
 
@@ -555,6 +611,43 @@ class ApiPriceBreakdown {
     'gstPercent': gstPercent,
     'gstAmount': gstAmount,
     'finalPrice': finalPrice,
+  };
+}
+
+// ── 5B. Catalog Gallery Images ───────────────────────────────────────
+class ApiGalleryImage {
+  const ApiGalleryImage({
+    this.id = '',
+    required this.url,
+    this.name = '',
+    this.isBomCrop = false,
+    this.isPrimary = false,
+  });
+
+  factory ApiGalleryImage.fromJson(Map<String, dynamic> json) {
+    return ApiGalleryImage(
+      id: json['id'] as String? ?? '',
+      url: ApiEndpoints.resolveImageUrl(json['url'] as String?),
+      name: json['name'] as String? ?? '',
+      isBomCrop:
+          json['isBomCrop'] as bool? ?? json['is_bom_crop'] as bool? ?? false,
+      isPrimary:
+          json['isPrimary'] as bool? ?? json['is_primary'] as bool? ?? false,
+    );
+  }
+
+  final String id;
+  final String url;
+  final String name;
+  final bool isBomCrop;
+  final bool isPrimary;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'url': url,
+    'name': name,
+    'isBomCrop': isBomCrop,
+    'isPrimary': isPrimary,
   };
 }
 
@@ -590,6 +683,14 @@ class ApiThreeDDesign {
     this.description,
     this.imageUrl,
     this.renderImageUrl,
+    this.rawInstructions,
+    this.cleanDesignUrl,
+    this.galleryImages = const [],
+    this.heroImageUrl,
+    this.croppedImageUrl,
+    this.sketchUrl,
+    this.title,
+    this.designNumber,
   });
 
   factory ApiThreeDDesign.fromJson(Map<String, dynamic> json) {
@@ -612,11 +713,36 @@ class ApiThreeDDesign {
         json['renderImage'] as String? ??
         json['render'] as String?;
 
+    final cleanUrl =
+        json['cleanDesignUrl'] as String? ??
+        json['croppedDesignUrl'] as String?;
+
     final rawSketchId =
         json['sketchId'] as String? ??
         json['sketch_id'] as String? ??
-        (json['sketch'] is String ? json['sketch'] as String : '') ??
-        '';
+        (json['sketch'] is String ? json['sketch'] as String : '');
+
+    final galleryList =
+        json['galleryImages'] as List? ??
+        json['gallery_images'] as List? ??
+        const [];
+    final parsedGallery = galleryList
+        .whereType<Map>()
+        .map((g) => ApiGalleryImage.fromJson(Map<String, dynamic>.from(g)))
+        .toList();
+
+    final heroImg =
+        json['heroImageUrl'] as String? ?? json['hero_image_url'] as String?;
+    final croppedImg =
+        json['croppedImageUrl'] as String? ??
+        json['cropped_image_url'] as String?;
+    final sketchUrlVal =
+        json['sketchUrl'] as String? ?? json['sketch_url'] as String?;
+    final titleVal = json['title'] as String? ?? json['designTitle'] as String?;
+    final designNumberVal =
+        json['designNumber'] as String? ?? json['design_number'] as String?;
+    final bomUrl =
+        json['bomFileUrl'] as String? ?? json['bom_file_url'] as String?;
 
     final sketchRaw = json['sketch'];
     final parsedSketch = sketchRaw is Map<String, dynamic>
@@ -625,6 +751,36 @@ class ApiThreeDDesign {
               ? ApiSketch.fromJson(Map<String, dynamic>.from(sketchRaw))
               : null);
 
+    final rawInstructions =
+        json['rawInstructions'] as String? ??
+        json['adminInstructions'] as String?;
+
+    int? parsedStock = json['stock'] as int?;
+    if (parsedStock == null &&
+        rawInstructions != null &&
+        rawInstructions.isNotEmpty) {
+      final stockMatch = RegExp(
+        r'Stock:\s*(\d+)',
+        caseSensitive: false,
+      ).firstMatch(rawInstructions);
+      if (stockMatch != null) {
+        parsedStock = int.tryParse(stockMatch.group(1)!);
+      }
+    }
+
+    String? parsedStockStatus = json['stockStatus'] as String?;
+    if ((parsedStockStatus == null || parsedStockStatus.isEmpty) &&
+        rawInstructions != null &&
+        rawInstructions.isNotEmpty) {
+      final statusMatch = RegExp(
+        r'Status:\s*([^\r\n,]+)',
+        caseSensitive: false,
+      ).firstMatch(rawInstructions);
+      if (statusMatch != null) {
+        parsedStockStatus = statusMatch.group(1)!.trim();
+      }
+    }
+
     return ApiThreeDDesign(
       id: json['id'] as String? ?? '',
       sketchId: rawSketchId,
@@ -632,7 +788,7 @@ class ApiThreeDDesign {
       status: json['status'] as String? ?? 'PENDING',
       version: json['version'] as int? ?? 1,
       xtlFileUrl: json['xtlFileUrl'] as String?,
-      bomFileUrl: json['bomFileUrl'] as String?,
+      bomFileUrl: ApiEndpoints.resolveImageUrl(bomUrl),
       gemQuantity: json['gemQuantity'] as int? ?? 0,
       goldQuantity: (json['goldQuantity'] as num?)?.toDouble() ?? 0.0,
       otherMetalsQuantity:
@@ -652,20 +808,40 @@ class ApiThreeDDesign {
           ? ApiUser.fromJson(json['designer'] as Map<String, dynamic>)
           : null,
       category: json['category'] as String?,
-      stock: json['stock'] as int?,
-      stockStatus: json['stockStatus'] as String?,
+      stock: parsedStock,
+      stockStatus: parsedStockStatus,
       price: (json['price'] as num?)?.toDouble(),
       calculatedPrice:
           (json['calculatedPrice'] as num?)?.toDouble() ??
           (json['price'] as num?)?.toDouble(),
-      priceBreakdown: json['priceBreakdown'] is Map
+      priceBreakdown: (json['priceBreakdown'] is Map)
           ? ApiPriceBreakdown.fromJson(
               json['priceBreakdown'] as Map<String, dynamic>,
             )
-          : null,
+          : ((json['price_breakdown'] is Map)
+                ? ApiPriceBreakdown.fromJson(
+                    json['price_breakdown'] as Map<String, dynamic>,
+                  )
+                : ((json['pricingBreakdown'] is Map)
+                      ? ApiPriceBreakdown.fromJson(
+                          json['pricingBreakdown'] as Map<String, dynamic>,
+                        )
+                      : ((json['pricing'] is Map)
+                            ? ApiPriceBreakdown.fromJson(
+                                json['pricing'] as Map<String, dynamic>,
+                              )
+                            : null))),
       description: json['description'] as String?,
-      imageUrl: imgUrl,
-      renderImageUrl: renderUrl,
+      imageUrl: ApiEndpoints.resolveImageUrl(imgUrl),
+      renderImageUrl: ApiEndpoints.resolveImageUrl(renderUrl),
+      rawInstructions: rawInstructions,
+      cleanDesignUrl: ApiEndpoints.resolveImageUrl(cleanUrl),
+      galleryImages: parsedGallery,
+      heroImageUrl: ApiEndpoints.resolveImageUrl(heroImg),
+      croppedImageUrl: ApiEndpoints.resolveImageUrl(croppedImg),
+      sketchUrl: ApiEndpoints.resolveImageUrl(sketchUrlVal),
+      title: titleVal,
+      designNumber: designNumberVal,
     );
   }
 
@@ -698,6 +874,14 @@ class ApiThreeDDesign {
   final String? description;
   final String? imageUrl;
   final String? renderImageUrl;
+  final String? rawInstructions;
+  final String? cleanDesignUrl;
+  final List<ApiGalleryImage> galleryImages;
+  final String? heroImageUrl;
+  final String? croppedImageUrl;
+  final String? sketchUrl;
+  final String? title;
+  final String? designNumber;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -716,6 +900,7 @@ class ApiThreeDDesign {
     'gemWeightTw': gemWeightTw,
     'gemBreakdown': gemBreakdown.map((e) => e.toJson()).toList(),
     if (adminInstructions != null) 'adminInstructions': adminInstructions,
+    if (rawInstructions != null) 'rawInstructions': rawInstructions,
     if (feedbackAudioUrl != null) 'feedbackAudioUrl': feedbackAudioUrl,
     if (feedbackImageUrl != null) 'feedbackImageUrl': feedbackImageUrl,
     if (sketch != null) 'sketch': sketch!.toJson(),
@@ -729,10 +914,92 @@ class ApiThreeDDesign {
     if (description != null) 'description': description,
     if (imageUrl != null) 'imageUrl': imageUrl,
     if (renderImageUrl != null) 'renderImageUrl': renderImageUrl,
+    if (cleanDesignUrl != null) 'cleanDesignUrl': cleanDesignUrl,
   };
 }
 
 // ── 7. Order & Part Models ──────────────────────────────────────────
+class ApiOrderStageSnapshot {
+  const ApiOrderStageSnapshot({
+    required this.id,
+    required this.stageNumber,
+    required this.name,
+    this.isFinal = false,
+  });
+
+  factory ApiOrderStageSnapshot.fromJson(Map<String, dynamic> json) {
+    return ApiOrderStageSnapshot(
+      id: json['id']?.toString() ?? '',
+      stageNumber: (json['stageNumber'] as num?)?.toInt() ?? 0,
+      name: json['name']?.toString() ?? '',
+      isFinal: json['isFinal'] as bool? ?? false,
+    );
+  }
+
+  final String id;
+  final int stageNumber;
+  final String name;
+  final bool isFinal;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'stageNumber': stageNumber,
+    'name': name,
+    'isFinal': isFinal,
+  };
+}
+
+class ApiPartAssignment {
+  const ApiPartAssignment({
+    required this.id,
+    this.assignedEmployeeId = '',
+    this.assignedEmployeeName = '',
+    this.assignedEmployeeRole = '',
+    this.status = 'PENDING',
+  });
+
+  factory ApiPartAssignment.fromJson(Map<String, dynamic> json) {
+    String empId = '';
+    String empName = '';
+    String empRole = '';
+    if (json['assignedEmployee'] is Map) {
+      final emp = json['assignedEmployee'] as Map<String, dynamic>;
+      empId = emp['id']?.toString() ?? '';
+      empName = emp['name']?.toString() ?? emp['fullName']?.toString() ?? '';
+      empRole = emp['role']?.toString() ?? '';
+    } else if (json['employee'] is Map) {
+      final emp = json['employee'] as Map<String, dynamic>;
+      empId = emp['id']?.toString() ?? '';
+      empName = emp['name']?.toString() ?? emp['fullName']?.toString() ?? '';
+      empRole = emp['role']?.toString() ?? '';
+    }
+
+    return ApiPartAssignment(
+      id: json['id']?.toString() ?? '',
+      assignedEmployeeId: empId,
+      assignedEmployeeName: empName,
+      assignedEmployeeRole: empRole,
+      status: json['status']?.toString() ?? 'PENDING',
+    );
+  }
+
+  final String id;
+  final String assignedEmployeeId;
+  final String assignedEmployeeName;
+  final String assignedEmployeeRole;
+  final String status;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'assignedEmployee': {
+      'id': assignedEmployeeId,
+      'name': assignedEmployeeName,
+      'role': assignedEmployeeRole,
+    },
+    'status': status,
+  };
+}
+
 class ApiOrder {
   const ApiOrder({
     required this.id,
@@ -742,6 +1009,8 @@ class ApiOrder {
     this.customerCity = '',
     this.dueDate = '',
     this.createdAt,
+    this.totalPieces = 0,
+    this.stagesSnapshot = const [],
     this.parts = const [],
   });
 
@@ -753,6 +1022,16 @@ class ApiOrder {
       cCity = json['customer']['city'] as String? ?? '';
     }
     final rawParts = json['parts'] as List? ?? [];
+    final rawStages = json['stagesSnapshot'] as List? ?? [];
+    final partsList = rawParts
+        .map((p) => ApiOrderPart.fromJson(p as Map<String, dynamic>))
+        .toList();
+
+    int totalP = (json['totalPieces'] as num?)?.toInt() ?? 0;
+    if (totalP == 0 && partsList.isNotEmpty) {
+      totalP = partsList.fold(0, (sum, p) => sum + p.quantity);
+    }
+
     return ApiOrder(
       id: json['id'] as String? ?? '',
       orderNumber: json['orderNumber'] as String? ?? '',
@@ -761,9 +1040,11 @@ class ApiOrder {
       customerCity: cCity,
       dueDate: json['dueDate']?.toString() ?? '',
       createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
-      parts: rawParts
-          .map((p) => ApiOrderPart.fromJson(p as Map<String, dynamic>))
+      totalPieces: totalP,
+      stagesSnapshot: rawStages
+          .map((s) => ApiOrderStageSnapshot.fromJson(s as Map<String, dynamic>))
           .toList(),
+      parts: partsList,
     );
   }
 
@@ -774,6 +1055,8 @@ class ApiOrder {
   final String customerCity;
   final String dueDate;
   final DateTime? createdAt;
+  final int totalPieces;
+  final List<ApiOrderStageSnapshot> stagesSnapshot;
   final List<ApiOrderPart> parts;
 
   Map<String, dynamic> toJson() => {
@@ -782,7 +1065,9 @@ class ApiOrder {
     'status': status,
     'customer': {'name': customerName, 'city': customerCity},
     'dueDate': dueDate,
+    'totalPieces': totalPieces,
     if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+    'stagesSnapshot': stagesSnapshot.map((s) => s.toJson()).toList(),
     'parts': parts.map((p) => p.toJson()).toList(),
   };
 }
@@ -794,16 +1079,25 @@ class ApiOrderPart {
     this.designName = '',
     this.quantity = 0,
     this.grossWeight = 0.0,
+    this.currentStageId = '',
     this.currentStage = '',
     this.status = 'ASSIGNED',
     this.isBlocked = false,
     this.blockReason,
+    this.priceLockedAt,
+    this.assignments = const [],
   });
+
+  bool get isPriceLocked => priceLockedAt != null;
 
   factory ApiOrderPart.fromJson(Map<String, dynamic> json) {
     String stgName = '';
+    String stgId = json['currentStageId']?.toString() ?? '';
     if (json['currentStage'] is Map) {
       stgName = json['currentStage']['name'] as String? ?? '';
+      if (stgId.isEmpty) {
+        stgId = json['currentStage']['id']?.toString() ?? '';
+      }
     } else if (json['currentStage'] is String) {
       stgName = json['currentStage'] as String;
     }
@@ -841,16 +1135,27 @@ class ApiOrderPart {
           '';
     }
 
+    final rawAssignments = json['assignments'] as List? ?? [];
+    DateTime? priceLockedTime;
+    if (json['priceLockedAt'] != null) {
+      priceLockedTime = DateTime.tryParse(json['priceLockedAt'].toString());
+    }
+
     return ApiOrderPart(
       id: json['id'] as String? ?? '',
       designNumber: dNum,
       designName: dName,
       quantity: json['quantity'] as int? ?? 0,
       grossWeight: (json['grossWeight'] as num?)?.toDouble() ?? 0.0,
+      currentStageId: stgId,
       currentStage: stgName,
       status: json['status'] as String? ?? 'ASSIGNED',
       isBlocked: json['isBlocked'] as bool? ?? false,
       blockReason: json['blockReason'] as String?,
+      priceLockedAt: priceLockedTime,
+      assignments: rawAssignments
+          .map((a) => ApiPartAssignment.fromJson(a as Map<String, dynamic>))
+          .toList(),
     );
   }
 
@@ -859,10 +1164,13 @@ class ApiOrderPart {
   final String designName;
   final int quantity;
   final double grossWeight;
+  final String currentStageId;
   final String currentStage;
   final String status;
   final bool isBlocked;
   final String? blockReason;
+  final DateTime? priceLockedAt;
+  final List<ApiPartAssignment> assignments;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -870,10 +1178,14 @@ class ApiOrderPart {
     'designName': designName,
     'quantity': quantity,
     'grossWeight': grossWeight,
+    'currentStageId': currentStageId,
     'currentStage': currentStage,
     'status': status,
     'isBlocked': isBlocked,
     if (blockReason != null) 'blockReason': blockReason,
+    if (priceLockedAt != null)
+      'priceLockedAt': priceLockedAt!.toIso8601String(),
+    'assignments': assignments.map((a) => a.toJson()).toList(),
   };
 }
 
@@ -995,6 +1307,7 @@ class ApiWorkerTask {
     this.stage = const ApiWorkerTaskStage(id: '', name: 'Bench Operation'),
     this.orderPart = const ApiWorkerTaskOrderPart(id: ''),
     this.assignedByManagerName = '',
+    this.splitQuantity,
   });
 
   final String id;
@@ -1017,6 +1330,25 @@ class ApiWorkerTask {
   final ApiWorkerTaskStage stage;
   final ApiWorkerTaskOrderPart orderPart;
   final String assignedByManagerName;
+  final int? splitQuantity;
+
+  int? get effectiveSplitQuantity {
+    if (splitQuantity != null && splitQuantity! > 0) return splitQuantity;
+    final reg = RegExp(r'\[splitQty:\s*(\d+)\]', caseSensitive: false);
+    final match = reg.firstMatch(instructions);
+    if (match != null) {
+      return int.tryParse(match.group(1)!);
+    }
+    return null;
+  }
+
+  int get assignedPieces => effectiveSplitQuantity ?? quantity;
+
+  String get cleanInstructions {
+    return instructions
+        .replaceAll(RegExp(r'\[splitQty:\s*\d+\]\s*', caseSensitive: false), '')
+        .trim();
+  }
 
   String get designNumber =>
       orderPart.designNumber.isNotEmpty ? orderPart.designNumber : 'D01';
@@ -1117,13 +1449,23 @@ class ApiWorkerTask {
             (json['issuance'] != null) ||
             parsedOrderPart.isStockIssued;
 
+    final rawInstr = json['instructions']?.toString() ?? '';
+    int? sQty = (json['splitQuantity'] as num?)?.toInt();
+    if (sQty == null && rawInstr.isNotEmpty) {
+      final reg = RegExp(r'\[splitQty:\s*(\d+)\]', caseSensitive: false);
+      final match = reg.firstMatch(rawInstr);
+      if (match != null) {
+        sQty = int.tryParse(match.group(1)!);
+      }
+    }
+
     return ApiWorkerTask(
       id: json['id']?.toString() ?? '',
       orderPartId: json['orderPartId']?.toString() ?? '',
       stageId: json['stageId']?.toString() ?? '',
       assignedEmployeeId: json['assignedEmployeeId']?.toString() ?? '',
       assignedByManagerId: json['assignedByManagerId']?.toString() ?? '',
-      instructions: json['instructions']?.toString() ?? '',
+      instructions: rawInstr,
       status: json['status']?.toString() ?? 'ASSIGNED',
       startedAt: json['startedAt']?.toString(),
       completedAt: json['completedAt']?.toString(),
@@ -1141,6 +1483,7 @@ class ApiWorkerTask {
           : ApiWorkerTaskStage(id: '', name: sName),
       orderPart: parsedOrderPart,
       assignedByManagerName: mgrName,
+      splitQuantity: sQty,
     );
   }
 }
@@ -1796,6 +2139,7 @@ class VaultRequisition {
     this.dueDate = '',
     required this.artisanName,
     required this.stageName,
+    this.orderPartStatus = '',
     required this.quantity,
     required this.goldWeightGrams,
     this.gemWeightTw = 0.0,
@@ -1814,6 +2158,7 @@ class VaultRequisition {
   final String dueDate;
   final String artisanName;
   final String stageName;
+  final String orderPartStatus;
   final int quantity;
   final double goldWeightGrams;
   final double gemWeightTw;
@@ -1822,6 +2167,17 @@ class VaultRequisition {
   final List<StoneSpec> stoneSpecs;
   final String status; // 'PENDING_ISSUE', 'ISSUED'
   final String timestamp;
+
+  bool get isDispatchedOrCompleted {
+    final s = stageName.trim().toLowerCase();
+    final st = orderPartStatus.trim().toLowerCase();
+    return s.contains('dispatch') ||
+        s.contains('completed') ||
+        s.contains('delivered') ||
+        st.contains('dispatch') ||
+        st.contains('completed') ||
+        st.contains('delivered');
+  }
 
   VaultRequisition copyWith({
     String? status,
@@ -1891,11 +2247,21 @@ class ApiGemBreakdownItem {
   final int count;
 
   factory ApiGemBreakdownItem.fromJson(Map<String, dynamic> json) {
+    final rawCount =
+        json['count'] ?? json['quantity'] ?? json['qty'] ?? json['pieces'];
     return ApiGemBreakdownItem(
-      shape: json['shape'] as String? ?? '',
-      dimensions: json['dimensions'] as String? ?? '',
-      color: json['color'] as String? ?? '',
-      count: (json['count'] as num?)?.toInt() ?? 0,
+      shape:
+          (json['shape'] ?? json['stone_shape'] ?? json['name'] ?? '')
+              as String? ??
+          '',
+      dimensions:
+          (json['dimensions'] ?? json['size'] ?? json['dim'] ?? '')
+              as String? ??
+          '',
+      color: (json['color'] ?? json['clr'] ?? '') as String? ?? '',
+      count: (rawCount is num)
+          ? rawCount.toInt()
+          : (int.tryParse(rawCount?.toString() ?? '') ?? 0),
     );
   }
 }
@@ -1945,6 +2311,7 @@ class ApiPendingIssuance {
     this.cadSpecs = const ApiCadSpecs(),
     this.isStockIssued = false,
     this.issuance,
+    this.quantity,
   });
 
   final String orderPartId;
@@ -1961,12 +2328,74 @@ class ApiPendingIssuance {
   final bool isStockIssued;
   final ApiMaterialIssuance? issuance;
 
+  /// Jewellery pieces in this requisition, never gemstone count.
+  final int? quantity;
+
+  static int? _batchQuantity(Map<String, dynamic> json) {
+    int? positiveInteger(Object? value) {
+      final number = num.tryParse(value?.toString() ?? '');
+      return number != null &&
+              number.isFinite &&
+              number > 0 &&
+              number == number.roundToDouble()
+          ? number.toInt()
+          : null;
+    }
+
+    if (json['splitQuantity'] != null) {
+      return positiveInteger(json['splitQuantity']);
+    }
+    final part = json['orderPart'] is Map ? json['orderPart'] as Map : const {};
+    final assignmentId = json['partAssignmentId'] as String? ?? '';
+    final assignments = (part['assignments'] as List? ?? [])
+        .whereType<Map>()
+        .toList();
+    final embedded = json['partAssignment'];
+    final assignment =
+        embedded is Map &&
+            (assignmentId.isEmpty || embedded['id'] == assignmentId)
+        ? embedded
+        : assignments
+              .where((a) => assignmentId.isNotEmpty && a['id'] == assignmentId)
+              .firstOrNull;
+    if (assignment != null) {
+      final split = assignment['splitQuantity'] ?? assignment['splitQty'];
+      if (split != null) return positiveInteger(split);
+      final match = RegExp(
+        r'\[splitQty:\s*(\d+)\]',
+        caseSensitive: false,
+      ).firstMatch(assignment['instructions'] as String? ?? '');
+      if (match != null) return positiveInteger(match.group(1));
+    }
+    if (json['quantity'] != null) return positiveInteger(json['quantity']);
+    // A parent count is safe only when it is not shared across worker batches.
+    final active = assignments
+        .where(
+          (a) => const {
+            'ASSIGNED',
+            'IN_PROGRESS',
+            'ACTIVE',
+            'PAUSED',
+            '',
+          }.contains((a['status'] as String? ?? '').toUpperCase()),
+        )
+        .toList();
+    if (active.length > 1 ||
+        (assignmentId.isNotEmpty &&
+            assignments.isNotEmpty &&
+            assignment == null)) {
+      return null;
+    }
+    return positiveInteger(part['quantity']);
+  }
+
   factory ApiPendingIssuance.fromJson(Map<String, dynamic> json) {
     final craftsmanMap = json['assignedCraftsman'] as Map<String, dynamic>?;
     final specsMap = json['cadSpecs'] as Map<String, dynamic>?;
     final issuanceMap = json['issuance'] as Map<String, dynamic>?;
     return ApiPendingIssuance(
       orderPartId: json['orderPartId'] as String? ?? '',
+      quantity: _batchQuantity(json),
       orderId: json['orderId'] as String? ?? '',
       orderNumber: json['orderNumber'] as String? ?? '',
       designNumber: json['designNumber'] as String? ?? 'D01',
@@ -2041,6 +2470,115 @@ class ApiMaterialIssuance {
       reconciliationNotes: json['reconciliationNotes'] as String?,
       craftsmanName: craftsmanMap?['name'] as String? ?? '',
       stockistName: stockistMap?['name'] as String? ?? '',
+    );
+  }
+}
+
+/// A server-authoritative page from GET /orders.
+class ApiOrdersPage {
+  const ApiOrdersPage({
+    required this.orders,
+    required this.page,
+    required this.limit,
+    required this.total,
+    required this.totalPages,
+  });
+  final List<ApiOrder> orders;
+  final int page;
+  final int limit;
+  final int total;
+  final int totalPages;
+  bool get hasMore => page < totalPages;
+
+  factory ApiOrdersPage.fromJson(
+    Map<String, dynamic> json, {
+    int fallbackPage = 1,
+    int fallbackLimit = 50,
+  }) {
+    if (json['success'] == false) {
+      final message = json['message']?.toString();
+      throw FormatException(
+        message != null && message.isNotEmpty
+            ? message
+            : 'Invalid order search response.',
+      );
+    }
+
+    final rawData = json['data'];
+    List<dynamic> dataList;
+    if (rawData is List) {
+      dataList = rawData;
+    } else if (rawData is Map && rawData['orders'] is List) {
+      dataList = rawData['orders'] as List;
+    } else if (rawData is Map && rawData['data'] is List) {
+      dataList = rawData['data'] as List;
+    } else if (json['orders'] is List) {
+      dataList = json['orders'] as List;
+    } else {
+      throw const FormatException('Invalid order search response.');
+    }
+
+    final orders = <ApiOrder>[];
+    for (final row in dataList) {
+      if (row is Map) {
+        orders.add(ApiOrder.fromJson(Map<String, dynamic>.from(row)));
+      }
+    }
+
+    final pagination = json['pagination'];
+    int page = fallbackPage;
+    int limit = fallbackLimit;
+    int total = orders.length;
+    int totalPages = 1;
+
+    if (pagination is Map) {
+      final pMap = Map<String, dynamic>.from(pagination);
+      page = (pMap['page'] as num?)?.toInt() ??
+          int.tryParse(pMap['page']?.toString() ?? '') ??
+          fallbackPage;
+      limit = (pMap['limit'] as num?)?.toInt() ??
+          int.tryParse(pMap['limit']?.toString() ?? '') ??
+          fallbackLimit;
+      total = (pMap['total'] as num?)?.toInt() ??
+          (pMap['totalCount'] as num?)?.toInt() ??
+          int.tryParse(pMap['total']?.toString() ?? '') ??
+          int.tryParse(pMap['totalCount']?.toString() ?? '') ??
+          orders.length;
+      totalPages = (pMap['totalPages'] as num?)?.toInt() ??
+          (pMap['pages'] as num?)?.toInt() ??
+          int.tryParse(pMap['totalPages']?.toString() ?? '') ??
+          int.tryParse(pMap['pages']?.toString() ?? '') ??
+          (limit > 0 && total > 0
+              ? (total / limit).ceil()
+              : (orders.length >= limit ? page + 1 : page));
+    } else {
+      page = (json['page'] as num?)?.toInt() ??
+          int.tryParse(json['page']?.toString() ?? '') ??
+          fallbackPage;
+      limit = (json['limit'] as num?)?.toInt() ??
+          int.tryParse(json['limit']?.toString() ?? '') ??
+          fallbackLimit;
+      total = (json['total'] as num?)?.toInt() ??
+          (json['totalCount'] as num?)?.toInt() ??
+          orders.length;
+      totalPages = (json['totalPages'] as num?)?.toInt() ??
+          (json['pages'] as num?)?.toInt() ??
+          (limit > 0 && total > 0
+              ? (total / limit).ceil()
+              : (orders.length >= limit ? page + 1 : page));
+    }
+
+    if (page < 1) page = 1;
+    if (limit < 1) limit = 50;
+    if (total < 0) total = orders.length;
+    if (totalPages < 1) totalPages = 1;
+
+    return ApiOrdersPage(
+      orders: orders,
+      page: page,
+      limit: limit,
+      total: total,
+      totalPages: totalPages,
     );
   }
 }

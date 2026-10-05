@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/token_storage_service.dart';
@@ -35,6 +36,7 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
   final DemoStore _store;
   final KaratFlowApiRepository _api;
   final TokenStorageService _tokenStorage;
+  int _loadedOrderPages = 1;
 
   Future<void> _onFetchLots(
     FetchWorkshopLotsEvent event,
@@ -44,7 +46,11 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     try {
       final roleStr = await _tokenStorage.getUserRole();
       final appRole = AppRole.fromRoleString(roleStr);
+      debugPrint(
+        '🔍 [WORKSHOP BLOC] Fetching dynamic stages, team & lots for role: $roleStr ($appRole)...',
+      );
       final stages = await _api.listStages();
+      debugPrint('📋 [WORKSHOP BLOC] Loaded ${stages.length} stages from API');
       // Stage IDs in the production response need this lookup during mapping.
       _store.setStages(stages);
       try {
@@ -58,6 +64,9 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
       final team = canManageAssignments
           ? (await _api.listEmployees()).map(ApiDomainMapper.employee).toList()
           : <TeamMember>[];
+      debugPrint(
+        '👥 [WORKSHOP BLOC] Loaded ${team.length} team members / artisans',
+      );
       // Pending production may contain only an employee ID. Hydrate employees
       // first so assignments survive a fresh app launch without local fallback.
       _store.setTeam(team);
@@ -66,10 +75,16 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
         lots = (await _api.listWorkerTasks())
             .map(ApiDomainMapper.workerTask)
             .toList();
+        debugPrint('👷 [WORKSHOP BLOC] Loaded ${lots.length} artisan tasks');
       } else {
         // Fetch raw order parts — they include assignments even after assignment.
         // /production/pending only returns UNASSIGNED parts, so assigned parts vanish from it.
-        final allOrderParts = await _api.listOrderPartsRaw(limit: 100);
+        if (event.orderPage != null) _loadedOrderPages = event.orderPage!;
+        final allOrderParts = <Map<String, dynamic>>[];
+        // Refresh only pages the user has requested, never the entire archive.
+        for (var page = event.orderPage ?? 1; page <= _loadedOrderPages; page++) {
+          allOrderParts.addAll(await _api.listOrderPartsRaw(page: page, limit: 50));
+        }
 
         // Front Office has a read-only stage view. Its order data comes from
         // /orders and it must not query the manager-only pending queue.
@@ -84,7 +99,10 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
                   .toList();
 
         // Build a map starting with pending (unassigned) lots
-        final lotMap = <String, WorkshopLot>{};
+        final lotMap = <String, WorkshopLot>{
+          if ((event.orderPage ?? 1) > 1)
+            for (final lot in _store.lots) lot.id: lot,
+        };
         for (final lot in pendingLots) {
           if (lot.id.isNotEmpty) lotMap[lot.id] = lot;
         }
@@ -93,30 +111,23 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
         for (final partMap in allOrderParts) {
           final partId = partMap['id'] as String? ?? '';
           if (partId.isEmpty) continue;
-          final mappedLot = ApiDomainMapper.pendingPart(partMap);
-          if (lotMap.containsKey(partId)) {
-            final existing = lotMap[partId]!;
-            if (existing.assignedEmployee == 'Unassigned' &&
-                mappedLot.assignedEmployee != 'Unassigned') {
-              lotMap[partId] = mappedLot;
-            }
-          } else {
-            lotMap[partId] = mappedLot;
+          final batchLots = ApiDomainMapper.pendingPartBatches(partMap);
+          // Replace the pending parent with its batches; retaining both doubles
+          // the available quantity after a partial assignment.
+          lotMap.remove(partId);
+
+          for (final batchLot in batchLots) {
+            lotMap[batchLot.id] = batchLot;
           }
         }
         lots = lotMap.values.toList();
-      }
-      _store
-        ..setLots(lots)
-        ..setStages(stages);
-
-      for (final lot in lots) {
-        _store.toggleLotHold(
-          lot.id,
-          isBlocked: lot.blockerReason != null,
-          reason: lot.blockerReason,
+        debugPrint(
+          '🏭 [WORKSHOP BLOC] Loaded ${lots.length} total production floor lots (${pendingLots.length} pending unassigned)',
         );
       }
+      // Mapped lots already contain their hold state. Replaying hold actions
+      // for every lot rescans the entire store and notifies once per lot.
+      _store.setLots(lots);
 
       emit(
         WorkshopLoaded(
@@ -127,6 +138,7 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
         ),
       );
     } catch (error) {
+      debugPrint('❌ [WORKSHOP BLOC] Failed to load live workshop data: $error');
       emit(WorkshopError('Failed to load live workshop data: $error'));
     }
   }
@@ -136,21 +148,60 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     Emitter<WorkshopState> emit,
   ) async {
     try {
+      debugPrint(
+        '🚀 [WORKSHOP BLOC] Advancing Lot: ${event.lotId} Stage (qty: ${event.quantity})',
+      );
       final data = await _api.transitionPartNextStage(
         partId: event.lotId,
         quantity: event.quantity,
         notes: 'Stage advanced from KaratFlow mobile app',
       );
-      final currentStage = data?['currentStage'] as String?;
-      final isComplete = data?['isComplete'] as bool? ?? false;
-      if (isComplete || currentStage == 'ALL_STAGES_COMPLETED') {
-        _store.updateLotStage(event.lotId, WorkshopStage.readyForDispatch);
-      } else if (currentStage != null && currentStage.isNotEmpty) {
-        _store.updateLotStage(event.lotId, ApiDomainMapper.stage(currentStage));
+      final rawStage = data?['currentStage'];
+      final currentStage = rawStage is Map
+          ? rawStage['name'] as String?
+          : rawStage as String?;
+      final isComplete =
+          (data?['isComplete'] as bool? ?? false) ||
+          currentStage == 'ALL_STAGES_COMPLETED';
+      final returnedStageId = rawStage is Map
+          ? rawStage['id'] as String?
+          : null;
+      final assignmentStageId = returnedStageId?.isNotEmpty == true
+          ? returnedStageId
+          : event.nextStageId;
+      if (!isComplete &&
+          event.nextArtisanId != null &&
+          assignmentStageId != null) {
+        try {
+          await _api.assignPartToArtisan(
+            partIds: [
+              data?['partId'] as String? ??
+                  data?['id'] as String? ??
+                  event.lotId,
+            ],
+            stageId: assignmentStageId,
+            assignedEmployeeId: event.nextArtisanId!,
+            splitQuantity: event.quantity,
+          );
+        } catch (error) {
+          emit(
+            WorkshopError(
+              'Stage moved, but worker assignment failed: $error. Refresh and assign the remaining lot.',
+            ),
+          );
+          add(const FetchWorkshopLotsEvent());
+          return;
+        }
       }
+      debugPrint(
+        '✅ [WORKSHOP BLOC] Transition response: currentStage=$currentStage, isComplete=$isComplete',
+      );
+      // A parent part can contain several worker batches. Updating by parent
+      // UUID here can move an unrelated batch; hydrate persisted batches below.
       emit(const WorkshopStageUpdated('Part advanced successfully.'));
       add(const FetchWorkshopLotsEvent());
     } catch (error) {
+      debugPrint('❌ [WORKSHOP BLOC] Failed to advance part: $error');
       emit(WorkshopError('Failed to advance part: $error'));
     }
   }
@@ -159,32 +210,83 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     AllocateLotArtisanEvent event,
     Emitter<WorkshopState> emit,
   ) async {
-    if (event.artisanId?.isEmpty ?? true) {
-      emit(const WorkshopError('A valid artisan ID is required.'));
+    final cleanLotId = KaratFlowApiRepository.extractCleanUuid(event.lotId);
+    final cleanStageId = KaratFlowApiRepository.extractCleanUuid(
+      event.stageId ?? '',
+    );
+    final cleanArtisanId = KaratFlowApiRepository.extractCleanUuid(
+      event.artisanId ?? '',
+    );
+
+    if (!KaratFlowApiRepository.isValidUuid(cleanLotId)) {
+      debugPrint('❌ [WORKSHOP BLOC] Invalid OrderPart UUID: "${event.lotId}"');
+      emit(
+        WorkshopError(
+          'Invalid OrderPart UUID: "${event.lotId}". Database UUID required.',
+        ),
+      );
       return;
     }
-    if (event.stageId?.isEmpty ?? true) {
-      emit(const WorkshopError('A valid production stage ID is required.'));
+    if (!KaratFlowApiRepository.isValidUuid(cleanStageId)) {
+      debugPrint('❌ [WORKSHOP BLOC] Invalid Stage UUID: "${event.stageId}"');
+      emit(WorkshopError('Invalid ProductionStage UUID: "${event.stageId}".'));
       return;
     }
+    if (!KaratFlowApiRepository.isValidUuid(cleanArtisanId)) {
+      debugPrint(
+        '❌ [WORKSHOP BLOC] Invalid Artisan UUID: "${event.artisanId}"',
+      );
+      emit(
+        WorkshopError(
+          'Invalid Artisan UUID for "${event.artisanName}". Database UUID required.',
+        ),
+      );
+      return;
+    }
+
     try {
+      debugPrint(
+        '🚀 [WORKSHOP BLOC] Allocating Part: $cleanLotId -> Artisan: ${event.artisanName} ($cleanArtisanId), Stage: $cleanStageId, Split: ${event.splitQuantity}',
+      );
+      String assignInstructions =
+          (event.instructions != null && event.instructions!.trim().isNotEmpty)
+          ? event.instructions!.trim()
+          : 'Assigned to ${event.artisanName}';
+      if (event.splitQuantity != null && event.splitQuantity! > 0) {
+        if (!assignInstructions.contains('[splitQty:')) {
+          assignInstructions =
+              '[splitQty: ${event.splitQuantity}] $assignInstructions';
+        }
+      }
       await _api.assignPartToArtisan(
-        partIds: [event.lotId],
-        stageId: event.stageId!,
-        assignedEmployeeId: event.artisanId!,
-        instructions: 'Assigned to ${event.artisanName}',
+        partIds: [cleanLotId],
+        stageId: cleanStageId,
+        assignedEmployeeId: cleanArtisanId,
+        instructions: assignInstructions,
+        splitQuantity: event.splitQuantity,
       );
       final targetStage = _stageForId(event.stageId!);
-      _store.updateLotStage(
-        event.lotId,
-        targetStage,
-        assignedEmployee: event.artisanName,
-      );
+      if (event.splitQuantity != null && event.splitQuantity! > 0) {
+        _store.allocateLotWithSplit(
+          lotId: event.lotId,
+          targetStage: targetStage,
+          assignedEmployee: event.artisanName,
+          splitPieces: event.splitQuantity!,
+        );
+      } else {
+        _store.updateLotStage(
+          event.lotId,
+          targetStage,
+          assignedEmployee: event.artisanName,
+        );
+      }
+      debugPrint('✅ [WORKSHOP BLOC] Lot ${event.lotId} assigned successfully');
       emit(const WorkshopStageUpdated('Part assigned successfully.'));
       // Rebuild all workshop views from persisted backend state. The pending
       // endpoint drops assigned parts, while the orders endpoint retains them.
       add(const FetchWorkshopLotsEvent());
     } catch (error) {
+      debugPrint('❌ [WORKSHOP BLOC] Failed to assign part: $error');
       emit(WorkshopError('Failed to assign part: $error'));
     }
   }
@@ -194,6 +296,9 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     Emitter<WorkshopState> emit,
   ) async {
     try {
+      debugPrint(
+        '🔙 [WORKSHOP BLOC] Rolling back Lot: ${event.lotId} -> Stage: ${event.targetStageId}, Reason: ${event.reason}, Qty: ${event.quantity}',
+      );
       await _api.rollbackPartStage(
         partId: event.lotId,
         targetStageId: event.targetStageId,
@@ -203,9 +308,13 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
       if (event.quantity == null) {
         _store.updateLotStage(event.lotId, _stageForId(event.targetStageId));
       }
+      debugPrint(
+        '✅ [WORKSHOP BLOC] Lot ${event.lotId} rolled back successfully',
+      );
       emit(const WorkshopStageUpdated('Part rolled back successfully.'));
       add(const FetchWorkshopLotsEvent());
     } catch (error) {
+      debugPrint('❌ [WORKSHOP BLOC] Failed to rollback part: $error');
       emit(WorkshopError('Failed to rollback part: $error'));
     }
   }
@@ -215,11 +324,16 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     Emitter<WorkshopState> emit,
   ) async {
     try {
+      debugPrint(
+        '🛑 [WORKSHOP BLOC] Placing Lot Part on Hold: ${event.partId} - Reason: ${event.reason}',
+      );
       await _api.blockOrderPart(partId: event.partId, reason: event.reason);
       _store.toggleLotHold(event.partId, isBlocked: true, reason: event.reason);
+      debugPrint('✅ [WORKSHOP BLOC] Lot Part ${event.partId} blocked / held');
       emit(const WorkshopStageUpdated('Part blocked / placed on hold.'));
       add(const FetchWorkshopLotsEvent());
     } catch (error) {
+      debugPrint('❌ [WORKSHOP BLOC] Failed to block order part: $error');
       emit(WorkshopError('Failed to block order part: $error'));
     }
   }
@@ -229,11 +343,18 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     Emitter<WorkshopState> emit,
   ) async {
     try {
+      debugPrint(
+        '🟢 [WORKSHOP BLOC] Releasing Lot Part from Hold: ${event.partId} - Notes: ${event.notes}',
+      );
       await _api.unblockOrderPart(partId: event.partId, notes: event.notes);
       _store.toggleLotHold(event.partId, isBlocked: false);
+      debugPrint(
+        '✅ [WORKSHOP BLOC] Lot Part ${event.partId} unblocked / resumed',
+      );
       emit(const WorkshopStageUpdated('Part unblocked / hold released.'));
       add(const FetchWorkshopLotsEvent());
     } catch (error) {
+      debugPrint('❌ [WORKSHOP BLOC] Failed to unblock order part: $error');
       emit(WorkshopError('Failed to unblock order part: $error'));
     }
   }
@@ -243,10 +364,12 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     Emitter<WorkshopState> emit,
   ) async {
     try {
+      debugPrint('▶️ [WORKSHOP BLOC] Starting Worker Task: ${event.taskId}');
       await _api.startWorkerTask(event.taskId);
       emit(const WorkshopStageUpdated('Task started successfully.'));
       add(const FetchWorkshopLotsEvent());
     } catch (error) {
+      debugPrint('❌ [WORKSHOP BLOC] Failed to start task: $error');
       emit(WorkshopError('Failed to start task: $error'));
     }
   }
@@ -256,10 +379,12 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     Emitter<WorkshopState> emit,
   ) async {
     try {
+      debugPrint('🏁 [WORKSHOP BLOC] Completing Worker Task: ${event.taskId}');
       await _api.completeWorkerTask(event.taskId);
       emit(const WorkshopStageUpdated('Task completed successfully.'));
       add(const FetchWorkshopLotsEvent());
     } catch (error) {
+      debugPrint('❌ [WORKSHOP BLOC] Failed to complete task: $error');
       emit(WorkshopError('Failed to complete task: $error'));
     }
   }
@@ -269,10 +394,14 @@ class WorkshopBloc extends Bloc<WorkshopEvent, WorkshopState> {
     Emitter<WorkshopState> emit,
   ) async {
     try {
+      debugPrint(
+        '⚠️ [WORKSHOP BLOC] Reporting Failure on Worker Task: ${event.taskId} - Reason: ${event.reason}',
+      );
       await _api.reportWorkerTaskFailure(event.taskId, event.reason);
       emit(const WorkshopStageUpdated('Task failure reported.'));
       add(const FetchWorkshopLotsEvent());
     } catch (error) {
+      debugPrint('❌ [WORKSHOP BLOC] Failed to report task failure: $error');
       emit(WorkshopError('Failed to report task failure: $error'));
     }
   }

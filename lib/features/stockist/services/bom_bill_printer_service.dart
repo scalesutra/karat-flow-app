@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import '../../../data/models/api_models.dart';
 import 'bom_bill_printer_stub.dart'
-    if (dart.library.html) 'bom_bill_printer_web.dart' as printer_impl;
+    if (dart.library.html) 'bom_bill_printer_web.dart'
+    as printer_impl;
 
 class BomBillPrinterService {
   static void printThermalReceipt({
@@ -11,48 +12,40 @@ class BomBillPrinterService {
     required String realDateStr,
     required int totalStones,
   }) {
-    if (!kIsWeb) return;
+    if (!kIsWeb || requisition.quantity <= 0) return;
 
     try {
-      final voucherNo = requisition.id.startsWith('REQ-') ||
-              requisition.id.length <= 10
+      final voucherNo =
+          requisition.id.startsWith('REQ-') || requisition.id.length <= 10
           ? requisition.id
           : 'REQ-${requisition.id.substring(0, 6).toUpperCase()}';
 
       final titleHeader = storeName.trim().toUpperCase();
 
-      final hasMetal = requisition.goldWeightGrams > 0;
       final tcwVal = requisition.gemWeightTw;
       final tcwStr = tcwVal > 0 ? '${tcwVal.toStringAsFixed(2)} Cts' : '';
 
+      var rowIdx = 0;
       final stonesRows = requisition.stoneSpecs.isEmpty
-          ? '<tr><td colspan="3" style="padding:6px 4px;color:#555;font-style:italic;text-align:center;">Plain Metal / No Gemstones Required</td></tr>'
+          ? '<tr><td colspan="4" style="padding:6px 4px;color:#555;font-style:italic;text-align:center;">No Gemstones Required</td></tr>'
           : requisition.stoneSpecs
-              .map(
-                (s) =>
-                    '<tr style="border-bottom:1px dashed #ccc;">'
-                    '<td style="padding:4px 2px;font-weight:600;">${s.name}</td>'
-                    '<td style="padding:4px 2px;color:#333;font-size:10.5px;">${s.shape} ${s.size}</td>'
-                    '<td style="padding:4px 2px;text-align:right;font-weight:bold;">${s.count} Pcs</td>'
-                    '</tr>',
-              )
-              .join('');
-
-      final metalSectionHtml = hasMetal
-          ? '''
-            <div style="border:1.5px solid #000;border-radius:4px;margin:8px 0;padding:6px 8px;background:#fafafa;">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <span style="font-size:10px;font-weight:900;letter-spacing:0.5px;">[1] BULLION / METAL ISSUED</span>
-                <span style="font-size:9px;background:#000;color:#fff;padding:1px 4px;border-radius:2px;font-weight:bold;">VAULT CERTIFIED</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;">
-                <span style="font-size:11px;color:#333;">Net Gold Allocation:</span>
-                <span style="font-size:18px;font-weight:900;letter-spacing:-0.5px;">${requisition.goldWeightGrams.toStringAsFixed(2)} <span style="font-size:12px;font-weight:bold;">g</span></span>
-              </div>
-              <div style="font-size:9px;color:#666;margin-top:2px;">Accuracy: 0.01g Calibrated • Scale Tag Verified</div>
-            </div>
-          '''
-          : '';
+                .map(
+                  (s) {
+                    rowIdx++;
+                    final shapeTitle = s.shape.isNotEmpty ? s.shape : s.name;
+                    final sizeSubtitle = s.size.isNotEmpty
+                        ? '<div style="color:#555;font-size:9px;">${s.size}</div>'
+                        : '';
+                    final clr = s.color.isNotEmpty ? s.color : 'White';
+                    return '<tr style="border-bottom:1px dashed #ccc;">'
+                        '<td style="padding:4px 2px;color:#666;vertical-align:top;">$rowIdx</td>'
+                        '<td style="padding:4px 2px;font-weight:700;vertical-align:top;">$shapeTitle$sizeSubtitle</td>'
+                        '<td style="padding:4px 2px;color:#444;vertical-align:top;">$clr</td>'
+                        '<td style="padding:4px 2px;text-align:right;font-weight:bold;vertical-align:top;">${s.count}</td>'
+                        '</tr>';
+                  },
+                )
+                .join('');
 
       final customerRow = requisition.customerName.isNotEmpty
           ? '<div class="flex"><span>CLIENT:</span><span class="bold">${requisition.customerName}</span></div>'
@@ -70,7 +63,8 @@ class BomBillPrinterService {
           ? '$totalStones Pcs · $tcwStr'
           : '$totalStones Pcs';
 
-      final htmlContent = '''
+      final htmlContent =
+          '''
         <!DOCTYPE html>
         <html>
         <head>
@@ -135,35 +129,44 @@ class BomBillPrinterService {
             $sizeDimRow
             <div class="flex"><span>CRAFTSMAN  :</span><span class="bold">${requisition.artisanName}</span></div>
             <div class="flex"><span>STAGE NAME :</span><span class="bold">${requisition.stageName.toUpperCase()}</span></div>
+            <div class="flex"><span>JEWELLERY QTY:</span><span class="bold">${requisition.quantity} Pcs</span></div>
           </div>
-
-          <!-- SECTION 1: METAL ALLOCATION -->
-          $metalSectionHtml
 
           <!-- SECTION 2: GEMSTONES BOM -->
           <div style="border:1.5px solid #000;border-radius:4px;margin:8px 0;padding:6px 8px;">
             <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:4px;border-bottom:1px solid #000;">
-              <span style="font-size:10px;font-weight:900;letter-spacing:0.5px;">[2] GEMSTONES BOM</span>
-              <span style="font-size:9.5px;font-weight:bold;background:#000;color:#fff;padding:1px 5px;border-radius:2px;">$gemHeaderBadge</span>
+              <span style="font-size:9.5px;font-weight:900;letter-spacing:0.3px;">DIAMOND BREAKDOWN (${requisition.designNumber} · ${requisition.quantity} Pcs Total)</span>
+              <span style="font-size:9px;font-weight:bold;background:#000;color:#fff;padding:1px 5px;border-radius:2px;">$gemHeaderBadge</span>
             </div>
             <table style="margin-top:4px;">
               <thead>
                 <tr style="border-bottom:1px solid #888;font-size:9px;text-align:left;color:#444;">
-                  <th style="padding:2px 0;">STONE SPEC</th>
-                  <th style="padding:2px 0;">SHAPE / DIM</th>
-                  <th style="padding:2px 0;text-align:right;">QTY</th>
+                  <th style="padding:2px 0;width:14px;">#</th>
+                  <th style="padding:2px 0;">SHAPE / SIZE</th>
+                  <th style="padding:2px 0;">CLR</th>
+                  <th style="padding:2px 0;text-align:right;">PCS</th>
                 </tr>
               </thead>
               <tbody>
                 $stonesRows
               </tbody>
+              <tfoot>
+                <tr style="border-top:1px solid #888;font-size:9px;font-weight:bold;">
+                  <td colspan="3" style="padding:5px 2px 2px 2px;">SUBTOTAL (${requisition.stoneSpecs.length} SIZES)</td>
+                  <td style="padding:5px 2px 2px 2px;text-align:right;">$totalStones</td>
+                </tr>
+                <tr style="border-top:1.5px solid #000;font-size:10px;font-weight:900;">
+                  <td colspan="3" style="padding:4px 2px;">GRAND TOTAL DIAMONDS</td>
+                  <td style="padding:4px 2px;text-align:right;">$totalStones Pcs</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
 
           <!-- PHYSICAL ACKNOWLEDGEMENT & DUAL SIGNATURES -->
           <div style="margin-top:8px;padding-top:4px;border-top:1px solid #000;">
             <div class="bold" style="font-size:9.5px;margin-bottom:3px;">[PHYSICAL ACKNOWLEDGEMENT]</div>
-            <div style="font-size:9.5px;">☑ Verified Material Weight & Purity</div>
+            <div style="font-size:9.5px;">☑ Verified Jewellery Quantity</div>
             <div style="font-size:9.5px;">☑ Verified Gemstone Count & Quality</div>
             <div style="display:flex;justify-content:space-between;margin-top:18px;font-size:9px;" class="mono">
               <div style="text-align:center;width:45%;">

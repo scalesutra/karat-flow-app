@@ -29,6 +29,7 @@ class OrderDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = FrontOfficeOrderCard.getStatusColor(order.status);
+    final stages = order.stagesSnapshot;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -89,16 +90,31 @@ class OrderDetailSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const CommonText.titleMedium('Workshop Progress'),
+          const CommonText.titleMedium('Locked Production Pipeline'),
           const SizedBox(height: 8),
-          _stageStep(
-            '•',
-            order.currentWorkshopStage.isNotEmpty
-                ? order.currentWorkshopStage
-                : 'Unassigned',
-            order.currentWorkshopStage.isNotEmpty &&
-                order.currentWorkshopStage.toLowerCase() != 'unassigned',
-          ),
+          if (stages.isNotEmpty) ...[
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < stages.length; i++) ...[
+                      _buildSnapshotStageRow(stages[i], i + 1, stages.length),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ] else ...[
+            _stageStep(
+              '•',
+              order.currentWorkshopStage.isNotEmpty
+                  ? order.currentWorkshopStage
+                  : 'Unassigned',
+              order.currentWorkshopStage.isNotEmpty &&
+                  order.currentWorkshopStage.toLowerCase() != 'unassigned',
+            ),
+          ],
           const SizedBox(height: 20),
           Row(
             children: [
@@ -125,6 +141,9 @@ class OrderDetailSheet extends StatelessWidget {
                                 : design.status,
                             'isBlocked': design.isBlocked,
                             'blockReason': design.blockReason,
+                            'isPriceLocked': design.isPriceLocked,
+                            'priceLockedAt': design.priceLockedAt,
+                            'artisan': design.assignedArtisanName,
                           },
                         )
                         .toList(growable: false);
@@ -154,10 +173,14 @@ class OrderDetailSheet extends StatelessWidget {
                           ? 'Completed'
                           : order.status.label,
                       'purity':
-                          '${order.totalGrossGrams}g · Due ${order.promiseDate}',
+                          '${order.totalGrossGrams.toStringAsFixed(3).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')}g · Due ${order.promiseDate}',
                       'pieces': order.itemsCount,
+                      'totalPieces': order.totalPieces,
                       'artisan': order.responsibleManager,
                       'designs': designRows,
+                      'stagesSnapshot': order.stagesSnapshot
+                          .map((s) => s.toJson())
+                          .toList(growable: false),
                       'allowStageChange': false,
                     };
                     Navigator.pushNamed(
@@ -170,6 +193,77 @@ class OrderDetailSheet extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSnapshotStageRow(
+    dynamic stage,
+    int stageNum,
+    int totalStages,
+  ) {
+    final stageName = stage.name as String;
+    final stageId = stage.id as String;
+    final isFinal = (stage.isFinal as bool? ?? false) || stageNum == totalStages;
+
+    final partsAtStage = order.designs.where((d) {
+      if (d.currentStageId.isNotEmpty && d.currentStageId == stageId) {
+        return true;
+      }
+      return d.currentStage.trim().toLowerCase() == stageName.trim().toLowerCase();
+    }).toList();
+
+    final hasActiveParts = partsAtStage.isNotEmpty;
+    final totalQtyAtStage = partsAtStage.fold<int>(0, (sum, p) => sum + p.quantity);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 11,
+            backgroundColor: hasActiveParts
+                ? AppColors.emerald
+                : AppColors.outline.withValues(alpha: 0.5),
+            child: Text(
+              '$stageNum',
+              style: TextStyle(
+                fontSize: 10,
+                color: hasActiveParts ? Colors.white : AppColors.muted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              stageName,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: hasActiveParts ? FontWeight.w700 : FontWeight.w500,
+                color: hasActiveParts ? AppColors.ink : AppColors.muted,
+              ),
+            ),
+          ),
+          if (hasActiveParts) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.emerald.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                border: Border.all(color: AppColors.emerald.withValues(alpha: 0.35)),
+              ),
+              child: Text(
+                isFinal ? 'Ready for Dispatch ($totalQtyAtStage pcs)' : '$totalQtyAtStage pcs active',
+                style: const TextStyle(
+                  color: AppColors.emerald,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

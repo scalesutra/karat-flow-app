@@ -25,12 +25,80 @@ class LiveOrdersTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return BlocConsumer<OrdersBloc, OrdersState>(
+      listenWhen: (previous, current) =>
+          current is OrdersLoaded &&
+          !current.isLoadingMore &&
+          current.pageError == null &&
+          current.page > 1 &&
+          (previous is! OrdersLoaded || previous.page != current.page),
+      listener: (context, state) {
+        context.read<WorkshopBloc>().add(
+          FetchWorkshopLotsEvent(orderPage: (state as OrdersLoaded).page),
+        );
+      },
+      builder: (context, state) {
+        if (state is OrdersError) {
+          return CommonEmptyState(
+            icon: Icons.error_outline,
+            title: 'Could not load orders',
+            description: state.message,
+            actionLabel: 'Retry',
+            onAction: () => context.read<OrdersBloc>().add(
+              FetchOrdersEvent(search: searchQuery, statusFilter: ''),
+            ),
+          );
+        }
+        if (state is! OrdersLoaded) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return Column(
+          children: [
+            Expanded(child: _buildOrders(context, state.orders)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${state.orders.length} orders loaded',
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                  if (state.pageError != null) Text(state.pageError!),
+                  if (state.hasMore)
+                    TextButton(
+                      onPressed: state.isLoadingMore
+                          ? null
+                          : () => context.read<OrdersBloc>().add(
+                              const FetchOrdersEvent(loadMore: true),
+                            ),
+                      child: Text(
+                        state.isLoadingMore
+                            ? 'Loading…'
+                            : state.pageError != null
+                            ? 'Retry next page'
+                            : 'Load next 50 orders',
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildOrders(BuildContext context, List<CustomerOrder> orders) {
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) {
         return BlocBuilder<WorkshopBloc, WorkshopState>(
           builder: (context, state) {
-            if (state is WorkshopLoading) {
+            if (state is WorkshopLoading && orders.isEmpty) {
               return const Center(
                 child: CommonProgressIndicator.workshop(
                   label: 'Syncing Process Manager Active Orders...',
@@ -38,20 +106,10 @@ class LiveOrdersTab extends StatelessWidget {
               );
             }
 
-            final rawOrders = store.orders
-                .where((o) => o.status != OrderStatus.delivered)
-                .toList();
+            final filteredOrders = orders;
 
-            final filteredOrders = rawOrders.where((o) {
-              if (searchQuery.isEmpty) return true;
-              final q = searchQuery.toLowerCase();
-              return o.id.toLowerCase().contains(q) ||
-                  o.clientFirmName.toLowerCase().contains(q) ||
-                  o.itemsSummary.toLowerCase().contains(q) ||
-                  o.responsibleManager.toLowerCase().contains(q);
-            }).toList();
-
-            final liveOrders = filteredOrders.map((o) {
+            // Build derived card data only for rows requested by the lazy list.
+            Map<String, Object?> buildOrder(CustomerOrder o) {
               final matchingLots = store.lots.where((l) {
                 final matchesOrder =
                     l.orderId == o.id ||
@@ -68,91 +126,139 @@ class LiveOrdersTab extends StatelessWidget {
               final blockedReason =
                   o.blockedReason ?? blockedLot?.blockerReason;
 
-              final designRows = o.designs
-                  .map((design) {
-                    final matchedLot =
-                        matchingLots
-                            .where(
-                              (lot) =>
-                                  design.partId.isNotEmpty &&
-                                  lot.id == design.partId,
-                            )
-                            .firstOrNull ??
-                        matchingLots
-                            .where(
-                              (lot) =>
-                                  design.designNumber.isNotEmpty &&
-                                  lot.designCode == design.designNumber,
-                            )
-                            .firstOrNull;
-                    final stage =
-                        matchedLot?.stage.label ??
-                        (design.currentStage.isNotEmpty
-                            ? design.currentStage
-                            : design.status);
-                    return {
-                      'partId': design.partId,
-                      'designNumber': design.designNumber,
-                      'quantity': design.quantity,
-                      'stage': stage,
-                      'artisan': matchedLot?.assignedEmployee ?? '',
-                      'isBlocked':
-                          design.isBlocked || matchedLot?.blockerReason != null,
-                      'blockReason':
-                          design.blockReason ?? matchedLot?.blockerReason,
-                    };
-                  })
-                  .toList(growable: false);
+              final stages = o.stagesSnapshot;
+              final totalStages = stages.isNotEmpty ? stages.length : 1;
+              final totalOrderQuantity = o.totalPieces > 0
+                  ? o.totalPieces
+                  : (o.itemsCount > 0
+                        ? o.itemsCount
+                        : o.designs.fold<int>(0, (sum, d) => sum + d.quantity));
 
-              final allDesignsFinished = designRows.isNotEmpty &&
-                  designRows.every((r) {
-                    final stg = (r['stage'] as String).toLowerCase();
-                    return stg.contains('pack') ||
-                        stg.contains('dispatch') ||
-                        stg.contains('ready') ||
-                        stg.contains('complete');
-                  });
+              int readyPieces = 0;
+              double progressNumerator = 0;
 
-              final hasUnfinishedDesigns = designRows.isNotEmpty &&
-                  designRows.any((r) {
-                    final stg = (r['stage'] as String).toLowerCase();
-                    return !stg.contains('pack') &&
-                        !stg.contains('dispatch') &&
-                        !stg.contains('ready') &&
-                        !stg.contains('complete');
-                  });
+              final designRows = o.designs.map((design) {
+                final matchedLot =
+                    matchingLots
+                        .where(
+                          (lot) =>
+                              design.partId.isNotEmpty &&
+                              lot.id == design.partId,
+                        )
+                        .firstOrNull ??
+                    matchingLots
+                        .where(
+                          (lot) =>
+                              design.designNumber.isNotEmpty &&
+                              lot.designCode == design.designNumber,
+                        )
+                        .firstOrNull;
 
-              final isComplete = !hasUnfinishedDesigns &&
-                  (o.status == OrderStatus.ready ||
-                      o.status == OrderStatus.dispatched ||
-                      o.status == OrderStatus.delivered ||
-                      allDesignsFinished ||
-                      (designRows.isEmpty &&
-                          (o.currentWorkshopStage
-                                  .toLowerCase()
-                                  .contains('complete') ||
-                              o.currentWorkshopStage
-                                  .toLowerCase()
-                                  .contains('dispatch') ||
-                              o.currentWorkshopStage
-                                  .toLowerCase()
-                                  .contains('pack'))));
+                String stage = design.currentStage.isNotEmpty
+                    ? design.currentStage
+                    : (matchedLot?.stage.label ?? design.status);
+
+                final artisan = design.assignedArtisanName.isNotEmpty
+                    ? design.assignedArtisanName
+                    : (matchedLot?.assignedEmployee ?? '');
+
+                // Find stage index (1-indexed) in order.stagesSnapshot
+                int stageIndex = 1;
+                bool isFinalStage = false;
+                if (stages.isNotEmpty) {
+                  final sIdx = stages.indexWhere(
+                    (s) =>
+                        (design.currentStageId.isNotEmpty &&
+                            s.id == design.currentStageId) ||
+                        s.name.trim().toLowerCase() ==
+                            stage.trim().toLowerCase(),
+                  );
+                  if (sIdx >= 0) {
+                    stageIndex = sIdx + 1;
+                    isFinalStage =
+                        stages[sIdx].isFinal || sIdx == stages.length - 1;
+                    stage = stages[sIdx].name;
+                  } else if (stage.toLowerCase().contains('dispatch') ||
+                      stage.toLowerCase().contains('complete')) {
+                    stageIndex = totalStages;
+                    isFinalStage = true;
+                  }
+                } else if (stage.toLowerCase().contains('dispatch') ||
+                    stage.toLowerCase().contains('complete')) {
+                  stageIndex = totalStages;
+                  isFinalStage = true;
+                }
+
+                final isReadyForDispatch =
+                    isFinalStage ||
+                    design.isPriceLocked ||
+                    stage.toLowerCase().contains('dispatch') ||
+                    stage.toLowerCase().contains('complete');
+
+                if (isReadyForDispatch) {
+                  readyPieces += design.quantity;
+                }
+
+                progressNumerator += (design.quantity * stageIndex);
+
+                return {
+                  'partId': design.partId,
+                  'designNumber': design.designNumber,
+                  'quantity': design.quantity,
+                  'stage': stage,
+                  'artisan': artisan,
+                  'isBlocked':
+                      design.isBlocked || matchedLot?.blockerReason != null,
+                  'blockReason':
+                      design.blockReason ?? matchedLot?.blockerReason,
+                  'isPriceLocked': design.isPriceLocked,
+                  'priceLockedAt': design.priceLockedAt,
+                  'isReadyForDispatch': isReadyForDispatch,
+                };
+              }).toList();
+
+              final progressDenominator =
+                  (totalOrderQuantity > 0 ? totalOrderQuantity : 1) *
+                  totalStages;
+              final progressPercent = progressDenominator > 0
+                  ? ((progressNumerator / progressDenominator) * 100).clamp(
+                      0.0,
+                      100.0,
+                    )
+                  : 0.0;
+
+              final isAllPiecesReady =
+                  totalOrderQuantity > 0 && readyPieces >= totalOrderQuantity;
+              final isComplete =
+                  isAllPiecesReady ||
+                  o.status == OrderStatus.ready ||
+                  o.status == OrderStatus.dispatched ||
+                  o.status == OrderStatus.delivered;
+
+              final isPartialReady = !isComplete && readyPieces > 0;
               final isInProgress =
-                  !isComplete && o.status == OrderStatus.inWorkshop;
+                  !isComplete &&
+                  (o.status == OrderStatus.inWorkshop || readyPieces > 0);
+
               final activeStages = designRows
                   .map((row) => row['stage'] as String)
                   .where((stage) => stage.isNotEmpty)
                   .toSet();
               final showDesignStages =
                   activeStages.length > 1 ||
-                  designRows.any((row) => row['isBlocked'] == true);
+                  designRows.any((row) => row['isBlocked'] == true) ||
+                  designRows.any((row) => row['isPriceLocked'] == true);
 
               final orderDetails = <String>['${o.itemsCount} Pcs'];
               if (o.totalGrossGrams > 0) {
-                orderDetails.add('${o.totalGrossGrams}g');
+                orderDetails.add('${o.totalGrossGrams.toStringAsFixed(2)}g');
               }
-              if (o.promiseDate.trim().isNotEmpty) {
-                orderDetails.add('Due ${o.promiseDate}');
+              final cleanPromise = o.promiseDate.trim();
+              if (cleanPromise.isNotEmpty) {
+                final dueText = cleanPromise.toLowerCase().startsWith('due')
+                    ? cleanPromise
+                    : 'Due $cleanPromise';
+                orderDetails.add(dueText);
               }
 
               final orderCadTasks = store.cadTasks
@@ -173,28 +279,36 @@ class LiveOrdersTab extends StatelessWidget {
                   .length;
               final hasStl = orderCadTasks.any((t) => t.hasStlFile);
 
+              final statusText = isBlocked
+                  ? 'ON CRITICAL HOLD'
+                  : isComplete
+                  ? 'Complete'
+                  : isPartialReady
+                  ? 'In Production ($readyPieces/$totalOrderQuantity Ready)'
+                  : isInProgress
+                  ? (activeStages.length > 1
+                        ? '${activeStages.length} Active Stages'
+                        : activeStages.firstOrNull ?? o.currentWorkshopStage)
+                  : 'Pending Start';
+
               return {
                 'id': o.id,
                 'apiId': o.apiId,
+                'orderNumber': o.id,
                 'title': o.designs.isEmpty
                     ? 'No design parts'
                     : '${o.designs.length} design${o.designs.length == 1 ? '' : 's'}',
-                'client': '${o.clientFirmName} · ${o.clientCity}',
-                'stage': isBlocked
-                    ? 'ON CRITICAL HOLD'
-                    : (isComplete
-                          ? 'Complete'
-                          : activeStages.length > 1
-                          ? '${activeStages.length} Active Stages'
-                          : activeStages.firstOrNull ??
-                                (isInProgress
-                                    ? o.currentWorkshopStage
-                                    : 'Pending Start')),
+                'client': o.clientCity.trim().isNotEmpty
+                    ? '${o.clientFirmName} · ${o.clientCity.trim()}'
+                    : o.clientFirmName,
+                'stage': statusText,
                 'details': orderDetails.join(' · '),
                 'status': isBlocked
                     ? 'on hold'
                     : isComplete
                     ? 'complete'
+                    : isPartialReady
+                    ? 'in progress'
                     : isInProgress
                     ? 'in progress'
                     : 'pending',
@@ -202,10 +316,15 @@ class LiveOrdersTab extends StatelessWidget {
                     ? AppColors.danger
                     : isComplete
                     ? AppColors.emerald
+                    : isPartialReady
+                    ? AppColors.emerald
                     : isInProgress
                     ? AppColors.goldDark
                     : const Color(0xFFFFD18A),
                 'pieces': o.itemsCount,
+                'totalPieces': totalOrderQuantity,
+                'readyPieces': readyPieces,
+                'progressPercent': progressPercent,
                 'designs': designRows,
                 'showDesignStages': showDesignStages,
                 'artisan': o.responsibleManager,
@@ -218,38 +337,42 @@ class LiveOrdersTab extends StatelessWidget {
                 'partId': blockedLot?.id ?? matchingLots.firstOrNull?.id,
                 'orderPartId': blockedLot?.id ?? matchingLots.firstOrNull?.id,
               };
-            }).toList();
+            }
 
-            if (liveOrders.isEmpty) {
+            if (filteredOrders.isEmpty) {
               return const CommonEmptyState(
                 icon: Icons.receipt_long_outlined,
-                title: 'No active orders from Front Office',
+                title: 'No matching orders',
                 description:
-                    'New orders placed in Front Office will appear here.',
+                    'Try a different order number, customer, phone or design number.',
               );
             }
 
             return CommonRefreshIndicator(
               theme: IndicatorTheme.workshop,
               onRefresh: () async {
-                context.read<OrdersBloc>().add(const FetchOrdersEvent());
+                context.read<OrdersBloc>().add(
+                  FetchOrdersEvent(search: searchQuery, statusFilter: ''),
+                );
                 context.read<WorkshopBloc>().add(
-                  const FetchWorkshopLotsEvent(),
+                  const FetchWorkshopLotsEvent(orderPage: 1),
                 );
               },
               child: ListView.separated(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(20, 6, 20, 28),
-                itemCount: liveOrders.length,
+                itemCount: filteredOrders.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
-                  final order = liveOrders[index];
+                  final order = buildOrder(filteredOrders[index]);
                   final isBlocked = order['isBlocked'] as bool? ?? false;
                   final designRows =
                       order['designs'] as List<Map<String, Object?>>;
                   final statusColor = isBlocked
                       ? AppColors.danger
                       : (order['statusColor'] as Color);
+                  final progressPercent =
+                      (order['progressPercent'] as num?)?.toDouble() ?? 0.0;
 
                   return InkWell(
                     onTap: () {
@@ -480,6 +603,66 @@ class LiveOrdersTab extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 10),
+                          // Dynamic Production Progress Bar
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.canvas,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.outline),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'Production Progress',
+                                      style: TextStyle(
+                                        color: AppColors.muted,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${progressPercent.toStringAsFixed(0)}%',
+                                      style: TextStyle(
+                                        color: progressPercent >= 100
+                                            ? AppColors.emerald
+                                            : AppColors.goldDark,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 5),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(3),
+                                  child: LinearProgressIndicator(
+                                    value: (progressPercent / 100.0).clamp(
+                                      0.0,
+                                      1.0,
+                                    ),
+                                    minHeight: 5,
+                                    backgroundColor: AppColors.outline
+                                        .withValues(alpha: 0.35),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      progressPercent >= 100
+                                          ? AppColors.emerald
+                                          : AppColors.goldDark,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.all(10),
@@ -547,7 +730,8 @@ class LiveOrdersTab extends StatelessWidget {
                                             fontSize: 11,
                                             color: isBlocked
                                                 ? AppColors.danger
-                                                : AppColors.ink,
+                                                : (order['statusColor']
+                                                      as Color),
                                           ),
                                         ),
                                       ),
@@ -613,10 +797,14 @@ class _OrderDesignStageRow extends StatelessWidget {
     final stage = design['stage'] as String? ?? '';
     final artisan = design['artisan'] as String? ?? '';
     final isBlocked = design['isBlocked'] as bool? ?? false;
+    final isPriceLocked = design['isPriceLocked'] as bool? ?? false;
+    final isReadyForDispatch = design['isReadyForDispatch'] as bool? ?? false;
+
     final normalizedStage = stage.toLowerCase();
     final stageColor = isBlocked
         ? AppColors.danger
-        : normalizedStage.contains('complete') ||
+        : isReadyForDispatch ||
+              normalizedStage.contains('complete') ||
               normalizedStage.contains('dispatch')
         ? AppColors.emerald
         : normalizedStage.contains('pending') || stage.isEmpty
@@ -667,53 +855,113 @@ class _OrderDesignStageRow extends StatelessWidget {
             ),
           ],
         ),
-        if (showStage || (artisan.isNotEmpty && artisan != 'Unassigned')) ...[
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              if (showStage)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: stageColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(
-                      AppDimensions.radiusFull,
-                    ),
-                    border: Border.all(
-                      color: stageColor.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: Text(
-                    isBlocked
-                        ? 'On Hold'
-                        : stage.isEmpty
-                        ? 'Stage not returned'
-                        : stage,
-                    style: TextStyle(
-                      color: stageColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                    ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            // Stage Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: stageColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                border: Border.all(color: stageColor.withValues(alpha: 0.35)),
+              ),
+              child: Text(
+                isBlocked
+                    ? 'On Hold'
+                    : stage.isEmpty
+                    ? 'Stage not returned'
+                    : stage,
+                style: TextStyle(
+                  color: stageColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+
+            // Ready for Dispatch Badge
+            if (isReadyForDispatch)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.emerald.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                  border: Border.all(
+                    color: AppColors.emerald.withValues(alpha: 0.45),
                   ),
                 ),
-              if (artisan.isNotEmpty && artisan != 'Unassigned')
-                Text(
-                  'Assigned: $artisan',
-                  style: const TextStyle(
-                    color: AppColors.muted,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 5,
+                      height: 5,
+                      decoration: const BoxDecoration(
+                        color: AppColors.emerald,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Ready for Dispatch ($quantity Pcs)',
+                      style: const TextStyle(
+                        color: AppColors.emerald,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Rates Locked Badge
+            if (isPriceLocked)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.goldDark.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                  border: Border.all(
+                    color: AppColors.goldDark.withValues(alpha: 0.45),
                   ),
                 ),
-            ],
-          ),
-        ],
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.lock_rounded,
+                      size: 10,
+                      color: AppColors.goldDark,
+                    ),
+                    SizedBox(width: 3),
+                    Text(
+                      'Rates Locked',
+                      style: TextStyle(
+                        color: AppColors.goldDark,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Assigned Artisan Badge
+            if (artisan.isNotEmpty && artisan != 'Unassigned')
+              Text(
+                'Artisan: $artisan',
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+          ],
+        ),
       ],
     );
   }

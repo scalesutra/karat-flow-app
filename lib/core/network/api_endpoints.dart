@@ -39,14 +39,39 @@ abstract final class ApiEndpoints {
   static const String uploadThreeD = '/three-d-designs/upload';
   static String reuploadThreeD(String id) => '/three-d-designs/$id/reupload';
   static String reviewThreeD(String id) => '/three-d-designs/$id/review';
+  static const String catalog = '/three-d-designs/catalog';
+  static String catalogItemDetails(String id) => '/three-d-designs/catalog/$id';
   static String updateThreeDProduct(String designId) =>
       '/three-d-designs/$designId/product';
   static const String directCreateThreeD = '/three-d-designs/direct-create';
 
+  /// Standard Image URL resolution following KarratFlow API specifications
+  static String resolveImageUrl(String? urlOrKey) {
+    if (urlOrKey == null || urlOrKey.trim().isEmpty) return '';
+    final trimmed = urlOrKey.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('/api/v1/')) {
+      return 'https://ka.scalesutra.com$trimmed';
+    }
+    if (trimmed.startsWith('/storage/view')) {
+      return '$baseUrl$trimmed';
+    }
+    if (trimmed.startsWith('karratflow/')) {
+      return '$baseUrl/storage/view?key=${Uri.encodeComponent(trimmed)}';
+    }
+    if (trimmed.startsWith('/')) {
+      return 'https://ka.scalesutra.com$trimmed';
+    }
+    return trimmed;
+  }
+
   // ── SECTION 7: Orders & Multi-Design Tracking (/orders) ──────────
   static const String orders = '/orders';
   static String orderDetails(String id) => '/orders/$id';
-  static String orderTrack(String orderNumber) => '/orders/track/$orderNumber';
+  static String orderTrack(String orderNumber) =>
+      '/orders/track/${Uri.encodeComponent(orderNumber.trim())}';
   static String addOrderParts(String orderId) => '/orders/$orderId/parts';
   static String checkoutOrder(String orderId) => '/orders/$orderId/checkout';
 

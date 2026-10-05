@@ -356,7 +356,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                                 : order.status.label,
                             'statusColor': _statusColor(order.status),
                             'purity':
-                                '${order.totalGrossGrams}g · Due ${order.promiseDate}',
+                                '${order.totalGrossGrams.toStringAsFixed(3).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')}g · Due ${order.promiseDate}',
                             'pieces': order.itemsCount,
                             'artisan': order.responsibleManager,
                             'designs': designRows,
@@ -637,10 +637,10 @@ class _OrderReportRow extends StatelessWidget {
 
     final isOnHold = holdStatus?.isNotEmpty == true;
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: AppColors.paper,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isOnHold
               ? AppColors.danger.withOpacity(0.5)
@@ -650,26 +650,21 @@ class _OrderReportRow extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: isOnHold
-                ? AppColors.danger.withOpacity(0.12)
-                : Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-          BoxShadow(
-            color: Colors.white.withOpacity(0.8),
-            blurRadius: 1,
-            offset: const Offset(0, -1),
+                ? AppColors.danger.withOpacity(0.08)
+                : Colors.black.withOpacity(0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -677,12 +672,10 @@ class _OrderReportRow extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      order.id.length > 10
-                          ? 'ORD-${order.id.substring(0, 6).toUpperCase()}'
-                          : order.id,
+                      order.id,
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
-                        fontSize: 12,
+                        fontSize: 11,
                         color: AppColors.ink,
                       ),
                     ),
@@ -706,14 +699,16 @@ class _OrderReportRow extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
-                  '${order.clientFirmName} · ${order.clientCity}',
+                  '${order.clientFirmName}${order.clientCity.trim().isNotEmpty ? ' · ${order.clientCity}' : ''}',
                   style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
                     color: AppColors.ink,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 1),
                 Text(
@@ -758,7 +753,7 @@ class _OrderReportRow extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${order.itemsCount} pcs · ${order.totalGrossGrams}g Gold',
+                        '${order.itemsCount} pcs · ${order.totalGrossGrams.toStringAsFixed(3).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')}g',
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 10,

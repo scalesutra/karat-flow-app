@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../front_office/bloc/orders_bloc.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
@@ -22,10 +25,37 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
   StatusPivot _activePivot = StatusPivot.orders;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  Timer? _searchDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<OrdersBloc>().add(
+      const FetchOrdersEvent(search: '', statusFilter: ''),
+    );
+  }
+
+  void _searchOrders(String value) {
+    setState(() => _searchQuery = value);
+    _searchDebounce?.cancel();
+    void fetch() => context.read<OrdersBloc>().add(
+      FetchOrdersEvent(search: value, statusFilter: ''),
+    );
+    if (value.trim().isEmpty) {
+      fetch();
+    } else {
+      _searchDebounce = Timer(const Duration(milliseconds: 300), fetch);
+    }
+  }
+
+  final _peopleSearchController = TextEditingController();
+  String _peopleSearchQuery = '';
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
+    _peopleSearchController.dispose();
     super.dispose();
   }
 
@@ -38,7 +68,8 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
             .where((o) => o.status == OrderStatus.pending)
             .length;
         final completeCount = widget.store.orders.where((o) {
-          final hasUnfinished = o.designs.isNotEmpty &&
+          final hasUnfinished =
+              o.designs.isNotEmpty &&
               o.designs.any((d) {
                 final stg = d.currentStage.toLowerCase();
                 return !stg.contains('pack') &&
@@ -48,7 +79,8 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
               });
           if (hasUnfinished) return false;
 
-          final allFinished = o.designs.isNotEmpty &&
+          final allFinished =
+              o.designs.isNotEmpty &&
               o.designs.every((d) {
                 final stg = d.currentStage.toLowerCase();
                 return stg.contains('pack') ||
@@ -63,14 +95,15 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
               allFinished ||
               (o.designs.isEmpty &&
                   (o.currentWorkshopStage.toLowerCase().contains('complete') ||
-                      o.currentWorkshopStage
-                          .toLowerCase()
-                          .contains('dispatch') ||
+                      o.currentWorkshopStage.toLowerCase().contains(
+                        'dispatch',
+                      ) ||
                       o.currentWorkshopStage.toLowerCase().contains('pack')));
         }).length;
 
         final inProgressCount = widget.store.orders.where((o) {
-          final hasUnfinished = o.designs.isNotEmpty &&
+          final hasUnfinished =
+              o.designs.isNotEmpty &&
               o.designs.any((d) {
                 final stg = d.currentStage.toLowerCase();
                 return !stg.contains('pack') &&
@@ -80,7 +113,8 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
               });
           if (hasUnfinished) return true;
 
-          final allFinished = o.designs.isNotEmpty &&
+          final allFinished =
+              o.designs.isNotEmpty &&
               o.designs.every((d) {
                 final stg = d.currentStage.toLowerCase();
                 return stg.contains('pack') ||
@@ -89,15 +123,16 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                     stg.contains('complete');
               });
 
-          final isFinished = o.status == OrderStatus.ready ||
+          final isFinished =
+              o.status == OrderStatus.ready ||
               o.status == OrderStatus.dispatched ||
               o.status == OrderStatus.delivered ||
               allFinished ||
               (o.designs.isEmpty &&
                   (o.currentWorkshopStage.toLowerCase().contains('complete') ||
-                      o.currentWorkshopStage
-                          .toLowerCase()
-                          .contains('dispatch') ||
+                      o.currentWorkshopStage.toLowerCase().contains(
+                        'dispatch',
+                      ) ||
                       o.currentWorkshopStage.toLowerCase().contains('pack')));
           return !isFinished && o.status == OrderStatus.inWorkshop;
         }).length;
@@ -265,9 +300,19 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                       const SizedBox(height: 10),
                       CommonSearchBar(
                         controller: _searchController,
-                        hintText: 'Search by Order #, client or item...',
-                        onChanged: (val) => setState(() => _searchQuery = val),
-                        onClear: () => setState(() => _searchQuery = ''),
+                        hintText: 'Order #, customer, phone or design #...',
+                        onChanged: _searchOrders,
+                      ),
+                    ],
+
+                    if (_activePivot == StatusPivot.people) ...[
+                      const SizedBox(height: 10),
+                      CommonSearchBar(
+                        controller: _peopleSearchController,
+                        hintText: 'Search people by name, craft or stage...',
+                        onChanged: (value) =>
+                            setState(() => _peopleSearchQuery = value),
+                        onClear: () => setState(() => _peopleSearchQuery = ''),
                       ),
                     ],
 
@@ -332,7 +377,10 @@ class _ProductManagerPageState extends State<ProductManagerPage> {
                     store: widget.store,
                     searchQuery: _searchQuery,
                   ),
-                  StatusPivot.people => ArtisansPeopleTab(store: widget.store),
+                  StatusPivot.people => ArtisansPeopleTab(
+                    store: widget.store,
+                    searchQuery: _peopleSearchQuery,
+                  ),
                   StatusPivot.stages => StagesPipelineTab(store: widget.store),
                 },
               ),

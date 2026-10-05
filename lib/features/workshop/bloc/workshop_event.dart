@@ -7,15 +7,24 @@ sealed class WorkshopEvent {
 
 /// Fetch fresh workshop manufacturing lots & stages
 final class FetchWorkshopLotsEvent extends WorkshopEvent {
-  const FetchWorkshopLotsEvent();
+  const FetchWorkshopLotsEvent({this.orderPage});
+
+  final int? orderPage;
 }
 
 /// Advance lot pouch to next jewellery stage
 final class AdvanceLotStageEvent extends WorkshopEvent {
-  const AdvanceLotStageEvent(this.lotId, {this.quantity});
+  const AdvanceLotStageEvent(
+    this.lotId, {
+    this.quantity,
+    this.nextStageId,
+    this.nextArtisanId,
+  });
 
   final String lotId;
   final int? quantity;
+  final String? nextStageId;
+  final String? nextArtisanId;
 }
 
 /// Allocate lot to a specific artisan / goldsmith
@@ -25,12 +34,16 @@ final class AllocateLotArtisanEvent extends WorkshopEvent {
     required this.artisanName,
     this.artisanId,
     this.stageId,
+    this.splitQuantity,
+    this.instructions,
   });
 
   final String lotId;
   final String artisanName;
   final String? artisanId;
   final String? stageId;
+  final int? splitQuantity;
+  final String? instructions;
 }
 
 final class RollbackLotStageEvent extends WorkshopEvent {

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:jewellery_ops_mobile/core/constants/app_colors.dart';
 import 'package:jewellery_ops_mobile/data/mappers/api_domain_mapper.dart';
 import 'package:jewellery_ops_mobile/features/instructions/instruction_composer.dart';
-
 import '../../core/widgets/common_app_bar.dart';
 import '../../core/widgets/common_button.dart';
 import '../../core/widgets/common_card.dart';
@@ -315,9 +314,9 @@ class StatusDetailPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-              CommonText.titleMedium(
-                'Active Lots on Bench (${activeLots.length})',
-              ),
+            CommonText.titleMedium(
+              'Active Lots on Bench (${activeLots.length})',
+            ),
             const SizedBox(height: 10),
             if (activeLots.isEmpty)
               const CommonCard(
@@ -655,7 +654,7 @@ class StatusDetailPage extends StatelessWidget {
                       Expanded(
                         child: _stageMetricTile(
                           'GROSS WEIGHT',
-                          '${order.totalGrossGrams} g',
+                          '${order.totalGrossGrams.toStringAsFixed(3).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')} g',
                           AppColors.gold,
                         ),
                       ),
@@ -730,7 +729,7 @@ class StatusDetailPage extends StatelessWidget {
               ),
             for (final lot in activeLots) ...[
               CommonCard(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -742,21 +741,19 @@ class StatusDetailPage extends StatelessWidget {
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
+                                  horizontal: 7,
+                                  vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
                                   color: AppColors.ink,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: Text(
-                                  lot.id.length > 10
-                                      ? 'LOT-${lot.id.substring(0, 6).toUpperCase()}'
-                                      : lot.id,
-                                  style: const TextStyle(
+                                child: const Text(
+                                  'LOT',
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 11,
+                                    fontSize: 10,
                                   ),
                                 ),
                               ),
@@ -773,7 +770,7 @@ class StatusDetailPage extends StatelessWidget {
                                   style: const TextStyle(
                                     color: AppColors.muted,
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 12,
+                                    fontSize: 11,
                                   ),
                                 ),
                               ),
@@ -783,12 +780,12 @@ class StatusDetailPage extends StatelessWidget {
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
+                            horizontal: 7,
+                            vertical: 2,
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.emeraldLight,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             lot.stage.label,
@@ -801,12 +798,12 @@ class StatusDetailPage extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Text(
                       lot.productTitle,
                       style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
                         color: AppColors.ink,
                       ),
                     ),
@@ -819,7 +816,7 @@ class StatusDetailPage extends StatelessWidget {
                             children: [
                               const Icon(
                                 Icons.person_outline,
-                                size: 14,
+                                size: 13,
                                 color: AppColors.muted,
                               ),
                               const SizedBox(width: 4),
@@ -829,7 +826,7 @@ class StatusDetailPage extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                    fontSize: 12,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                     color: AppColors.ink,
                                   ),
@@ -840,10 +837,10 @@ class StatusDetailPage extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '${lot.targetWeightGrams} g · ${lot.pieces} pcs',
+                          '${lot.targetWeightGrams.toStringAsFixed(3).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')}g · ${lot.pieces} pcs',
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
-                            fontSize: 12,
+                            fontSize: 11,
                             color: AppColors.gold,
                           ),
                         ),
@@ -1020,7 +1017,7 @@ class StatusDetailPage extends StatelessWidget {
               ),
             for (final lot in activeLots) ...[
               CommonCard(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1032,21 +1029,19 @@ class StatusDetailPage extends StatelessWidget {
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
+                                  horizontal: 7,
+                                  vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
                                   color: AppColors.ink,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: Text(
-                                  lot.id.length > 10
-                                      ? 'LOT-${lot.id.substring(0, 6).toUpperCase()}'
-                                      : lot.id,
-                                  style: const TextStyle(
+                                child: const Text(
+                                  'LOT',
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 11,
+                                    fontSize: 10,
                                   ),
                                 ),
                               ),
@@ -1063,7 +1058,7 @@ class StatusDetailPage extends StatelessWidget {
                                   style: const TextStyle(
                                     color: AppColors.muted,
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 12,
+                                    fontSize: 11,
                                   ),
                                 ),
                               ),
@@ -1073,12 +1068,12 @@ class StatusDetailPage extends StatelessWidget {
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
+                            horizontal: 7,
+                            vertical: 2,
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.emeraldLight,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             (lot.stage == WorkshopStage.readyForDispatch ||
@@ -1087,7 +1082,7 @@ class StatusDetailPage extends StatelessWidget {
                                     ) ||
                                     lot.apiStageName.toUpperCase() ==
                                         'ALL_STAGES_COMPLETED')
-                                ? 'Ready for Dispatch'
+                                ? 'Dispatched'
                                 : (lot.apiStageName.isNotEmpty
                                       ? lot.apiStageName
                                       : lot.stage.label),
@@ -1100,12 +1095,12 @@ class StatusDetailPage extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Text(
                       lot.productTitle,
                       style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
                         color: AppColors.ink,
                       ),
                     ),
@@ -1116,15 +1111,15 @@ class StatusDetailPage extends StatelessWidget {
                         Text(
                           'Current Bench Assignment',
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: AppColors.muted,
                           ),
                         ),
                         Text(
-                          '${lot.targetWeightGrams} g · ${lot.pieces} pcs',
+                          '${lot.targetWeightGrams.toStringAsFixed(3).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')}g · ${lot.pieces} pcs',
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
-                            fontSize: 12,
+                            fontSize: 11,
                             color: AppColors.gold,
                           ),
                         ),
@@ -1133,7 +1128,7 @@ class StatusDetailPage extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
             ],
           ],
         ),

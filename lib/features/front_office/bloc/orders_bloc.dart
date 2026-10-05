@@ -2,7 +2,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:jewellery_ops_mobile/core/network/token_storage_service.dart';
 import 'package:jewellery_ops_mobile/core/services/app_local_cache_service.dart';
 import 'package:jewellery_ops_mobile/data/models/api_models.dart';
-import '../../../core/network/token_storage_service.dart';
 import '../../../data/demo_store.dart';
 import '../../../data/mappers/api_domain_mapper.dart';
 import '../../../data/repositories/karatflow_api_repository.dart';
@@ -15,10 +14,14 @@ export 'orders_state.dart';
 
 /// Orders BLoC with Strict Live Backend Order APIs (/orders)
 class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
-  OrdersBloc({required DemoStore store, KaratFlowApiRepository? apiRepository})
-    : _store = store,
-      _api = apiRepository ?? KaratFlowApiRepository(),
-      super(const OrdersInitial()) {
+  OrdersBloc({
+    required DemoStore store,
+    KaratFlowApiRepository? apiRepository,
+    TokenStorageService? tokenStorage,
+  }) : _store = store,
+       _api = apiRepository ?? KaratFlowApiRepository(),
+       _tokenStorage = tokenStorage ?? TokenStorageService(),
+       super(const OrdersInitial()) {
     on<FetchOrdersEvent>(_onFetchOrders);
     on<FetchFrontOfficeDataEvent>(_onFetchFrontOfficeData);
     on<CreateOrderEvent>(_onCreateOrder);
@@ -34,43 +37,99 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
 
   final DemoStore _store;
   final KaratFlowApiRepository _api;
-  final TokenStorageService _tokenStorage = TokenStorageService();
+  final TokenStorageService _tokenStorage;
+  int _ordersRequest = 0;
+  String _orderStatus = '';
+  String _orderSearch = '';
 
   Future<void> _onFetchOrders(
     FetchOrdersEvent event,
     Emitter<OrdersState> emit,
   ) async {
-    final tokenRole = (await _tokenStorage.getUserRole())?.toUpperCase() ?? '';
-    final isWorkerRole =
-        _store.activeRole == AppRole.worker ||
-        _store.activeRole == AppRole.workshopArtisan ||
-        tokenRole == 'CRAFTSMAN' ||
-        tokenRole == 'WORKER' ||
-        tokenRole == 'ARTISAN';
-
-    if (isWorkerRole) {
-      emit(OrdersLoaded(orders: _store.orders, filteredOrders: _store.orders));
+    final previous = state is OrdersLoaded ? state as OrdersLoaded : null;
+    if (event.loadMore &&
+        (previous == null || !previous.hasMore || previous.isLoadingMore)) {
       return;
     }
-
-    emit(const OrdersLoading());
-    try {
-      final apiOrders = await _api.listOrders(status: event.statusFilter ?? '');
-
-      final mappedOrders = apiOrders.map(ApiDomainMapper.order).toList();
-
-      _store.setOrders(mappedOrders);
-      emit(OrdersLoaded(orders: mappedOrders, filteredOrders: mappedOrders));
-    } catch (e) {
-      if (e.toString().contains('403') || e.toString().contains('Forbidden')) {
-        emit(
-          OrdersLoaded(orders: _store.orders, filteredOrders: _store.orders),
-        );
-        return;
-      }
+    final request = ++_ordersRequest;
+    if (!event.loadMore) {
+      _orderStatus = event.statusFilter ?? _orderStatus;
+      _orderSearch = event.search?.trim() ?? _orderSearch;
+    }
+    final status = _orderStatus;
+    final search = _orderSearch;
+    final page = event.loadMore ? previous!.page + 1 : 1;
+    OrdersLoaded loaded(
+      List<CustomerOrder> orders, {
+      required int page,
+      required bool hasMore,
+      bool loadingMore = false,
+      String? error,
+    }) => OrdersLoaded(
+      orders: orders,
+      filteredOrders: orders,
+      page: page,
+      hasMore: hasMore,
+      isLoadingMore: loadingMore,
+      pageError: error,
+      searchQuery: search,
+      selectedFilter: status.isEmpty ? 'All' : status,
+    );
+    if (event.loadMore) {
       emit(
-        OrdersError('Failed to fetch orders from live API: ${e.toString()}'),
+        loaded(
+          previous!.orders,
+          page: previous.page,
+          hasMore: true,
+          loadingMore: true,
+        ),
       );
+    } else {
+      emit(const OrdersLoading());
+    }
+    try {
+      final role = (await _tokenStorage.getUserRole())?.toUpperCase() ?? '';
+      if (request != _ordersRequest || emit.isDone) return;
+      if (_store.activeRole == AppRole.worker ||
+          _store.activeRole == AppRole.workshopArtisan ||
+          {'CRAFTSMAN', 'WORKER', 'ARTISAN'}.contains(role)) {
+        throw StateError(
+          'Order search is available to admins, front office and managers only.',
+        );
+      }
+      final result = await _api.listOrdersPage(
+        status: status,
+        search: search,
+        page: page,
+        limit: 50,
+      );
+      if (request != _ordersRequest || emit.isDone) return;
+      if (result.page != page) {
+        throw const FormatException('Unexpected order page returned.');
+      }
+      final merged = <String, CustomerOrder>{
+        if (event.loadMore)
+          for (final order in previous!.orders)
+            order.apiId.isNotEmpty ? order.apiId : order.id: order,
+        for (final order in result.orders.map(ApiDomainMapper.order))
+          order.apiId.isNotEmpty ? order.apiId : order.id: order,
+      }.values.toList();
+      _store.setOrders(merged);
+      emit(loaded(merged, page: result.page, hasMore: result.hasMore));
+    } catch (error) {
+      if (request != _ordersRequest || emit.isDone) return;
+      if (event.loadMore) {
+        emit(
+          loaded(
+            previous!.orders,
+            page: previous.page,
+            hasMore: true,
+            error: 'Could not load the next page: $error',
+          ),
+        );
+      } else {
+        emit(OrdersError('Failed to fetch orders from live API: $error'));
+      }
     }
   }
 
@@ -78,52 +137,18 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     FetchFrontOfficeDataEvent event,
     Emitter<OrdersState> emit,
   ) async {
-    // ── 0. Stale-While-Revalidate: Instant Local Cache Load ─────────
-    try {
-      final cachedThreeD = await AppLocalCacheService.instance
-          .getCachedThreeDDesigns();
-      final cachedSketches = await AppLocalCacheService.instance
-          .getCachedSketches();
-      final cachedCustomers = await AppLocalCacheService.instance
-          .getCachedCustomers();
-      final cachedOrders = await AppLocalCacheService.instance
-          .getCachedOrders();
-
-      if (cachedThreeD.isNotEmpty ||
-          cachedSketches.isNotEmpty ||
-          cachedCustomers.isNotEmpty ||
-          cachedOrders.isNotEmpty) {
-        if (cachedCustomers.isNotEmpty) {
-          _store.setClients(
-            cachedCustomers.map(ApiDomainMapper.customer).toList(),
-          );
-        }
-        if (cachedThreeD.isNotEmpty || cachedSketches.isNotEmpty) {
-          final cachedCatalogue = _buildCatalogue(cachedThreeD, cachedSketches);
-          _store.setDesigns(cachedCatalogue);
-        }
-        if (cachedOrders.isNotEmpty) {
-          final mapped = cachedOrders.map(ApiDomainMapper.order).toList();
-          _store.setOrders(mapped);
-          emit(OrdersLoaded(orders: mapped, filteredOrders: mapped));
-        } else if (_store.designs.isNotEmpty) {
-          emit(
-            OrdersLoaded(orders: _store.orders, filteredOrders: _store.orders),
-          );
-        }
-      } else {
-        emit(const OrdersLoading());
-      }
-    } catch (_) {
-      emit(const OrdersLoading());
-    }
+    emit(const OrdersLoading());
 
     // ── 1. Live Fetch from KaratFlow Server ───────────────────────────
     try {
-      final orders = await _api.listOrders(status: '', limit: 200);
       final customers = await _api.listCustomers(limit: 200);
       final sketches = await _api.listAllSketches(status: '');
-      final threeD = await _api.listAllThreeDDesigns(status: '');
+
+      // ── Customer Catalog (Public endpoint: /three-d-designs/catalog) ───
+      List<ApiThreeDDesign> threeD = await _api.listAllCatalog();
+      if (threeD.isEmpty) {
+        threeD = await _api.listAllThreeDDesigns(status: '');
+      }
 
       final catalogueDesigns = _buildCatalogue(threeD, sketches);
 
@@ -131,24 +156,14 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
         ..setClients(customers.map(ApiDomainMapper.customer).toList())
         ..setDesigns(catalogueDesigns);
 
-      final mappedOrders = orders.map(ApiDomainMapper.order).toList();
-      _store.setOrders(mappedOrders);
-
-      emit(OrdersLoaded(orders: mappedOrders, filteredOrders: mappedOrders));
+      add(const FetchOrdersEvent());
 
       // ── 2. Persist to Local Storage Cache for Fast Subsequent Loads ─
       AppLocalCacheService.instance.saveThreeDDesigns(threeD);
       AppLocalCacheService.instance.saveSketches(sketches);
       AppLocalCacheService.instance.saveCustomers(customers);
-      AppLocalCacheService.instance.saveOrders(orders);
     } catch (error) {
-      if (_store.designs.isNotEmpty || _store.orders.isNotEmpty) {
-        emit(
-          OrdersLoaded(orders: _store.orders, filteredOrders: _store.orders),
-        );
-      } else {
-        emit(OrdersError('Failed to load live front-office data: $error'));
-      }
+      emit(OrdersError('Failed to load live front-office data: $error'));
     }
   }
 
@@ -228,6 +243,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
                 description: t.description,
                 imageUrl: t.imageUrl,
                 renderImageUrl: t.renderImageUrl,
+                cleanDesignUrl: t.cleanDesignUrl,
               )
             : t;
 
@@ -398,37 +414,11 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
   }
 
   void _onFilterOrders(FilterOrdersEvent event, Emitter<OrdersState> emit) {
-    if (state is OrdersLoaded) {
-      final current = state as OrdersLoaded;
-      final filtered = current.orders.where((order) {
-        final matchesStatus = switch (event.statusFilter) {
-          'In Workshop' => order.status == OrderStatus.inWorkshop,
-          'Ready' => order.status == OrderStatus.ready,
-          'Delivered' => order.status == OrderStatus.delivered,
-          _ => true,
-        };
-
-        final matchesSearch =
-            event.query.isEmpty ||
-            order.id.toLowerCase().contains(event.query.toLowerCase()) ||
-            order.clientFirmName.toLowerCase().contains(
-              event.query.toLowerCase(),
-            ) ||
-            order.itemsSummary.toLowerCase().contains(
-              event.query.toLowerCase(),
-            );
-
-        return matchesStatus && matchesSearch;
-      }).toList();
-
-      emit(
-        OrdersLoaded(
-          orders: current.orders,
-          filteredOrders: filtered,
-          selectedFilter: event.statusFilter,
-          searchQuery: event.query,
-        ),
-      );
-    }
+    add(
+      FetchOrdersEvent(
+        search: event.query,
+        statusFilter: event.statusFilter == 'All' ? '' : event.statusFilter,
+      ),
+    );
   }
 }

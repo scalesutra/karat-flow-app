@@ -1269,12 +1269,37 @@ class DemoStore extends ChangeNotifier {
     String lotId,
     WorkshopStage newStage, {
     String? assignedEmployee,
+    int? pieces,
   }) {
-    final index = _lots.indexWhere((l) => l.id == lotId);
+    final cleanId = lotId.contains('#') ? lotId.split('#').first : lotId;
+
+    // Try exact match first, then fall back to cleanId prefix (handles split lots like "uuid#timestamp")
+    int index = _lots.indexWhere((l) => l.id == lotId);
+    if (index < 0) {
+      index = _lots.indexWhere((l) => l.id == cleanId);
+    }
+    if (index < 0) {
+      index = _lots.indexWhere(
+        (l) => l.id.startsWith('$cleanId#') || l.id.split('#').first == cleanId,
+      );
+    }
+
+    // Resolve the new API stage name so part.stageName stays in sync immediately.
+    // Without this, _advanceLivePart's stage-name match picks the OLD (stale) stage on the second tap.
+    final newApiStageName = _stages
+        .where(
+          (s) =>
+              ApiDomainMapper.stage(s.name) == newStage &&
+              !s.name.toLowerCase().contains('queue'),
+        )
+        .firstOrNull
+        ?.name;
+
     if (index >= 0) {
       final updated = _lots[index].copyWith(
         stage: newStage,
         assignedEmployee: assignedEmployee ?? _lots[index].assignedEmployee,
+        pieces: (pieces != null && pieces > 0) ? pieces : _lots[index].pieces,
         lastUpdatedTime: 'Just now',
         tone: newStage == WorkshopStage.readyForDispatch
             ? HealthTone.healthy
@@ -1299,6 +1324,92 @@ class DemoStore extends ChangeNotifier {
       }
 
       recordScan(updated);
+      notifyListeners();
+    }
+  }
+
+  void allocateLotWithSplit({
+    required String lotId,
+    required WorkshopStage targetStage,
+    required String assignedEmployee,
+    required int splitPieces,
+  }) {
+    final cleanId = lotId.contains('#') ? lotId.split('#').first : lotId;
+    // 1. Find the exact matching lot first, or the unassigned lot, or any lot matching cleanId
+    int index = _lots.indexWhere((l) => l.id == lotId);
+    if (index < 0) {
+      index = _lots.indexWhere((l) => l.id == '$cleanId#unassigned');
+    }
+    if (index < 0) {
+      index = _lots.indexWhere(
+        (l) => l.id == cleanId || l.id.startsWith('$cleanId#'),
+      );
+    }
+
+    if (index >= 0) {
+      final sourceLot = _lots[index];
+      final totalPieces = sourceLot.pieces;
+      final effectivePieces = (splitPieces > 0 && splitPieces <= totalPieces)
+          ? splitPieces
+          : totalPieces;
+      final remainderPieces = totalPieces - effectivePieces;
+
+      // Unique assignment ID for this worker allocation
+      final asgnId = DateTime.now().millisecondsSinceEpoch.toString();
+      final allocatedLot = sourceLot.copyWith(
+        id: '$cleanId#$asgnId',
+        stage: targetStage,
+        assignedEmployee: assignedEmployee,
+        pieces: effectivePieces,
+        lastUpdatedTime: 'Just now',
+        tone: targetStage == WorkshopStage.readyForDispatch
+            ? HealthTone.healthy
+            : sourceLot.tone,
+      );
+
+      // If there are remaining unassigned pieces, keep or update the unassigned remainder lot
+      if (remainderPieces > 0) {
+        final remainderLot = sourceLot.copyWith(
+          id: '$cleanId#unassigned',
+          assignedEmployee: 'Unassigned',
+          pieces: remainderPieces,
+          lastUpdatedTime: 'Just now',
+        );
+        _lots[index] = allocatedLot;
+        final unassignedIdx = _lots.indexWhere(
+          (l) => l.id == '$cleanId#unassigned',
+        );
+        if (unassignedIdx >= 0) {
+          _lots[unassignedIdx] = remainderLot;
+        } else {
+          _lots.insert(index + 1, remainderLot);
+        }
+      } else {
+        // All pieces allocated from this lot
+        _lots[index] = allocatedLot;
+        _lots.removeWhere(
+          (l) => l.id == '$cleanId#unassigned' && l.id != allocatedLot.id,
+        );
+      }
+
+      // Update employee working status
+      if (assignedEmployee.isNotEmpty) {
+        final tIndex = _team.indexWhere(
+          (t) =>
+              t.name.toLowerCase() == assignedEmployee.toLowerCase() ||
+              t.id == assignedEmployee,
+        );
+        if (tIndex >= 0) {
+          final member = _team[tIndex];
+          _team[tIndex] = member.copyWith(
+            status: EmployeeStatus.working,
+            activeLotsCount: member.activeLotsCount + 1,
+            currentAssignment: 'Lot #$cleanId',
+          );
+        }
+      }
+
+      recordScan(allocatedLot);
       notifyListeners();
     }
   }
@@ -1615,12 +1726,10 @@ class DemoStore extends ChangeNotifier {
 
   void setStages(List<ApiStage> stages) {
     final seenIds = <String>{};
-    final seenNames = <String>{};
     final uniqueStages = <ApiStage>[];
     for (final s in stages) {
       if (!s.isActive) continue;
-      final nameKey = s.name.trim().toLowerCase();
-      if (seenIds.add(s.id) && seenNames.add(nameKey)) {
+      if (s.id.isNotEmpty && seenIds.add(s.id)) {
         uniqueStages.add(s);
       }
     }

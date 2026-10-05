@@ -7,9 +7,15 @@ sealed class OrdersEvent {
 
 /// Fetch fresh orders from backend (Zero Cache Policy)
 final class FetchOrdersEvent extends OrdersEvent {
-  const FetchOrdersEvent({this.statusFilter});
+  const FetchOrdersEvent({
+    this.statusFilter,
+    this.search,
+    this.loadMore = false,
+  });
 
   final String? statusFilter;
+  final bool loadMore;
+  final String? search;
 }
 
 final class FetchFrontOfficeDataEvent extends OrdersEvent {

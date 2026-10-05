@@ -339,6 +339,9 @@ class JewelleryDesign {
     this.gemBreakdown = const [],
     this.gemQuantity = 0,
     this.customCategory,
+    this.rawCadSheetUrl = '',
+    this.galleryImages = const [],
+    this.heroImageUrl = '',
   }) : grossWeightGrams = grossWeightGrams ?? defaultGrossWeightGrams ?? 0.0,
        defaultGrossWeightGrams =
            defaultGrossWeightGrams ?? grossWeightGrams ?? 0.0,
@@ -364,6 +367,9 @@ class JewelleryDesign {
   final ApiPriceBreakdown? priceBreakdown;
   final List<GemBreakdownItem> gemBreakdown;
   final int gemQuantity;
+  final String rawCadSheetUrl;
+  final List<ApiGalleryImage> galleryImages;
+  final String heroImageUrl;
 
   String get displayCategory =>
       customCategory?.isNotEmpty == true ? customCategory! : category.label;
@@ -371,6 +377,23 @@ class JewelleryDesign {
   bool get hasBackendPrice => _estimatedPrice != null && _estimatedPrice > 0;
 
   double get estimatedPrice => hasBackendPrice ? _estimatedPrice! : 0;
+
+  List<String> get displayImageUrls {
+    final list = <String>[];
+    if (heroImageUrl.trim().isNotEmpty) {
+      list.add(heroImageUrl.trim());
+    }
+    for (final img in galleryImages) {
+      final u = img.url.trim();
+      if (u.isNotEmpty && !list.contains(u)) {
+        list.add(u);
+      }
+    }
+    if (imageUrl.trim().isNotEmpty && !list.contains(imageUrl.trim())) {
+      list.add(imageUrl.trim());
+    }
+    return list;
+  }
 
   JewelleryDesign copyWith({
     String? id,
@@ -392,6 +415,9 @@ class JewelleryDesign {
     ApiPriceBreakdown? priceBreakdown,
     List<GemBreakdownItem>? gemBreakdown,
     int? gemQuantity,
+    String? rawCadSheetUrl,
+    List<ApiGalleryImage>? galleryImages,
+    String? heroImageUrl,
   }) {
     return JewelleryDesign(
       id: id ?? this.id,
@@ -414,6 +440,9 @@ class JewelleryDesign {
       priceBreakdown: priceBreakdown ?? this.priceBreakdown,
       gemBreakdown: gemBreakdown ?? this.gemBreakdown,
       gemQuantity: gemQuantity ?? this.gemQuantity,
+      rawCadSheetUrl: rawCadSheetUrl ?? this.rawCadSheetUrl,
+      galleryImages: galleryImages ?? this.galleryImages,
+      heroImageUrl: heroImageUrl ?? this.heroImageUrl,
     );
   }
 }
@@ -448,10 +477,14 @@ class OrderDesignProgress {
     this.designName = '',
     required this.quantity,
     required this.grossWeight,
+    this.currentStageId = '',
     required this.currentStage,
     required this.status,
     required this.isBlocked,
     this.blockReason,
+    this.priceLockedAt,
+    this.assignedArtisanName = '',
+    this.assignedArtisanRole = '',
   });
 
   final String partId;
@@ -459,10 +492,16 @@ class OrderDesignProgress {
   final String designName;
   final int quantity;
   final double grossWeight;
+  final String currentStageId;
   final String currentStage;
   final String status;
   final bool isBlocked;
   final String? blockReason;
+  final DateTime? priceLockedAt;
+  final String assignedArtisanName;
+  final String assignedArtisanRole;
+
+  bool get isPriceLocked => priceLockedAt != null;
 
   String get displayName =>
       designName.trim().isNotEmpty ? designName.trim() : designNumber.trim();
@@ -481,6 +520,8 @@ class CustomerOrder {
     required this.createdAt,
     required this.itemsSummary,
     this.apiId = '',
+    this.totalPieces = 0,
+    this.stagesSnapshot = const [],
     this.designs = const [],
     this.currentWorkshopStage = 'In Queue (Unassigned)',
     this.responsibleManager = 'Unassigned',
@@ -499,6 +540,8 @@ class CustomerOrder {
   final String promiseDate;
   final DateTime createdAt;
   final String itemsSummary;
+  final int totalPieces;
+  final List<ApiOrderStageSnapshot> stagesSnapshot;
   final List<OrderDesignProgress> designs;
   final String currentWorkshopStage;
   final String responsibleManager;
@@ -517,6 +560,8 @@ class CustomerOrder {
     String? promiseDate,
     DateTime? createdAt,
     String? itemsSummary,
+    int? totalPieces,
+    List<ApiOrderStageSnapshot>? stagesSnapshot,
     List<OrderDesignProgress>? designs,
     String? currentWorkshopStage,
     String? responsibleManager,
@@ -535,6 +580,8 @@ class CustomerOrder {
       promiseDate: promiseDate ?? this.promiseDate,
       createdAt: createdAt ?? this.createdAt,
       itemsSummary: itemsSummary ?? this.itemsSummary,
+      totalPieces: totalPieces ?? this.totalPieces,
+      stagesSnapshot: stagesSnapshot ?? this.stagesSnapshot,
       designs: designs ?? this.designs,
       currentWorkshopStage: currentWorkshopStage ?? this.currentWorkshopStage,
       responsibleManager: responsibleManager ?? this.responsibleManager,
@@ -608,26 +655,34 @@ class WorkshopLot {
       apiStageName.isNotEmpty ? apiStageName : assignedEmployeeRole;
 
   WorkshopLot copyWith({
+    String? id,
+    String? orderId,
+    String? designCode,
+    String? productTitle,
     WorkshopStage? stage,
     String? assignedEmployee,
     String? assignedEmployeeRole,
     int? pieces,
+    double? issueWeightGrams,
+    double? targetWeightGrams,
     HealthTone? tone,
     String? blockerReason,
     bool clearBlocker = false,
     String? lastUpdatedTime,
+    String? apiStageId,
+    String? apiStageName,
   }) {
     return WorkshopLot(
-      id: id,
-      orderId: orderId,
-      designCode: designCode,
-      productTitle: productTitle,
+      id: id ?? this.id,
+      orderId: orderId ?? this.orderId,
+      designCode: designCode ?? this.designCode,
+      productTitle: productTitle ?? this.productTitle,
       stage: stage ?? this.stage,
       assignedEmployee: assignedEmployee ?? this.assignedEmployee,
       assignedEmployeeRole: assignedEmployeeRole ?? this.assignedEmployeeRole,
       pieces: pieces ?? this.pieces,
-      issueWeightGrams: issueWeightGrams,
-      targetWeightGrams: targetWeightGrams,
+      issueWeightGrams: issueWeightGrams ?? this.issueWeightGrams,
+      targetWeightGrams: targetWeightGrams ?? this.targetWeightGrams,
       tone: tone ?? this.tone,
       blockerReason: clearBlocker
           ? null
@@ -635,8 +690,8 @@ class WorkshopLot {
                 ? null
                 : (blockerReason ?? this.blockerReason)),
       lastUpdatedTime: lastUpdatedTime ?? this.lastUpdatedTime,
-      apiStageId: apiStageId,
-      apiStageName: apiStageName,
+      apiStageId: apiStageId ?? this.apiStageId,
+      apiStageName: apiStageName ?? this.apiStageName,
     );
   }
 }
@@ -798,6 +853,7 @@ class CadDesignTask {
     this.imageUrl = '',
     this.calculatedPrice,
     this.priceBreakdown,
+    this.cleanDesignUrl,
   });
 
   final String id;
@@ -830,6 +886,7 @@ class CadDesignTask {
   final List<GemBreakdownItem> gemBreakdown;
   final double? calculatedPrice;
   final ApiPriceBreakdown? priceBreakdown;
+  final String? cleanDesignUrl;
 
   CadDesignTask copyWith({
     CadTaskStatus? status,
@@ -852,6 +909,7 @@ class CadDesignTask {
     List<GemBreakdownItem>? gemBreakdown,
     double? calculatedPrice,
     ApiPriceBreakdown? priceBreakdown,
+    String? cleanDesignUrl,
   }) {
     return CadDesignTask(
       id: id,
@@ -883,6 +941,7 @@ class CadDesignTask {
       gemBreakdown: gemBreakdown ?? this.gemBreakdown,
       calculatedPrice: calculatedPrice ?? this.calculatedPrice,
       priceBreakdown: priceBreakdown ?? this.priceBreakdown,
+      cleanDesignUrl: cleanDesignUrl ?? this.cleanDesignUrl,
     );
   }
 }

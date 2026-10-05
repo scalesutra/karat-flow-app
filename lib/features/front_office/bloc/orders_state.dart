@@ -23,12 +23,20 @@ final class OrdersLoaded extends OrdersState {
     required this.filteredOrders,
     this.selectedFilter = 'All',
     this.searchQuery = '',
+    this.page = 1,
+    this.hasMore = false,
+    this.isLoadingMore = false,
+    this.pageError,
   });
 
   final List<CustomerOrder> orders;
   final List<CustomerOrder> filteredOrders;
   final String selectedFilter;
   final String searchQuery;
+  final int page;
+  final bool hasMore;
+  final bool isLoadingMore;
+  final String? pageError;
 }
 
 /// Orders operation successful (e.g. Order created / Status updated)

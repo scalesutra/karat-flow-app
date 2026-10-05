@@ -6,9 +6,10 @@ import 'package:jewellery_ops_mobile/data/demo_store.dart';
 
 /// Workshop Process Manager - Artisans & Goldsmiths Workload Tab
 class ArtisansPeopleTab extends StatelessWidget {
-  const ArtisansPeopleTab({super.key, required this.store});
+  const ArtisansPeopleTab({super.key, required this.store, this.searchQuery = ''});
 
   final DemoStore store;
+  final String searchQuery;
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +75,11 @@ class ArtisansPeopleTab extends StatelessWidget {
           };
         }).toList();
 
-        final freeCount = artisans.where((p) => p['lotsCount'] == 0).length;
+        final query = searchQuery.trim().toLowerCase();
+        final visibleArtisans = artisans.where((person) => query.isEmpty ||
+          ['name', 'craft', 'stagesStr', 'status', 'task'].any((key) =>
+            person[key].toString().toLowerCase().contains(query))).toList();
+        final freeCount = visibleArtisans.where((p) => p['lotsCount'] == 0).length;
 
         return CommonRefreshIndicator(
           theme: IndicatorTheme.workshop,
@@ -88,7 +93,7 @@ class ArtisansPeopleTab extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
-                  '${artisans.length} Artisans · $freeCount Available / Free',
+                  '${visibleArtisans.length} of ${artisans.length} Artisans · $freeCount with no loaded assignments',
                   style: const TextStyle(
                     color: AppColors.muted,
                     fontSize: 12,
@@ -96,7 +101,10 @@ class ArtisansPeopleTab extends StatelessWidget {
                   ),
                 ),
               ),
-              for (final p in artisans) ...[
+              if (visibleArtisans.isEmpty)
+                const Padding(padding: EdgeInsets.all(24),
+                  child: Text('No people match your search.')),
+              for (final p in visibleArtisans) ...[
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Container(
@@ -123,7 +131,7 @@ class ArtisansPeopleTab extends StatelessWidget {
                                   .withValues(alpha: 0.15),
                               radius: 18,
                               child: Text(
-                                (p['name'] as String)[0],
+                                (p['name'] as String).isEmpty ? '?' : (p['name'] as String)[0],
                                 style: TextStyle(
                                   color: p['statusColor'] as Color,
                                   fontWeight: FontWeight.w900,

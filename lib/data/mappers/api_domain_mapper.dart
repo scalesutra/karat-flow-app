@@ -1,8 +1,51 @@
+import 'package:jewellery_ops_mobile/core/network/api_endpoints.dart';
+
 import '../demo_store.dart';
 import '../models/api_models.dart';
 import '../../domain/models.dart';
 
 abstract final class ApiDomainMapper {
+  static int productionStageIndex(
+    List<ApiStage> stages, {
+    String? stageId,
+    String? stageName,
+  }) {
+    // An explicit backend identity must never be overridden by an enum match.
+    if (stageId != null && stageId.trim().isNotEmpty) {
+      return stages.indexWhere((s) => s.id == stageId.trim());
+    }
+    if (stageName != null && stageName.trim().isNotEmpty) {
+      final name = stageName.trim().toLowerCase();
+      return stages.indexWhere((s) => s.name.trim().toLowerCase() == name);
+    }
+    return -1;
+  }
+
+  /// Format standard Traveler Tag QR/RFID UID
+  /// Master Order: ORD-00001
+  /// Sub-Lot: ORD-00001-P01..P04
+  static String formatTravelerTag({
+    required String orderNumber,
+    int? pieceStart,
+    int? pieceEnd,
+  }) {
+    var raw = orderNumber.trim();
+    if (raw.isEmpty) raw = '00001';
+    final masterTag = raw.toUpperCase().startsWith('ORD-')
+        ? raw.toUpperCase()
+        : 'ORD-$raw';
+
+    if (pieceStart != null && pieceEnd != null) {
+      final s = pieceStart.toString().padLeft(2, '0');
+      final e = pieceEnd.toString().padLeft(2, '0');
+      return '$masterTag-P$s..P$e';
+    } else if (pieceStart != null) {
+      final s = pieceStart.toString().padLeft(2, '0');
+      return '$masterTag-P$s';
+    }
+    return masterTag;
+  }
+
   static String formatDisplayDate(String? raw, {DateTime? fallbackDate}) {
     if (raw != null && raw.trim().isNotEmpty) {
       final text = raw.trim();
@@ -47,31 +90,45 @@ abstract final class ApiDomainMapper {
     if (rawId.isEmpty) return '';
     final text = rawId.trim();
 
-    final now = date ?? DateTime.now();
-    final dd = now.day.toString().padLeft(2, '0');
-    final mm = now.month.toString().padLeft(2, '0');
-    final yy = (now.year % 100).toString().padLeft(2, '0');
-    String datePrefix = '$dd$mm$yy';
-
-    final dateMatch = RegExp(r'(\d{4})(\d{2})(\d{2})').firstMatch(text);
-    if (dateMatch != null) {
-      final yearStr = dateMatch.group(1)!;
-      final monthStr = dateMatch.group(2)!;
-      final dayStr = dateMatch.group(3)!;
-      final shortYear = yearStr.substring(2);
-      datePrefix = '$dayStr$monthStr$shortYear';
+    // 1. If already formatted cleanly as ORD-XXXXX or similar, preserve it
+    if (text.toUpperCase().startsWith('ORD-')) {
+      return text.toUpperCase();
     }
 
+    // 2. If it's a numeric ID (e.g. 1, 42), format as ORD-00042
+    if (RegExp(r'^\d+$').hasMatch(text)) {
+      final numVal = int.tryParse(text);
+      final seqStr = numVal != null ? numVal.toString().padLeft(5, '0') : text;
+      return 'ORD-$seqStr';
+    }
+
+    // 2.5. Backend format: 'NNNNN-DDDDDD' (sequence-date, e.g. '00002-180926').
+    // Extract the LEADING sequence number, not the trailing date digits.
+    final seqDateMatch = RegExp(r'^(\d+)-(\d+)$').firstMatch(text);
+    if (seqDateMatch != null) {
+      final seqPart = seqDateMatch.group(1)!;
+      final numVal = int.tryParse(seqPart);
+      final seqStr = numVal != null
+          ? numVal.toString().padLeft(5, '0')
+          : seqPart;
+      return 'ORD-$seqStr';
+    }
+
+    // 3. If it contains a sequence suffix, format as ORD-XXXXX
     final seqMatch = RegExp(r'(\d+)$').firstMatch(text);
-    String seqStr = '00001';
     if (seqMatch != null) {
       final numVal = int.tryParse(seqMatch.group(1)!);
       if (numVal != null) {
-        seqStr = numVal.toString().padLeft(5, '0');
+        return 'ORD-${numVal.toString().padLeft(5, '0')}';
       }
     }
 
-    return '$datePrefix-$seqStr';
+    // 4. If UUID or random hex string, take short hex
+    final clean = text.replaceAll('-', '');
+    final shortHex = clean.length >= 6
+        ? clean.substring(0, 6).toUpperCase()
+        : clean.toUpperCase();
+    return 'ORD-$shortHex';
   }
 
   static String formatCleanDesignCode(String raw, {String category = ''}) {
@@ -106,7 +163,10 @@ abstract final class ApiDomainMapper {
       }
     }
 
-    if (prefix.isEmpty || prefix == 'DSG' || prefix == 'LOT' || prefix == 'ALL') {
+    if (prefix.isEmpty ||
+        prefix == 'DSG' ||
+        prefix == 'LOT' ||
+        prefix == 'ALL') {
       final lowerText = text.toLowerCase();
       if (lowerText.contains('neck') || lowerText.contains('haar')) {
         prefix = 'NEC';
@@ -164,13 +224,17 @@ abstract final class ApiDomainMapper {
     final title = rawTitle.trim();
     final code = rawDesignNumber.trim();
 
-    final isCodeUuid = RegExp(
-      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-    ).hasMatch(code) || (code.length >= 24 && RegExp(r'^[0-9a-fA-F\-]+$').hasMatch(code));
+    final isCodeUuid =
+        RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+        ).hasMatch(code) ||
+        (code.length >= 24 && RegExp(r'^[0-9a-fA-F\-]+$').hasMatch(code));
 
-    final isTitleUuid = RegExp(
-      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-    ).hasMatch(title) || (title.length >= 24 && RegExp(r'^[0-9a-fA-F\-]+$').hasMatch(title));
+    final isTitleUuid =
+        RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+        ).hasMatch(title) ||
+        (title.length >= 24 && RegExp(r'^[0-9a-fA-F\-]+$').hasMatch(title));
 
     // 1. If clean title is already present, use it
     if (title.isNotEmpty && !isTitleUuid) {
@@ -197,7 +261,8 @@ abstract final class ApiDomainMapper {
           (c) =>
               c.id.toLowerCase() == code.toLowerCase() ||
               c.designCode.toLowerCase() == code.toLowerCase() ||
-              (title.isNotEmpty && c.productTitle.toLowerCase() == title.toLowerCase()),
+              (title.isNotEmpty &&
+                  c.productTitle.toLowerCase() == title.toLowerCase()),
         )
         .firstOrNull;
 
@@ -221,7 +286,9 @@ abstract final class ApiDomainMapper {
     // 5. If it's a UUID, format cleanly so raw hex isn't shown
     if (isCodeUuid) {
       final clean = code.replaceAll('-', '');
-      final shortHex = clean.length >= 6 ? clean.substring(0, 6).toUpperCase() : clean.toUpperCase();
+      final shortHex = clean.length >= 6
+          ? clean.substring(0, 6).toUpperCase()
+          : clean.toUpperCase();
       return 'Custom Design ($shortHex)';
     }
 
@@ -260,6 +327,10 @@ abstract final class ApiDomainMapper {
       date: value.createdAt,
     );
 
+    final totalPieces = value.totalPieces > 0
+        ? value.totalPieces
+        : value.parts.fold(0, (sum, part) => sum + part.quantity);
+
     return CustomerOrder(
       id: formattedOrderNum.isNotEmpty ? formattedOrderNum : rawOrderNum,
       apiId: value.id,
@@ -267,7 +338,9 @@ abstract final class ApiDomainMapper {
           ? value.customerName
           : 'Client Order',
       clientCity: value.customerCity,
-      itemsCount: value.parts.fold(0, (sum, part) => sum + part.quantity),
+      itemsCount: totalPieces,
+      totalPieces: totalPieces,
+      stagesSnapshot: value.stagesSnapshot,
       totalGrossGrams: value.parts.fold(
         0,
         (sum, part) => sum + part.grossWeight,
@@ -301,8 +374,26 @@ abstract final class ApiDomainMapper {
                 })
                 .join(', '),
       designs: value.parts
-          .map(
-            (part) => OrderDesignProgress(
+          .map((part) {
+            String resolvedStage = part.currentStage;
+            if (part.currentStageId.isNotEmpty &&
+                value.stagesSnapshot.isNotEmpty) {
+              final matchedStage = value.stagesSnapshot
+                  .where((s) => s.id == part.currentStageId)
+                  .firstOrNull;
+              if (matchedStage != null && matchedStage.name.isNotEmpty) {
+                resolvedStage = matchedStage.name;
+              }
+            }
+
+            final artisanName = part.assignments.isNotEmpty
+                ? part.assignments.first.assignedEmployeeName
+                : '';
+            final artisanRole = part.assignments.isNotEmpty
+                ? part.assignments.first.assignedEmployeeRole
+                : '';
+
+            return OrderDesignProgress(
               partId: part.id,
               designNumber: part.designNumber,
               designName: formatDesignDisplayName(
@@ -311,17 +402,21 @@ abstract final class ApiDomainMapper {
               ),
               quantity: part.quantity,
               grossWeight: part.grossWeight,
+              currentStageId: part.currentStageId,
               currentStage:
                   (value.status.toUpperCase() == 'COMPLETED' ||
                       value.status.toUpperCase() == 'COMPLETE' ||
                       part.status.toUpperCase() == 'COMPLETED')
                   ? 'Completed'
-                  : part.currentStage,
+                  : resolvedStage,
               status: part.status,
               isBlocked: part.isBlocked,
               blockReason: part.blockReason,
-            ),
-          )
+              priceLockedAt: part.priceLockedAt,
+              assignedArtisanName: artisanName,
+              assignedArtisanRole: artisanRole,
+            );
+          })
           .toList(growable: false),
       currentWorkshopStage:
           (value.status.toUpperCase() == 'COMPLETED' ||
@@ -349,7 +444,8 @@ abstract final class ApiDomainMapper {
         if (part.contains(':')) {
           final key = part.split(':').first.trim().toLowerCase();
           final val = part.split(':').sublist(1).join(':').trim().toLowerCase();
-          if (key == 'price' && (val == '₹0' || val == '0' || val == '₹0.0' || val == '0.0')) {
+          if (key == 'price' &&
+              (val == '₹0' || val == '0' || val == '₹0.0' || val == '0.0')) {
             continue;
           }
           if (seenMetaKeys.contains(key)) {
@@ -425,7 +521,7 @@ abstract final class ApiDomainMapper {
           lower.endsWith('.pdf')) {
         continue;
       }
-      return url;
+      return ApiEndpoints.resolveImageUrl(url);
     }
     // 2. Fallback: if nothing else found, return first non-empty candidate (if any)
     for (final raw in candidates) {
@@ -438,7 +534,7 @@ abstract final class ApiDomainMapper {
             !lower.endsWith('.ply') &&
             !lower.endsWith('.bom') &&
             !lower.endsWith('.csv')) {
-          return url;
+          return ApiEndpoints.resolveImageUrl(url);
         }
       }
     }
@@ -463,10 +559,7 @@ abstract final class ApiDomainMapper {
       purity: '',
       grossWeightGrams: 0,
       estimatedPrice: parsePrice(value.price, value.adminInstructions),
-      imageUrl: pickValidImageUrl([
-        value.sketchUrl,
-        value.feedbackImageUrl,
-      ]),
+      imageUrl: pickValidImageUrl([value.sketchUrl, value.feedbackImageUrl]),
       description: _cleanText(value.adminInstructions).isNotEmpty
           ? _cleanText(value.adminInstructions)
           : (value.status == 'APPROVED'
@@ -480,15 +573,15 @@ abstract final class ApiDomainMapper {
     final catName =
         value.category ?? value.sketch?.category ?? value.sketch?.title ?? '';
     final categoryEnum = parseCategory(catName);
-    final rawNum = value.sketch?.designNumber.isNotEmpty == true
-        ? value.sketch!.designNumber
-        : value.id;
+    final rawNum = value.designNumber?.isNotEmpty == true
+        ? value.designNumber!
+        : (value.sketch?.designNumber.isNotEmpty == true
+              ? value.sketch!.designNumber
+              : value.id);
     final code = formatCleanDesignCode(rawNum, category: catName);
     final rawPurity = value.priceBreakdown?.purity.isNotEmpty == true
         ? value.priceBreakdown!.purity
-        : (value.sizeDimensions.isNotEmpty
-              ? value.sizeDimensions
-              : '');
+        : (value.sizeDimensions.isNotEmpty ? value.sizeDimensions : '');
 
     final displayPurity = rawPurity.contains('K') || rawPurity.contains('Gold')
         ? rawPurity
@@ -504,9 +597,11 @@ abstract final class ApiDomainMapper {
         ? value.sizeDimensions
         : null;
 
-    final title = value.sketch?.title.isNotEmpty == true
-        ? value.sketch!.title
-        : 'Jewellery Design';
+    final title = value.title?.isNotEmpty == true
+        ? value.title!
+        : (value.sketch?.title.isNotEmpty == true
+              ? value.sketch!.title
+              : 'Jewellery Design');
 
     final numPrice =
         (value.calculatedPrice != null && value.calculatedPrice! > 0)
@@ -518,12 +613,44 @@ abstract final class ApiDomainMapper {
                     ? value.priceBreakdown!.finalPrice
                     : null));
 
-    final calcPrice =
-        numPrice ??
-        parsePrice(
-          null,
-          value.adminInstructions ?? value.sketch?.adminInstructions,
-        );
+    final instructionsForPrice = (value.rawInstructions?.isNotEmpty == true)
+        ? value.rawInstructions
+        : (value.adminInstructions ?? value.sketch?.adminInstructions);
+
+    final calcPrice = numPrice ?? parsePrice(null, instructionsForPrice);
+
+    // KarratFlow Image Priority Order:
+    // Priority 1: Primary gallery image / heroImageUrl (admin curated crop)
+    // Priority 2: croppedImageUrl (auto-cropped by OCR pipeline)
+    // Priority 3: sketchUrl / cleanDesignUrl (design thumbnail)
+    // Priority 4: bomFileUrl (raw CAD/BOM sheet reference)
+    final primaryGalleryImg = value.galleryImages
+        .where((g) => g.isPrimary && g.url.trim().isNotEmpty)
+        .map((g) => g.url)
+        .firstOrNull;
+    final firstGalleryImg = value.galleryImages
+        .where((g) => g.url.trim().isNotEmpty)
+        .map((g) => g.url)
+        .firstOrNull;
+
+    final resolvedHero = value.heroImageUrl?.trim().isNotEmpty == true
+        ? value.heroImageUrl!
+        : (primaryGalleryImg ?? firstGalleryImg ?? '');
+
+    final bestImg = pickValidImageUrl([
+      resolvedHero,
+      primaryGalleryImg,
+      firstGalleryImg,
+      value.croppedImageUrl,
+      value.cleanDesignUrl,
+      value.renderImageUrl,
+      value.imageUrl,
+      value.sketchUrl,
+      value.sketch?.sketchUrl,
+      value.feedbackImageUrl,
+      value.sketch?.feedbackImageUrl,
+      // NOTE: bomFileUrl intentionally excluded — CAD/BOM spec sheet must not be visible to clients
+    ]);
 
     return JewelleryDesign(
       id: value.id,
@@ -539,17 +666,24 @@ abstract final class ApiDomainMapper {
           : value.totalWeight,
       diamondCarats: value.gemWeightTw > 0 ? value.gemWeightTw : 0.0,
       estimatedPrice: calcPrice,
-      imageUrl: pickValidImageUrl([
-        value.renderImageUrl,
-        value.imageUrl,
-        value.sketch?.sketchUrl,
-        value.feedbackImageUrl,
-        value.sketch?.feedbackImageUrl,
-        value.bomFileUrl,
-      ]),
-      description: _cleanText(value.adminInstructions).isNotEmpty
-          ? _cleanText(value.adminInstructions)
-          : 'High Quality 3D CAD Designed Jewellery',
+      imageUrl: bestImg,
+      heroImageUrl: resolvedHero,
+      galleryImages: value.galleryImages,
+      rawCadSheetUrl: ApiEndpoints.resolveImageUrl(value.bomFileUrl ?? ''),
+      description:
+          _cleanText(
+            value.rawInstructions?.isNotEmpty == true
+                ? value.rawInstructions
+                : value.adminInstructions,
+          ).isNotEmpty
+          ? _cleanText(
+              value.rawInstructions?.isNotEmpty == true
+                  ? value.rawInstructions
+                  : value.adminInstructions,
+            )
+          : (value.description?.isNotEmpty == true
+                ? value.description!
+                : 'High Quality 3D CAD Designed Jewellery'),
       isPopular: value.status == 'APPROVED' || value.totalWeight > 0,
       sizeDimensions: cleanSize,
       priceBreakdown: value.priceBreakdown,
@@ -578,7 +712,9 @@ abstract final class ApiDomainMapper {
     }
     if (value.gemQuantity > 0 || value.gemWeightTw > 0) {
       if (value.gemQuantity > 0 && value.gemWeightTw > 0) {
-        specParts.add('Gems: ${value.gemQuantity} Pcs (${value.gemWeightTw} Tw)');
+        specParts.add(
+          'Gems: ${value.gemQuantity} Pcs (${value.gemWeightTw} Tw)',
+        );
       } else if (value.gemQuantity > 0) {
         specParts.add('Gems: ${value.gemQuantity} Pcs');
       } else {
@@ -597,10 +733,9 @@ abstract final class ApiDomainMapper {
         (d) =>
             d.designNumber.trim().toLowerCase() == code.trim().toLowerCase() ||
             (code.isNotEmpty &&
-                d.designNumber
-                    .trim()
-                    .toLowerCase()
-                    .endsWith(code.trim().toLowerCase())),
+                d.designNumber.trim().toLowerCase().endsWith(
+                  code.trim().toLowerCase(),
+                )),
       );
       if (matches) {
         resolvedOrderId = order.id;
@@ -651,6 +786,7 @@ abstract final class ApiDomainMapper {
       gemBreakdown: value.gemBreakdown,
       calculatedPrice: value.calculatedPrice ?? value.price,
       priceBreakdown: value.priceBreakdown,
+      cleanDesignUrl: value.cleanDesignUrl,
     );
   }
 
@@ -794,7 +930,7 @@ abstract final class ApiDomainMapper {
       stage: stage(value.stageName),
       assignedEmployee: empName.isNotEmpty ? empName : 'Unassigned',
       assignedEmployeeRole: value.status,
-      pieces: value.quantity,
+      pieces: value.assignedPieces,
       issueWeightGrams: value.grossWeight,
       targetWeightGrams: value.grossWeight,
       tone: value.status == 'FAILED' ? HealthTone.critical : HealthTone.healthy,
@@ -821,13 +957,27 @@ abstract final class ApiDomainMapper {
         value['_orderId'] as String? ??
         value['_orderNumber'] as String? ??
         '';
-    final designNumber =
-        part['designNumber'] as String? ??
-        value['designNumber'] as String? ??
-        '';
     final rawDesign =
         part['design'] ?? value['design'] ?? part['sketch'] ?? value['sketch'];
     final designMap = rawDesign is Map ? rawDesign : const <String, dynamic>{};
+    String designNumber =
+        part['designNumber'] as String? ??
+        value['designNumber'] as String? ??
+        part['designCode'] as String? ??
+        value['designCode'] as String? ??
+        designMap['designNumber'] as String? ??
+        designMap['code'] as String? ??
+        designMap['designCode'] as String? ??
+        '';
+    if (designNumber.isEmpty) {
+      final rawSketch = part['sketch'] ?? value['sketch'];
+      if (rawSketch is Map) {
+        designNumber =
+            rawSketch['designNumber'] as String? ??
+            rawSketch['code'] as String? ??
+            '';
+      }
+    }
     final designTitle =
         designMap['title'] as String? ??
         designMap['name'] as String? ??
@@ -997,6 +1147,37 @@ abstract final class ApiDomainMapper {
         statusStr == 'HOLD' ||
         statusStr == 'ON_HOLD';
 
+    final totalPieces =
+        (part['quantity'] as num?)?.toInt() ??
+        (value['quantity'] as num?)?.toInt() ??
+        0;
+    int? parsedSplitQty;
+    final rawSplit =
+        latestAssignment['splitQuantity'] ??
+        latestAssignment['splitQty'] ??
+        part['splitQuantity'] ??
+        value['splitQuantity'];
+    if (rawSplit != null) {
+      parsedSplitQty = (rawSplit as num?)?.toInt();
+    }
+    if (parsedSplitQty == null) {
+      final inst =
+          latestAssignment['instructions'] as String? ??
+          part['instructions'] as String? ??
+          value['instructions'] as String? ??
+          '';
+      final match = RegExp(
+        r'\[splitQty:\s*(\d+)\]',
+        caseSensitive: false,
+      ).firstMatch(inst);
+      if (match != null) {
+        parsedSplitQty = int.tryParse(match.group(1) ?? '');
+      }
+    }
+    final effectivePieces = (parsedSplitQty != null && parsedSplitQty > 0)
+        ? parsedSplitQty
+        : totalPieces;
+
     return WorkshopLot(
       id: lotId,
       orderId: orderId,
@@ -1015,10 +1196,7 @@ abstract final class ApiDomainMapper {
           value['orderPartStatus'] as String? ??
           value['status'] as String? ??
           '',
-      pieces:
-          (part['quantity'] as num?)?.toInt() ??
-          (value['quantity'] as num?)?.toInt() ??
-          0,
+      pieces: effectivePieces,
       issueWeightGrams: grossWeight,
       targetWeightGrams: grossWeight,
       tone: isFailedOrHold ? HealthTone.critical : HealthTone.healthy,
@@ -1031,6 +1209,272 @@ abstract final class ApiDomainMapper {
       apiStageId: stageId,
       apiStageName: stageName,
     );
+  }
+
+  static List<WorkshopLot> pendingPartBatches(Map<String, dynamic> value) {
+    final part = value['orderPart'] is Map
+        ? Map<String, dynamic>.from(value['orderPart'] as Map)
+        : value;
+    final rawOrder = part['order'] ?? value['order'];
+    final order = rawOrder is Map ? rawOrder : const <String, dynamic>{};
+    final lotId = part['id'] as String? ?? value['id'] as String? ?? '';
+    final orderId =
+        order['id'] as String? ??
+        order['orderNumber'] as String? ??
+        part['orderId'] as String? ??
+        part['orderNumber'] as String? ??
+        value['orderId'] as String? ??
+        value['orderNumber'] as String? ??
+        value['_orderId'] as String? ??
+        value['_orderNumber'] as String? ??
+        '';
+    final rawDesign =
+        part['design'] ?? value['design'] ?? part['sketch'] ?? value['sketch'];
+    final designMap = rawDesign is Map ? rawDesign : const <String, dynamic>{};
+    String designNumber =
+        part['designNumber'] as String? ??
+        value['designNumber'] as String? ??
+        part['designCode'] as String? ??
+        value['designCode'] as String? ??
+        designMap['designNumber'] as String? ??
+        designMap['code'] as String? ??
+        designMap['designCode'] as String? ??
+        '';
+    if (designNumber.isEmpty) {
+      final rawSketch = part['sketch'] ?? value['sketch'];
+      if (rawSketch is Map) {
+        designNumber =
+            rawSketch['designNumber'] as String? ??
+            rawSketch['code'] as String? ??
+            '';
+      }
+    }
+    final designTitle =
+        designMap['title'] as String? ??
+        designMap['name'] as String? ??
+        part['title'] as String? ??
+        part['name'] as String? ??
+        part['productName'] as String? ??
+        value['title'] as String? ??
+        value['name'] as String? ??
+        '';
+    final grossWeight =
+        (part['grossWeight'] as num?)?.toDouble() ??
+        (value['grossWeight'] as num?)?.toDouble() ??
+        0.0;
+    final totalPieces =
+        (part['quantity'] as num?)?.toInt() ??
+        (value['quantity'] as num?)?.toInt() ??
+        0;
+
+    final rawAssignments = part['assignments'] is List
+        ? part['assignments'] as List
+        : part['workerAssignments'] is List
+        ? part['workerAssignments'] as List
+        : value['assignments'] is List
+        ? value['assignments'] as List
+        : value['workerAssignments'] is List
+        ? value['workerAssignments'] as List
+        : const [];
+    final assignments = rawAssignments
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+
+    bool isActive(Map<String, dynamic> assignment) {
+      final status = (assignment['status'] as String? ?? '').toUpperCase();
+      return status.isEmpty ||
+          status == 'ASSIGNED' ||
+          status == 'IN_PROGRESS' ||
+          status == 'ACTIVE' ||
+          status == 'PAUSED';
+    }
+
+    final activeAssignments = assignments.where(isActive).toList();
+
+    String resolveEmployeeName(Map<String, dynamic> assignment) {
+      final rawEmployee =
+          assignment['assignedEmployee'] ??
+          assignment['employee'] ??
+          assignment['artisan'] ??
+          assignment['worker'] ??
+          assignment['assignedTo'] ??
+          assignment['user'];
+      String empName = '';
+      if (rawEmployee is Map) {
+        empName =
+            rawEmployee['name'] as String? ??
+            rawEmployee['fullName'] as String? ??
+            '';
+      } else if (rawEmployee is String) {
+        final matched = DemoStore.instance.team
+            .where((m) => m.id == rawEmployee)
+            .firstOrNull;
+        empName = matched?.name ?? rawEmployee;
+      }
+      if (empName.isEmpty) {
+        final empId =
+            assignment['assignedEmployeeId'] as String? ??
+            assignment['employeeId'] as String? ??
+            '';
+        if (empId.isNotEmpty) {
+          final matched = DemoStore.instance.team
+              .where((m) => m.id == empId)
+              .firstOrNull;
+          empName = matched?.name ?? '';
+        }
+      }
+      if (empName.isEmpty) {
+        final inst = assignment['instructions'] as String? ?? '';
+        if (inst.contains('Assigned to ')) {
+          final idx = inst.indexOf('Assigned to ');
+          final rest = inst.substring(idx + 'Assigned to '.length).trim();
+          empName = rest.contains(':')
+              ? rest.substring(0, rest.indexOf(':')).trim()
+              : (rest.contains('\n')
+                    ? rest.substring(0, rest.indexOf('\n')).trim()
+                    : rest);
+        }
+      }
+      return empName.isNotEmpty ? empName : 'Unassigned';
+    }
+
+    if (activeAssignments.isEmpty) {
+      return [pendingPart(value)];
+    }
+
+    final List<WorkshopLot> lots = [];
+    int totalAssigned = 0;
+
+    for (int i = 0; i < activeAssignments.length; i++) {
+      final asgn = activeAssignments[i];
+      int? splitQty;
+      final rawSplit = asgn['splitQuantity'] ?? asgn['splitQty'];
+      if (rawSplit != null) {
+        splitQty = (rawSplit as num?)?.toInt();
+      }
+      if (splitQty == null) {
+        final inst = asgn['instructions'] as String? ?? '';
+        final match = RegExp(
+          r'\[splitQty:\s*(\d+)\]',
+          caseSensitive: false,
+        ).firstMatch(inst);
+        if (match != null) {
+          splitQty = int.tryParse(match.group(1) ?? '');
+        }
+      }
+      if (splitQty == null || splitQty <= 0) {
+        if (activeAssignments.length == 1) {
+          splitQty = totalPieces;
+        } else {
+          final unassignedRemaining = totalPieces - totalAssigned;
+          final remainingAssignments = activeAssignments.length - i;
+          splitQty = (unassignedRemaining > 0)
+              ? (unassignedRemaining ~/ remainingAssignments).clamp(
+                  1,
+                  unassignedRemaining,
+                )
+              : 0;
+        }
+      }
+      totalAssigned += splitQty;
+
+      final empName = resolveEmployeeName(asgn);
+      // Each active batch has its own stage. The parent can already be at the
+      // next stage while another worker is still processing this assignment.
+      final rawStage = asgn['stage'];
+      final stageId =
+          asgn['stageId'] as String? ??
+          (rawStage is Map ? rawStage['id'] as String? : null) ??
+          '';
+      final backendStage = DemoStore.instance.stages
+          .where((s) => stageId.isNotEmpty && s.id == stageId)
+          .firstOrNull;
+      final stageName =
+          backendStage?.name ??
+          (rawStage is Map
+              ? rawStage['name'] as String? ?? ''
+              : rawStage as String? ?? '');
+
+      final asgnId = asgn['id'] as String? ?? '$i';
+      final isSingleAssignment =
+          activeAssignments.length == 1 && totalAssigned >= totalPieces;
+      final assignedLotId = isSingleAssignment ? lotId : '$lotId#$asgnId';
+      lots.add(
+        WorkshopLot(
+          id: assignedLotId,
+          orderId: orderId,
+          designCode: designNumber,
+          productTitle: designTitle.isNotEmpty
+              ? designTitle
+              : (designNumber.isNotEmpty ? designNumber : 'Order Part'),
+          stage: stageName.isEmpty
+              ? (stageId.isNotEmpty ? stage(stageId) : WorkshopStage.inQueue)
+              : stage(stageName),
+          assignedEmployee: empName,
+          assignedEmployeeRole: asgn['status'] as String? ?? 'ASSIGNED',
+          pieces: splitQty,
+          issueWeightGrams: totalPieces > 0
+              ? grossWeight * (splitQty / totalPieces)
+              : grossWeight,
+          targetWeightGrams: totalPieces > 0
+              ? grossWeight * (splitQty / totalPieces)
+              : grossWeight,
+          tone: HealthTone.healthy,
+          blockerReason: null,
+          lastUpdatedTime: '',
+          apiStageId: stageId,
+          apiStageName: stageName,
+        ),
+      );
+    }
+
+    if (totalAssigned < totalPieces && totalPieces > 0) {
+      final remainingPieces = totalPieces - totalAssigned;
+      final rawStage =
+          part['currentStage'] ??
+          part['stage'] ??
+          value['currentStage'] ??
+          value['stage'];
+      final stageName = rawStage is Map
+          ? rawStage['name'] as String? ?? ''
+          : rawStage as String? ?? '';
+      final stageId =
+          part['currentStageId'] as String? ??
+          part['stageId'] as String? ??
+          (rawStage is Map ? rawStage['id'] as String? : null) ??
+          '';
+
+      lots.add(
+        WorkshopLot(
+          id: '${lotId}#unassigned',
+          orderId: orderId,
+          designCode: designNumber,
+          productTitle: designTitle.isNotEmpty
+              ? designTitle
+              : (designNumber.isNotEmpty ? designNumber : 'Order Part'),
+          stage: stageName.isEmpty
+              ? (stageId.isNotEmpty ? stage(stageId) : WorkshopStage.inQueue)
+              : stage(stageName),
+          assignedEmployee: 'Unassigned',
+          assignedEmployeeRole: 'PENDING',
+          pieces: remainingPieces,
+          issueWeightGrams: totalPieces > 0
+              ? grossWeight * (remainingPieces / totalPieces)
+              : grossWeight,
+          targetWeightGrams: totalPieces > 0
+              ? grossWeight * (remainingPieces / totalPieces)
+              : grossWeight,
+          tone: HealthTone.healthy,
+          blockerReason: null,
+          lastUpdatedTime: '',
+          apiStageId: stageId,
+          apiStageName: stageName,
+        ),
+      );
+    }
+
+    return lots.isNotEmpty ? lots : [pendingPart(value)];
   }
 
   static WorkshopStage stage(String nameOrId) {

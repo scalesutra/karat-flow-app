@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/localization/app_strings.dart';
+import '../../core/network/api_error_handler.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/demo_store.dart';
 import '../../data/models/api_models.dart';
@@ -10,6 +11,7 @@ import '../../data/repositories/karatflow_api_repository.dart';
 import '../inventory/bloc/inventory_bloc.dart';
 import '../materials/bloc/materials_bloc.dart';
 import 'widgets/bom_bill_print_dialog.dart';
+import 'services/stockist_bom_mapper.dart';
 
 class StockistDashboardPage extends StatefulWidget {
   const StockistDashboardPage({
@@ -37,6 +39,7 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
   final TextEditingController _searchController = TextEditingController();
   List<ApiPendingIssuance>? _latestLiveQueue;
   ApiInventoryResponse? _latestInventoryRes;
+  final Set<String> _issuingParts = {};
 
   @override
   void initState() {
@@ -115,88 +118,7 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
 
             final List<VaultRequisition> activeRequisitions =
                 _latestLiveQueue != null
-                ? liveQueue.map((p) {
-                    List<StoneSpec> specsList = p.cadSpecs.gemBreakdown
-                        .map(
-                          (b) => StoneSpec(
-                            name: b.shape.isNotEmpty
-                                ? '${b.shape} Stone'
-                                : 'Jewellery Stone',
-                            count: b.count,
-                            size: b.dimensions,
-                            shape: b.shape,
-                            color: b.color,
-                            clarity: 'BOM Grade',
-                          ),
-                        )
-                        .where((s) => s.count > 0 || s.name.isNotEmpty)
-                        .toList();
-
-                    double goldWt = p.cadSpecs.goldQuantity;
-
-                    // Hydrate from live API cadSpecs, issuance, or matched design/sketch in DemoStore
-                    if (specsList.isEmpty &&
-                        p.issuance != null &&
-                        p.issuance!.itemsIssued.isNotEmpty) {
-                      specsList = p.issuance!.itemsIssued.map((item) {
-                        final mName = item['name'] as String? ?? '';
-                        final mCat = item['category'] as String? ?? '';
-                        final mCode = item['code'] as String? ?? '';
-                        final mColor = item['color'] as String? ?? '';
-                        final mQty = item['quantity'] as int? ?? 0;
-                        return StoneSpec(
-                          name: mName.isNotEmpty ? mName : 'Jewellery Stone',
-                          count: mQty,
-                          size: mCode,
-                          shape: mCat.isNotEmpty ? mCat : 'Stone',
-                          color: mColor,
-                          clarity: 'Issued Grade',
-                        );
-                      }).toList();
-                    }
-
-                    final stonesList = specsList
-                        .map(
-                          (s) =>
-                              '${s.count}x ${s.shape} ${s.size} (${s.color})',
-                        )
-                        .toList();
-
-                    final issueNum = p.issuance?.issueNumber;
-                    final reqId = (issueNum != null && issueNum.isNotEmpty)
-                        ? issueNum
-                        : p.orderPartId;
-
-                    final displayDesignNumber = p.designNumber.isNotEmpty
-                        ? p.designNumber
-                        : 'DES-${p.orderPartId}';
-
-                    return VaultRequisition(
-                      id: reqId,
-                      orderPartId: p.orderPartId,
-                      designNumber: displayDesignNumber,
-                      orderId: p.orderNumber.isNotEmpty
-                          ? p.orderNumber
-                          : p.orderId,
-                      customerName: p.customerName,
-                      dueDate: p.dueDate,
-                      artisanName:
-                          p.assignedCraftsman?.name ?? 'Assigned Craftsman',
-                      stageName: p.currentStage,
-                      quantity: specsList.fold(0, (sum, s) => sum + s.count),
-                      goldWeightGrams: goldWt,
-                      gemWeightTw: p.cadSpecs.gemWeightTw,
-                      sizeDimensions: p.cadSpecs.sizeDimensions,
-                      stones: stonesList,
-                      stoneSpecs: specsList,
-                      status: p.isStockIssued ? 'ISSUED' : 'PENDING_ISSUE',
-                      timestamp: (issueNum != null && issueNum.isNotEmpty)
-                          ? issueNum
-                          : (p.dueDate.isNotEmpty
-                                ? 'Due: ${p.dueDate.split('T').first}'
-                                : 'Today'),
-                    );
-                  }).toList()
+                ? liveQueue.map(StockistBomMapper.requisition).toList()
                 : const <VaultRequisition>[];
 
             final pendingReqsCount = activeRequisitions
@@ -444,8 +366,34 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                           return _RequisitionCard(
                             requisition: req,
                             storeName: _effectiveStoreName,
+                            isIssuing: _issuingParts.contains(req.orderPartId),
                             onIssue: () async {
+                              if (_issuingParts.contains(req.orderPartId) ||
+                                  req.status == 'ISSUED') {
+                                return;
+                              }
+                              if (req.isDispatchedOrCompleted) {
+                                CommonSnackbar.info(
+                                  context,
+                                  title: 'Order Already in Final Stage',
+                                  message:
+                                      'Materials cannot be issued because this order part is already at ${req.stageName}.',
+                                );
+                                return;
+                              }
+                              if (req.quantity <= 0) {
+                                CommonSnackbar.error(
+                                  context,
+                                  title: 'Jewellery quantity unavailable',
+                                  message:
+                                      'Backend batch quantity is required to calculate and issue the BOM. Please refresh.',
+                                );
+                                return;
+                              }
                               final repo = KaratFlowApiRepository();
+                              setState(
+                                () => _issuingParts.add(req.orderPartId),
+                              );
                               try {
                                 final items = <Map<String, dynamic>>[
                                   if (req.goldWeightGrams > 0)
@@ -461,8 +409,9 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                                       'code': s.name,
                                       'name': s.name,
                                       'category': 'STONE',
-                                      'color': s.color,
-                                      'quantity': s.count.toDouble(),
+                                      if (s.color.isNotEmpty) 'color': s.color,
+                                      if (s.shape.isNotEmpty) 'shape': s.shape,
+                                      'quantity': s.count,
                                       'unit': 'pc',
                                     },
                                   ),
@@ -479,29 +428,39 @@ class _StockistDashboardPageState extends State<StockistDashboardPage> {
                                   return;
                                 }
                                 await repo.issueMaterialsForOrderPart(
-                                  req.id,
+                                  req.orderPartId,
                                   items: items,
-                                  notes:
-                                      'Handed over to Artisan ${req.artisanName}',
+                                  notes: req.artisanName.isNotEmpty
+                                      ? 'Handed over to Artisan ${req.artisanName}'
+                                      : 'Issued from Stockist Vault',
                                 );
-                                store.markRequisitionIssued(req.id);
                                 if (context.mounted) {
                                   CommonSnackbar.success(
                                     context,
                                     title: 'Stones & Metal Issued',
                                     message:
-                                        'Materials for ${req.designNumber} successfully handed to ${req.artisanName}.',
+                                        'Materials for ${req.designNumber} successfully handed to ${req.artisanName.isNotEmpty ? req.artisanName : "artisan"}.',
                                   );
                                   _fetchData();
                                 }
-                              } catch (_) {
-                                store.markRequisitionIssued(req.id);
+                              } catch (error) {
                                 if (context.mounted) {
-                                  CommonSnackbar.success(
+                                  final errorMessage = ApiErrorHandler.parseMessage(
+                                    error,
+                                    fallback:
+                                        'Could not confirm material issuance. Refresh the queue before retrying.',
+                                  );
+                                  CommonSnackbar.error(
                                     context,
-                                    title: 'Stones & Metal Issued',
-                                    message:
-                                        'Materials for ${req.designNumber} successfully handed to ${req.artisanName}.',
+                                    title: 'Issue not confirmed',
+                                    message: errorMessage,
+                                  );
+                                  _fetchData();
+                                }
+                              } finally {
+                                if (mounted) {
+                                  setState(
+                                    () => _issuingParts.remove(req.orderPartId),
                                   );
                                 }
                               }
@@ -632,20 +591,35 @@ class _RequisitionCard extends StatelessWidget {
     required this.requisition,
     required this.onIssue,
     this.storeName = '',
+    this.isIssuing = false,
   });
 
   final VaultRequisition requisition;
   final VoidCallback onIssue;
   final String storeName;
+  final bool isIssuing;
 
   @override
   Widget build(BuildContext context) {
-    final isPending = requisition.status == 'PENDING_ISSUE';
-    final statusColor = isPending ? AppColors.warning : AppColors.emerald;
-    final statusBg = isPending
+    final isDispatched = requisition.isDispatchedOrCompleted;
+    final isPending = requisition.status == 'PENDING_ISSUE' && !isDispatched;
+    final statusColor = isDispatched
+        ? AppColors.muted
+        : isPending
+        ? AppColors.warning
+        : AppColors.emerald;
+    final statusBg = isDispatched
+        ? AppColors.canvas
+        : isPending
         ? AppColors.warningLight
         : AppColors.emeraldLight;
-    final statusText = isPending ? 'PENDING' : 'ISSUED';
+    final statusText = isDispatched
+        ? (requisition.stageName.toLowerCase().contains('dispatch')
+              ? 'DISPATCH'
+              : 'COMPLETED')
+        : isPending
+        ? 'PENDING'
+        : 'ISSUED';
 
     return Container(
       decoration: BoxDecoration(
@@ -779,7 +753,9 @@ class _RequisitionCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Stage: ${requisition.stageName} · ${requisition.designNumber} (${requisition.quantity} Pcs · ${requisition.goldWeightGrams.toStringAsFixed(1)}g Gold)',
+                            requisition.quantity > 0
+                                ? 'Stage: ${requisition.stageName} · ${requisition.designNumber} (${requisition.quantity} Jewellery Pcs)'
+                                : 'Jewellery quantity unavailable — refresh required',
                             style: const TextStyle(
                               color: AppColors.muted,
                               fontSize: 11,
@@ -792,7 +768,7 @@ class _RequisitionCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
 
-                // Compact Package Summary Box (Full stone list is inside 'Inspect Stones & Metals' bottom sheet)
+                // Compact Package Summary Box (Full stone list is inside 'Inspect Stones' bottom sheet)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
@@ -806,41 +782,6 @@ class _RequisitionCard extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      if (requisition.goldWeightGrams > 0) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.goldLight,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: AppColors.gold.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.grain_outlined,
-                                size: 13,
-                                color: AppColors.goldDark,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Gold: ${requisition.goldWeightGrams.toStringAsFixed(1)}g',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.goldDark,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -871,11 +812,13 @@ class _RequisitionCard extends StatelessWidget {
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  requisition.stoneSpecs.isNotEmpty
+                                  requisition.quantity <= 0
+                                      ? 'BOM total unavailable: missing batch quantity'
+                                      : requisition.stoneSpecs.isNotEmpty
                                       ? '${requisition.stoneSpecs.fold<int>(0, (sum, s) => sum + s.count)} Pcs Stones (${requisition.stoneSpecs.length} Specs)'
                                       : (requisition.stones.isNotEmpty
                                             ? '${requisition.stones.length} Stone Items'
-                                            : 'Plain Metal / No Stones'),
+                                            : 'No Stones'),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -958,10 +901,44 @@ class _RequisitionCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: isPending
+                      child: isDispatched
+                          ? Container(
+                              height: 40,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: AppColors.canvas,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.outline),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.local_shipping_outlined,
+                                    size: 15,
+                                    color: AppColors.muted,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    requisition.stageName
+                                            .toLowerCase()
+                                            .contains('dispatch')
+                                        ? 'Ready to Dispatch'
+                                        : 'Completed',
+                                    style: const TextStyle(
+                                      color: AppColors.muted,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : isPending
                           ? CommonButton.primary(
                               height: 40,
                               label: 'Issue',
+                              isLoading: isIssuing,
                               icon: Icons.output_rounded,
                               onPressed: onIssue,
                             )
@@ -1010,6 +987,15 @@ class _RequisitionCard extends StatelessWidget {
     VoidCallback onIssue, {
     String storeName = 'JEWELLERY VAULT',
   }) {
+    if (requisition.quantity <= 0) {
+      CommonSnackbar.error(
+        context,
+        title: 'Jewellery quantity unavailable',
+        message:
+            'Backend batch quantity is required to calculate the BOM. Please refresh.',
+      );
+      return;
+    }
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1126,61 +1112,8 @@ class _RequisitionCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    '1. Metal & Alloy Allocation:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: AppColors.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.goldLight.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: AppColors.gold.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '24K Raw Casting Gold Grain / Alloy',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12,
-                                color: AppColors.goldDark,
-                              ),
-                            ),
-                            Text(
-                              'Vault Safe #1 · Standard Purity Bullion',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                color: AppColors.muted,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          '${requisition.goldWeightGrams.toStringAsFixed(2)} g',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 14,
-                            color: AppColors.goldDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   Text(
-                    '2. Itemized Gemstones & Diamonds (${requisition.stoneSpecs.fold(0, (s, e) => s + e.count)} Pcs Total):',
+                    'Itemized Gemstones & Diamonds (${requisition.stoneSpecs.fold(0, (s, e) => s + e.count)} Pcs Total):',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
@@ -1206,7 +1139,7 @@ class _RequisitionCard extends StatelessWidget {
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'No gemstone/diamond specifications configured for this order part (Plain Gold/Metal Allocation Only).',
+                              'No gemstone/diamond specifications configured for this order part.',
                               style: TextStyle(
                                 fontSize: 11.5,
                                 color: AppColors.muted,
@@ -1317,7 +1250,8 @@ class _RequisitionCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (requisition.status == 'PENDING_ISSUE') ...[
+                      if (requisition.status == 'PENDING_ISSUE' &&
+                          !requisition.isDispatchedOrCompleted) ...[
                         const SizedBox(width: 10),
                         Expanded(
                           flex: 2,
