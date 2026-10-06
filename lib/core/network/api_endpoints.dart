@@ -11,8 +11,9 @@ abstract final class ApiEndpoints {
   static const String refreshToken = '/auth/refresh-token';
   static const String authMe = '/auth/me';
 
-  // ── SECTION 2: Employee & User Management (/employees) ───────────
+  // ── SECTION 2: Employee & User Management (/employees, /team) ───
   static const String employees = '/employees';
+  static const String team = '/team';
   static String employeeDetails(String id) => '/employees/$id';
   static String updateEmployee(String id) => '/employees/$id';
   static String employeeAssignments(String id) => '/employees/$id/assignments';

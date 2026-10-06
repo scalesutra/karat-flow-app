@@ -83,7 +83,7 @@ class _SearchableCraftsmanPickerSheetState
         if (!mounted) return;
         setState(() => _isSearchingApi = true);
         try {
-          final serverEmployees = await _repo.listEmployees(search: value.trim());
+          final serverEmployees = await _repo.getCraftsmen(search: value.trim());
           if (!mounted) return;
           final karigars = serverEmployees.where((e) {
             final r = e.role.toUpperCase();

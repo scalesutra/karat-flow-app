@@ -91,6 +91,54 @@ class KaratFlowApiRepository {
     }
   }
 
+  /// Endpoint 1: Get Artisans / Craftsmen List (/team)
+  /// Method: GET /team?role=CRAFTSMAN
+  Future<List<ApiEmployee>> getCraftsmen({String? search}) async {
+    try {
+      debugPrint('👥 [API REPO] GET /team?role=CRAFTSMAN -> Fetching Artisans/Craftsmen...');
+      final query = <String, dynamic>{
+        'role': 'CRAFTSMAN',
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      };
+      final response = await _api.get(
+        ApiEndpoints.team,
+        queryParameters: query,
+      );
+      final raw = response.data;
+      final list = raw is Map && raw['data'] is List
+          ? raw['data'] as List
+          : (raw is List ? raw : []);
+      final craftsmen = list
+          .map((e) => ApiEmployee.fromJson(e as Map<String, dynamic>))
+          .toList();
+      debugPrint('👥 [API REPO SUCCESS] Loaded ${craftsmen.length} artisans from /team');
+      if (craftsmen.isNotEmpty) return craftsmen;
+    } catch (e) {
+      debugPrint('⚠️ [API REPO] GET /team failed ($e); falling back to /employees...');
+    }
+    return listEmployees(role: 'CRAFTSMAN', search: search);
+  }
+
+  Future<List<ApiEmployee>> getTeam({String? role}) async {
+    try {
+      final response = await _api.get(
+        ApiEndpoints.team,
+        queryParameters: {
+          if (role != null && role.isNotEmpty) 'role': role,
+        },
+      );
+      final raw = response.data;
+      final list = raw is Map && raw['data'] is List
+          ? raw['data'] as List
+          : (raw is List ? raw : []);
+      return list
+          .map((e) => ApiEmployee.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return listEmployees(role: role);
+    }
+  }
+
   Future<ApiEmployee> getEmployeeDetails(String id) async {
     final response = await _api.get(ApiEndpoints.employeeDetails(id));
     final data = response.data['data'] as Map<String, dynamic>;
@@ -1960,20 +2008,27 @@ class KaratFlowApiRepository {
     required String craftsmanId,
     required String yearMonth,
   }) async {
-    final endpoint = ApiEndpoints.departmentCraftsmanMonthlyLedger(
-      craftsmanId: craftsmanId,
-      yearMonth: yearMonth,
-    );
+    const endpoint = '/departments/craftsman-monthly-ledger';
+    final query = {
+      'craftsmanId': craftsmanId.trim(),
+      'yearMonth': yearMonth.trim(),
+    };
     debugPrint(
       '🎬 [LEDGER API] GET $endpoint -> Fetching Craftsman Monthly Ledger for craftsmanId: $craftsmanId, yearMonth: $yearMonth...',
     );
     try {
-      final response = await _api.get(endpoint);
+      final response = await _api.get(
+        endpoint,
+        queryParameters: query,
+      );
       debugPrint(
         '📥 [LEDGER API] GET $endpoint -> Status: ${response.statusCode}',
       );
       debugPrint('📦 [LEDGER API DATA]: ${response.data}');
-      final data = _dataMap(response.data);
+      final raw = response.data;
+      final Map<String, dynamic> data = (raw is Map && raw['data'] is Map)
+          ? Map<String, dynamic>.from(raw['data'] as Map)
+          : (raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{});
       return CraftsmanMonthlyLedger.fromJson(data);
     } on DioException catch (e) {
       debugPrint('❌ [LEDGER API ERROR]: ${e.response?.statusCode} -> ${e.response?.data}');

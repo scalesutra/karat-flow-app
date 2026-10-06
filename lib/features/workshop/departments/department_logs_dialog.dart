@@ -72,6 +72,9 @@ class _DepartmentLogsPageState extends State<DepartmentLogsPage>
   List<ApiMasterAttribute> _stoneColors = [];
 
   // ── 1. Casting State ──────────────────────────────────────────────────────
+  String? _castingCraftsmanId;
+  String _lastCastingLotNumber = '';
+  double? _lastClosingBalance;
   final _castingJobCodeCtrl = TextEditingController();
   final _castingPrevBalanceCtrl = TextEditingController(text: '0.0');
   final _castingFreshIssueCtrl = TextEditingController(text: '0.0');
@@ -194,7 +197,7 @@ class _DepartmentLogsPageState extends State<DepartmentLogsPage>
     setState(() => _isLoadingInitialData = true);
     try {
       final results = await Future.wait([
-        _repo.listEmployees(),
+        _repo.getCraftsmen(),
         _repo.getMasterShapes(),
         _repo.getMasterColors(),
         _repo.getStoneStockMatrix().catchError((_) => const StoneMatrixResponse()),
@@ -222,6 +225,7 @@ class _DepartmentLogsPageState extends State<DepartmentLogsPage>
         setState(() {
           _craftsmen = craftsmen.isNotEmpty ? craftsmen : allEmployees;
           if (_craftsmen.isNotEmpty) {
+            _castingCraftsmanId = _craftsmen.first.id;
             _filingCraftsmanId = _craftsmen.first.id;
             _polishingCraftsmanId = _craftsmen.first.id;
             _settingCraftsmanId = _craftsmen.first.id;
@@ -258,11 +262,11 @@ class _DepartmentLogsPageState extends State<DepartmentLogsPage>
         '⚖️ [DEPARTMENT LOGS UI SUCCESS] Casting balance: ${res.lastClosingBalance}g for ${res.metalType}',
       );
       if (mounted) {
-        _castingPrevBalanceCtrl.text =
-            res.lastClosingBalance.toStringAsFixed(3);
-        if (_castingJobCodeCtrl.text.isEmpty && res.lastLotNumber.isNotEmpty) {
-          _castingJobCodeCtrl.text = res.lastLotNumber;
-        }
+        setState(() {
+          _lastCastingLotNumber = res.lastLotNumber;
+          _lastClosingBalance = res.lastClosingBalance;
+          // Kept clean at 0.0: do not overwrite _castingPrevBalanceCtrl.text
+        });
       }
     } catch (e) {
       debugPrint('⚠️ [DEPARTMENT LOGS UI ERROR] Failed to fetch casting balance: $e');
@@ -328,6 +332,15 @@ class _DepartmentLogsPageState extends State<DepartmentLogsPage>
   // ── Actions ───────────────────────────────────────────────────────────────
 
   Future<void> _submitCasting() async {
+    if (_castingCraftsmanId == null || _castingCraftsmanId!.isEmpty) {
+      CommonSnackbar.warning(
+        context,
+        title: 'Worker Required',
+        message: 'Please select a craftsman for this casting log.',
+      );
+      return;
+    }
+
     final lotNumber = _castingJobCodeCtrl.text.trim();
     if (lotNumber.isEmpty) {
       CommonSnackbar.warning(
@@ -346,11 +359,12 @@ class _DepartmentLogsPageState extends State<DepartmentLogsPage>
     setState(() => _isSubmittingCasting = true);
     try {
       debugPrint(
-        '🚀 [CASTING SUBMIT UI] Submitting Casting: lotNumber=$lotNumber, prev=$prev, fresh=$fresh, fin=$fin, scrap=$scrap',
+        '🚀 [CASTING SUBMIT UI] Submitting Casting: craftsman=$_castingCraftsmanId, lotNumber=$lotNumber, prev=$prev, fresh=$fresh, fin=$fin, scrap=$scrap',
       );
       final res = await _repo.submitCastingLog(
         CastingSubmitPayload(
           lotNumber: lotNumber,
+          craftsmanId: _castingCraftsmanId!,
           previousBalance: prev,
           freshMetalIssue: fresh,
           finishedCastingWeight: fin,
@@ -368,6 +382,14 @@ class _DepartmentLogsPageState extends State<DepartmentLogsPage>
           message:
               'Lot: $lotNumber | Closing Balance: ${res.closingBalance.toStringAsFixed(3)}g saved.',
         );
+        _castingJobCodeCtrl.clear();
+        _castingPrevBalanceCtrl.text = '0.0';
+        _castingFreshIssueCtrl.text = '0.0';
+        _castingFinishedWtCtrl.text = '0.0';
+        _castingRunnerScrapCtrl.text = '0.0';
+        _castingNotesCtrl.clear();
+        _lastCastingLotNumber = lotNumber;
+        _lastClosingBalance = res.closingBalance;
         Navigator.of(context).pop();
       }
     } catch (e) {
@@ -801,18 +823,26 @@ class _DepartmentLogsPageState extends State<DepartmentLogsPage>
             ),
           ),
 
-          // Card 1: Lot Information & Opening Balance
+          // Card 1: Craftsman & Lot Identification
           _buildSectionCard(
-            title: 'Lot Identification & Opening',
-            icon: Icons.tag_rounded,
+            title: 'Worker Assignment & Lot Identification',
+            icon: Icons.person_pin_rounded,
             children: [
+              _buildCraftsmanSelectorField(
+                label: 'Assigned Craftsman / Caster',
+                selectedId: _castingCraftsmanId,
+                onChanged: (val) => setState(() => _castingCraftsmanId = val),
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
                     child: _buildTextInput(
                       controller: _castingJobCodeCtrl,
                       label: 'Lot Number',
-                      hint: 'e.g. LOT-20261006-1',
+                      hint: _lastCastingLotNumber.isNotEmpty
+                          ? 'New Lot (Last: $_lastCastingLotNumber)'
+                          : 'e.g. LOT-20261006-1',
                       icon: Icons.qr_code_2_rounded,
                     ),
                   ),
@@ -820,8 +850,12 @@ class _DepartmentLogsPageState extends State<DepartmentLogsPage>
                   Expanded(
                     child: _buildNumberInput(
                       controller: _castingPrevBalanceCtrl,
-                      label: 'Prev Balance',
-                      hint: '0.000',
+                      label: _isFetchingCastingBalance
+                          ? 'Prev Balance (syncing...)'
+                          : 'Prev Balance',
+                      hint: _lastClosingBalance != null
+                          ? '0.000 (Last: ${_lastClosingBalance!.toStringAsFixed(3)}g)'
+                          : '0.000',
                       icon: Icons.history_rounded,
                       suffix: 'g',
                     ),

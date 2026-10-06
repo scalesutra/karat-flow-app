@@ -102,7 +102,7 @@ class _CraftsmanMonthlyLedgerPageState
   Future<void> _loadCraftsmenList() async {
     setState(() => _isLoadingEmployees = true);
     try {
-      final allEmployees = await _repo.listEmployees();
+      final allEmployees = await _repo.getCraftsmen();
       final karigars = allEmployees.where((e) {
         final r = e.role.toUpperCase();
         return r.contains('CRAFTSMAN') ||
@@ -814,6 +814,7 @@ class _CraftsmanMonthlyLedgerPageState
             )
           else
             ...ledger.departmentSummaries.map((dept) {
+              final isCasting = dept.department.toLowerCase().contains('cast');
               final isFiling = dept.department.toLowerCase().contains('filing');
               final isPolishing = dept.department.toLowerCase().contains('polish');
               final isSetting = dept.department.toLowerCase().contains('setting') ||
@@ -836,17 +837,21 @@ class _CraftsmanMonthlyLedgerPageState
                         Row(
                           children: [
                             Icon(
-                              isFiling
-                                  ? Icons.handyman_rounded
-                                  : (isPolishing
-                                      ? Icons.auto_awesome_rounded
-                                      : Icons.diamond_outlined),
+                              isCasting
+                                  ? Icons.local_fire_department_rounded
+                                  : (isFiling
+                                      ? Icons.handyman_rounded
+                                      : (isPolishing
+                                          ? Icons.auto_awesome_rounded
+                                          : Icons.diamond_outlined)),
                               size: 14,
-                              color: isFiling
+                              color: isCasting
                                   ? AppColors.goldDark
-                                  : (isPolishing
-                                      ? AppColors.emerald
-                                      : const Color(0xFF3B82F6)),
+                                  : (isFiling
+                                      ? AppColors.goldDark
+                                      : (isPolishing
+                                          ? AppColors.emerald
+                                          : const Color(0xFF3B82F6))),
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -878,7 +883,45 @@ class _CraftsmanMonthlyLedgerPageState
                       ],
                     ),
                     const SizedBox(height: 8),
-                    if (isFiling) ...[
+                    if (isCasting) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Metal Issued',
+                              value: '${dept.gramsHandled.toStringAsFixed(3)}g',
+                              color: AppColors.goldDark,
+                            ),
+                          ),
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Cast Tree Wt',
+                              value: '${dept.fineReceived.toStringAsFixed(3)}g',
+                              color: AppColors.emerald,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Runner Scrap',
+                              value: '${dept.runnerReturn.toStringAsFixed(3)}g',
+                              color: AppColors.ink,
+                            ),
+                          ),
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Closing Bal',
+                              value: '${dept.wastageGrams.toStringAsFixed(3)}g',
+                              color: dept.wastageGrams >= 0 ? AppColors.emerald : Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else if (isFiling) ...[
                       Row(
                         children: [
                           Expanded(
@@ -1071,6 +1114,7 @@ class _CraftsmanMonthlyLedgerPageState
               separatorBuilder: (_, _) => const Divider(height: 12, color: AppColors.outlineLight),
               itemBuilder: (ctx, i) {
                 final job = ledger.jobSheets[i];
+                final isCasting = job.department.toLowerCase().contains('cast');
                 final isFiling = job.department.toLowerCase().contains('filing');
                 final isPolishing = job.department.toLowerCase().contains('polish');
                 final isSetting = job.department.toLowerCase().contains('setting') ||
@@ -1078,7 +1122,10 @@ class _CraftsmanMonthlyLedgerPageState
 
                 Color deptColor = AppColors.emerald;
                 IconData deptIcon = Icons.precision_manufacturing_rounded;
-                if (isFiling) {
+                if (isCasting) {
+                  deptColor = AppColors.goldDark;
+                  deptIcon = Icons.local_fire_department_rounded;
+                } else if (isFiling) {
                   deptColor = AppColors.goldDark;
                   deptIcon = Icons.handyman_rounded;
                 } else if (isPolishing) {
@@ -1168,7 +1215,43 @@ class _CraftsmanMonthlyLedgerPageState
                       const SizedBox(height: 6),
 
                       // Department Specific Register Data
-                      if (isFiling) ...[
+                      if (isCasting) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Metal In',
+                                value: '${job.issueWeight.toStringAsFixed(3)}g',
+                                color: AppColors.goldDark,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Cast Tree',
+                                value: '${job.fineWeight.toStringAsFixed(3)}g',
+                                color: AppColors.emerald,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Runner',
+                                value: '${job.runnerReturnWeight.toStringAsFixed(3)}g',
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Close Bal',
+                                value: '${job.wastageWeight.toStringAsFixed(3)}g',
+                                color: job.wastageWeight >= 0 ? AppColors.emerald : Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else if (isFiling) ...[
                         Row(
                           children: [
                             Expanded(

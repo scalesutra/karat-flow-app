@@ -2672,6 +2672,7 @@ class ApiOrdersPage {
 class CastingSubmitPayload {
   const CastingSubmitPayload({
     required this.lotNumber,
+    required this.craftsmanId,
     this.previousBalance = 0.0,
     this.freshMetalIssue = 0.0,
     required this.finishedCastingWeight,
@@ -2680,6 +2681,7 @@ class CastingSubmitPayload {
   });
 
   final String lotNumber;
+  final String craftsmanId;
   final double previousBalance;
   final double freshMetalIssue;
   final double finishedCastingWeight;
@@ -2692,6 +2694,7 @@ class CastingSubmitPayload {
 
   Map<String, dynamic> toJson() => {
     'lotNumber': lotNumber.trim(),
+    'craftsmanId': craftsmanId.trim(),
     'previousBalance': previousBalance,
     'freshMetalIssue': freshMetalIssue,
     'finishedCastingWeight': finishedCastingWeight,
@@ -2702,6 +2705,7 @@ class CastingSubmitPayload {
 class CastingLogResponse {
   const CastingLogResponse({
     required this.id,
+    this.craftsmanId = '',
     this.lotNumber = '',
     this.previousBalance = 0.0,
     this.freshMetalIssue = 0.0,
@@ -2713,6 +2717,7 @@ class CastingLogResponse {
   });
 
   final String id;
+  final String craftsmanId;
   final String lotNumber;
   final double previousBalance;
   final double freshMetalIssue;
@@ -2738,6 +2743,7 @@ class CastingLogResponse {
 
     return CastingLogResponse(
       id: json['id']?.toString() ?? '',
+      craftsmanId: json['craftsmanId']?.toString() ?? '',
       lotNumber: json['lotNumber']?.toString() ??
           json['jobCode']?.toString() ??
           '',
@@ -3464,7 +3470,10 @@ class CraftsmanLedgerJobSheet {
   factory CraftsmanLedgerJobSheet.fromJson(Map<String, dynamic> json) {
     final recBy = json['recordedBy'] is Map ? json['recordedBy'] as Map : null;
     final jCode =
-        json['jobCode']?.toString() ?? json['orderNumber']?.toString() ?? '';
+        json['lotNumber']?.toString() ??
+        json['jobCode']?.toString() ??
+        json['orderNumber']?.toString() ??
+        '';
 
     final d = (json['directPcs'] as num?)?.toInt() ?? 0;
     final i = (json['indirectPcs'] as num?)?.toInt() ?? 0;
@@ -3482,19 +3491,28 @@ class CraftsmanLedgerJobSheet {
       jobCode: jCode,
       orderNumber: jCode,
       partName: json['partName']?.toString() ?? '',
-      issueWeight: (json['issueWeight'] as num?)?.toDouble() ?? 0.0,
+      issueWeight:
+          (json['issueWeight'] as num?)?.toDouble() ??
+          (json['totalMetalIssue'] as num?)?.toDouble() ??
+          (json['freshMetalIssue'] as num?)?.toDouble() ??
+          0.0,
       fineWeight:
           (json['fineReceived'] as num?)?.toDouble() ??
           (json['fineWeight'] as num?)?.toDouble() ??
           (json['fineReceivedWeight'] as num?)?.toDouble() ??
+          (json['finishedCastingWeight'] as num?)?.toDouble() ??
+          (json['finishedWeight'] as num?)?.toDouble() ??
           0.0,
       runnerReturnWeight:
           (json['runnerReturn'] as num?)?.toDouble() ??
           (json['runnerReturnWeight'] as num?)?.toDouble() ??
+          (json['runnerReturnScrap'] as num?)?.toDouble() ??
+          (json['runnerScrapWeight'] as num?)?.toDouble() ??
           0.0,
       wastageWeight:
           (json['wastageDifference'] as num?)?.toDouble() ??
           (json['wastageWeight'] as num?)?.toDouble() ??
+          (json['closingBalance'] as num?)?.toDouble() ??
           0.0,
       directPcs: d,
       indirectPcs: i,
@@ -3957,6 +3975,85 @@ class CraftsmanMonthlyLedger {
       );
     }
 
+    // 4. Casting Section
+    final castingMap = (json['casting'] is Map
+            ? Map<String, dynamic>.from(json['casting'] as Map)
+            : null) ??
+        (json['furnace'] is Map
+            ? Map<String, dynamic>.from(json['furnace'] as Map)
+            : null);
+    final castingSummary = castingMap?['summary'] is Map
+        ? Map<String, dynamic>.from(castingMap!['summary'] as Map)
+        : null;
+    final castingLogs = (castingMap?['logs'] as List?) ??
+        (castingMap?['jobSheets'] as List?) ??
+        (castingMap?['entries'] as List?) ??
+        (json['castingLogs'] as List?) ??
+        (json['casting_logs'] as List?);
+
+    final castingJobs = (castingSummary?['totalJobs'] as num?)?.toInt() ??
+        (castingSummary?['totalLots'] as num?)?.toInt() ??
+        (castingLogs?.length ?? 0);
+    final castingIssue = (castingSummary?['totalIssueWeight'] as num?)?.toDouble() ??
+        (castingSummary?['totalMetalIssue'] as num?)?.toDouble() ??
+        (castingSummary?['gramsHandled'] as num?)?.toDouble() ??
+        (castingLogs != null
+            ? castingLogs.fold<double>(0.0, (acc, item) {
+                if (item is Map) {
+                  return acc +
+                      ((item['totalMetalIssue'] as num?)?.toDouble() ??
+                          ((item['freshMetalIssue'] as num?)?.toDouble() ?? 0.0) +
+                              ((item['previousBalance'] as num?)?.toDouble() ?? 0.0));
+                }
+                return acc;
+              })
+            : 0.0);
+    final castingFin = (castingSummary?['totalFinishedWeight'] as num?)?.toDouble() ??
+        (castingSummary?['totalFineReceived'] as num?)?.toDouble() ??
+        (castingLogs != null
+            ? castingLogs.fold<double>(0.0, (acc, item) {
+                if (item is Map) {
+                  return acc +
+                      ((item['finishedCastingWeight'] as num?)?.toDouble() ??
+                          (item['finishedWeight'] as num?)?.toDouble() ??
+                          0.0);
+                }
+                return acc;
+              })
+            : 0.0);
+    final castingRunner = (castingSummary?['totalRunnerScrap'] as num?)?.toDouble() ??
+        (castingSummary?['totalRunnerReturn'] as num?)?.toDouble() ??
+        (castingLogs != null
+            ? castingLogs.fold<double>(0.0, (acc, item) {
+                if (item is Map) {
+                  return acc +
+                      ((item['runnerReturnScrap'] as num?)?.toDouble() ??
+                          (item['runnerScrapWeight'] as num?)?.toDouble() ??
+                          0.0);
+                }
+                return acc;
+              })
+            : 0.0);
+    final castingClosing = (castingSummary?['netClosingBalance'] as num?)?.toDouble() ??
+        (castingSummary?['closingBalance'] as num?)?.toDouble() ??
+        (castingSummary?['totalWastageDifference'] as num?)?.toDouble() ??
+        (castingIssue - (castingFin + castingRunner));
+
+    if (castingJobs > 0 ||
+        castingIssue > 0 ||
+        (castingLogs != null && castingLogs.isNotEmpty)) {
+      summaries.add(
+        CraftsmanDeptSummary(
+          department: 'Casting',
+          totalJobs: castingJobs > 0 ? castingJobs : (castingLogs?.length ?? 0),
+          gramsHandled: castingIssue,
+          fineReceived: castingFin,
+          runnerReturn: castingRunner,
+          wastageGrams: castingClosing,
+        ),
+      );
+    }
+
     // If explicit departmentSummaries list was sent by backend
     if (summaries.isEmpty && json['departmentSummaries'] is List) {
       for (final s in json['departmentSummaries'] as List) {
@@ -3970,6 +4067,46 @@ class CraftsmanMonthlyLedger {
 
     // Build Job Sheets from department logs
     final jobs = <CraftsmanLedgerJobSheet>[];
+
+    // Casting logs
+    if (castingLogs != null) {
+      for (final raw in castingLogs) {
+        if (raw is Map) {
+          final m = Map<String, dynamic>.from(raw);
+          final recBy = m['recordedBy'] is Map ? m['recordedBy'] as Map : null;
+          final lot = m['lotNumber']?.toString() ??
+              m['jobCode']?.toString() ??
+              '';
+          final issue = (m['totalMetalIssue'] as num?)?.toDouble() ??
+              ((m['freshMetalIssue'] as num?)?.toDouble() ?? 0.0) +
+                  ((m['previousBalance'] as num?)?.toDouble() ?? 0.0);
+          final fin = (m['finishedCastingWeight'] as num?)?.toDouble() ??
+              (m['finishedWeight'] as num?)?.toDouble() ??
+              0.0;
+          final runner = (m['runnerReturnScrap'] as num?)?.toDouble() ??
+              (m['runnerScrapWeight'] as num?)?.toDouble() ??
+              0.0;
+          final closeBal = (m['closingBalance'] as num?)?.toDouble() ??
+              (issue - (fin + runner));
+
+          jobs.add(
+            CraftsmanLedgerJobSheet(
+              id: m['id']?.toString() ?? '',
+              date: m['createdAt']?.toString() ?? '',
+              department: 'Casting',
+              jobCode: lot,
+              orderNumber: lot,
+              issueWeight: issue,
+              fineWeight: fin,
+              runnerReturnWeight: runner,
+              wastageWeight: closeBal,
+              notes: m['notes']?.toString() ?? '',
+              recordedByName: recBy?['name']?.toString() ?? '',
+            ),
+          );
+        }
+      }
+    }
 
     // Filing logs
     if (filingLogs != null) {
@@ -4178,21 +4315,21 @@ class CraftsmanMonthlyLedger {
     jobs.sort((a, b) => b.date.compareTo(a.date));
 
     // Overall Totals
-    final grams = filingIssue > 0
-        ? filingIssue
+    final grams = (filingIssue + castingIssue) > 0
+        ? (filingIssue + castingIssue)
         : ((json['totalGramsHandled'] as num?)?.toDouble() ??
               (json['totalGrams'] as num?)?.toDouble() ??
               0.0);
-    final fine = filingFine > 0
-        ? filingFine
+    final fine = (filingFine + castingFin) > 0
+        ? (filingFine + castingFin)
         : ((json['totalFineReceived'] as num?)?.toDouble() ?? 0.0);
-    final runner = filingRunner > 0
-        ? filingRunner
+    final runner = (filingRunner + castingRunner) > 0
+        ? (filingRunner + castingRunner)
         : ((json['totalRunnerScrap'] as num?)?.toDouble() ??
               (json['totalRunnerReturn'] as num?)?.toDouble() ??
               0.0);
-    final wastage = (filingSummary != null)
-        ? filingWastage
+    final wastage = (filingSummary != null || castingSummary != null)
+        ? (filingWastage + castingClosing)
         : ((json['totalWastageGrams'] as num?)?.toDouble() ??
               (json['totalWastage'] as num?)?.toDouble() ??
               0.0);
