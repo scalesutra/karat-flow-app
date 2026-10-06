@@ -1,5 +1,6 @@
 library;
 
+import 'package:flutter/material.dart';
 import 'package:jewellery_ops_mobile/core/network/api_endpoints.dart';
 
 /// Centralized Data Transfer Objects (DTOs) for KaratFlow Live Backend
@@ -98,10 +99,85 @@ class ApiEmployee {
 
     final activeCount = (json['activeAssignmentsCount'] as num?)?.toInt() ?? 0;
 
+    final rawUser = json['user'] is Map ? json['user'] as Map : null;
+    final rawProfile = json['profile'] is Map ? json['profile'] as Map : null;
+
+    bool isUuidString(String s) {
+      final t = s.trim();
+      return t.length >= 28 &&
+          RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}').hasMatch(t);
+    }
+
+    String resolvedName = json['name']?.toString().trim() ?? '';
+    if (resolvedName.isEmpty || isUuidString(resolvedName)) {
+      final fromUser = rawUser?['name']?.toString().trim() ??
+          rawUser?['fullName']?.toString().trim() ??
+          rawUser?['displayName']?.toString().trim() ??
+          '';
+      if (fromUser.isNotEmpty && !isUuidString(fromUser)) {
+        resolvedName = fromUser;
+      }
+    }
+    if (resolvedName.isEmpty || isUuidString(resolvedName)) {
+      final fromProfile = rawProfile?['name']?.toString().trim() ??
+          rawProfile?['fullName']?.toString().trim() ??
+          '';
+      if (fromProfile.isNotEmpty && !isUuidString(fromProfile)) {
+        resolvedName = fromProfile;
+      }
+    }
+    if (resolvedName.isEmpty || isUuidString(resolvedName)) {
+      final fName = json['firstName']?.toString().trim() ??
+          rawUser?['firstName']?.toString().trim() ??
+          '';
+      final lName = json['lastName']?.toString().trim() ??
+          rawUser?['lastName']?.toString().trim() ??
+          '';
+      final combined = '$fName $lName'.trim();
+      if (combined.isNotEmpty && !isUuidString(combined)) {
+        resolvedName = combined;
+      }
+    }
+    if (resolvedName.isEmpty || isUuidString(resolvedName)) {
+      final uname = json['username']?.toString().trim() ??
+          rawUser?['username']?.toString().trim() ??
+          '';
+      if (uname.isNotEmpty && !isUuidString(uname)) {
+        resolvedName = uname;
+      }
+    }
+    if (resolvedName.isEmpty || isUuidString(resolvedName)) {
+      final email = json['email']?.toString().trim() ??
+          rawUser?['email']?.toString().trim() ??
+          '';
+      if (email.contains('@')) {
+        final emailPrefix = email.split('@').first.trim();
+        if (emailPrefix.isNotEmpty && !isUuidString(emailPrefix)) {
+          resolvedName = emailPrefix
+              .replaceAll('.', ' ')
+              .replaceAll('_', ' ')
+              .split(' ')
+              .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+              .join(' ')
+              .trim();
+        }
+      }
+    }
+    if (resolvedName.isEmpty || isUuidString(resolvedName)) {
+      final specialty = json['specialty']?.toString().trim() ?? '';
+      final role = json['role']?.toString().trim() ?? 'CRAFTSMAN';
+      final roleLabel = specialty.isNotEmpty
+          ? specialty
+          : (role.replaceAll('_', ' ').toLowerCase().split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' '));
+      final idStr = (json['id']?.toString() ?? '').replaceAll('-', '');
+      final shortTag = idStr.length >= 4 ? idStr.substring(0, 4).toUpperCase() : '01';
+      resolvedName = '$roleLabel #$shortTag';
+    }
+
     return ApiEmployee(
       id: json['id'] as String? ?? '',
       keycloakId: json['keycloakId'] as String? ?? '',
-      name: json['name'] as String? ?? '',
+      name: resolvedName,
       email: json['email'] as String? ?? '',
       phone: json['phone'] as String? ?? '',
       role: json['role'] as String? ?? 'CRAFTSMAN',
@@ -2533,18 +2609,22 @@ class ApiOrdersPage {
 
     if (pagination is Map) {
       final pMap = Map<String, dynamic>.from(pagination);
-      page = (pMap['page'] as num?)?.toInt() ??
+      page =
+          (pMap['page'] as num?)?.toInt() ??
           int.tryParse(pMap['page']?.toString() ?? '') ??
           fallbackPage;
-      limit = (pMap['limit'] as num?)?.toInt() ??
+      limit =
+          (pMap['limit'] as num?)?.toInt() ??
           int.tryParse(pMap['limit']?.toString() ?? '') ??
           fallbackLimit;
-      total = (pMap['total'] as num?)?.toInt() ??
+      total =
+          (pMap['total'] as num?)?.toInt() ??
           (pMap['totalCount'] as num?)?.toInt() ??
           int.tryParse(pMap['total']?.toString() ?? '') ??
           int.tryParse(pMap['totalCount']?.toString() ?? '') ??
           orders.length;
-      totalPages = (pMap['totalPages'] as num?)?.toInt() ??
+      totalPages =
+          (pMap['totalPages'] as num?)?.toInt() ??
           (pMap['pages'] as num?)?.toInt() ??
           int.tryParse(pMap['totalPages']?.toString() ?? '') ??
           int.tryParse(pMap['pages']?.toString() ?? '') ??
@@ -2552,16 +2632,20 @@ class ApiOrdersPage {
               ? (total / limit).ceil()
               : (orders.length >= limit ? page + 1 : page));
     } else {
-      page = (json['page'] as num?)?.toInt() ??
+      page =
+          (json['page'] as num?)?.toInt() ??
           int.tryParse(json['page']?.toString() ?? '') ??
           fallbackPage;
-      limit = (json['limit'] as num?)?.toInt() ??
+      limit =
+          (json['limit'] as num?)?.toInt() ??
           int.tryParse(json['limit']?.toString() ?? '') ??
           fallbackLimit;
-      total = (json['total'] as num?)?.toInt() ??
+      total =
+          (json['total'] as num?)?.toInt() ??
           (json['totalCount'] as num?)?.toInt() ??
           orders.length;
-      totalPages = (json['totalPages'] as num?)?.toInt() ??
+      totalPages =
+          (json['totalPages'] as num?)?.toInt() ??
           (json['pages'] as num?)?.toInt() ??
           (limit > 0 && total > 0
               ? (total / limit).ceil()
@@ -2587,66 +2671,81 @@ class ApiOrdersPage {
 
 class CastingSubmitPayload {
   const CastingSubmitPayload({
-    required this.metalType,
-    required this.previousBalance,
-    required this.freshIssueWeight,
-    required this.finishedWeight,
-    required this.runnerScrapWeight,
-    required this.closingBalance,
+    required this.lotNumber,
+    this.previousBalance = 0.0,
+    this.freshMetalIssue = 0.0,
+    required this.finishedCastingWeight,
+    this.runnerReturnScrap = 0.0,
     this.notes = '',
   });
 
-  final String metalType;
+  final String lotNumber;
   final double previousBalance;
-  final double freshIssueWeight;
-  final double finishedWeight;
-  final double runnerScrapWeight;
-  final double closingBalance;
+  final double freshMetalIssue;
+  final double finishedCastingWeight;
+  final double runnerReturnScrap;
   final String notes;
 
+  double get closingBalance =>
+      (previousBalance + freshMetalIssue) -
+      (finishedCastingWeight + runnerReturnScrap);
+
   Map<String, dynamic> toJson() => {
-    'metalType': metalType,
+    'lotNumber': lotNumber.trim(),
     'previousBalance': previousBalance,
-    'freshIssueWeight': freshIssueWeight,
-    'finishedWeight': finishedWeight,
-    'runnerScrapWeight': runnerScrapWeight,
-    'closingBalance': closingBalance,
-    if (notes.isNotEmpty) 'notes': notes,
+    'freshMetalIssue': freshMetalIssue,
+    'finishedCastingWeight': finishedCastingWeight,
+    'runnerReturnScrap': runnerReturnScrap,
   };
 }
 
 class CastingLogResponse {
   const CastingLogResponse({
     required this.id,
-    required this.metalType,
-    required this.previousBalance,
-    required this.freshIssueWeight,
-    required this.finishedWeight,
-    required this.runnerScrapWeight,
-    required this.closingBalance,
+    this.lotNumber = '',
+    this.previousBalance = 0.0,
+    this.freshMetalIssue = 0.0,
+    this.finishedCastingWeight = 0.0,
+    this.runnerReturnScrap = 0.0,
+    this.closingBalance = 0.0,
     this.notes = '',
     this.createdAt = '',
   });
 
   final String id;
-  final String metalType;
+  final String lotNumber;
   final double previousBalance;
-  final double freshIssueWeight;
-  final double finishedWeight;
-  final double runnerScrapWeight;
+  final double freshMetalIssue;
+  final double finishedCastingWeight;
+  final double runnerReturnScrap;
   final double closingBalance;
   final String notes;
   final String createdAt;
 
   factory CastingLogResponse.fromJson(Map<String, dynamic> json) {
+    final prev = (json['previousBalance'] as num?)?.toDouble() ?? 0.0;
+    final fresh = (json['freshMetalIssue'] as num?)?.toDouble() ??
+        (json['freshIssueWeight'] as num?)?.toDouble() ??
+        0.0;
+    final fin = (json['finishedCastingWeight'] as num?)?.toDouble() ??
+        (json['finishedWeight'] as num?)?.toDouble() ??
+        0.0;
+    final scrap = (json['runnerReturnScrap'] as num?)?.toDouble() ??
+        (json['runnerScrapWeight'] as num?)?.toDouble() ??
+        0.0;
+    final close = (json['closingBalance'] as num?)?.toDouble() ??
+        ((prev + fresh) - (fin + scrap));
+
     return CastingLogResponse(
       id: json['id']?.toString() ?? '',
-      metalType: json['metalType']?.toString() ?? 'Gold',
-      previousBalance: (json['previousBalance'] as num?)?.toDouble() ?? 0.0,
-      freshIssueWeight: (json['freshIssueWeight'] as num?)?.toDouble() ?? 0.0,
-      finishedWeight: (json['finishedWeight'] as num?)?.toDouble() ?? 0.0,
-      runnerScrapWeight: (json['runnerScrapWeight'] as num?)?.toDouble() ?? 0.0,
-      closingBalance: (json['closingBalance'] as num?)?.toDouble() ?? 0.0,
+      lotNumber: json['lotNumber']?.toString() ??
+          json['jobCode']?.toString() ??
+          '',
+      previousBalance: prev,
+      freshMetalIssue: fresh,
+      finishedCastingWeight: fin,
+      runnerReturnScrap: scrap,
+      closingBalance: close,
       notes: json['notes']?.toString() ?? '',
       createdAt: json['createdAt']?.toString() ?? '',
     );
@@ -2657,19 +2756,23 @@ class CastingLastBalanceResponse {
   const CastingLastBalanceResponse({
     required this.metalType,
     required this.lastClosingBalance,
+    this.lastLotNumber = '',
   });
 
   final String metalType;
   final double lastClosingBalance;
+  final String lastLotNumber;
 
   factory CastingLastBalanceResponse.fromJson(Map<String, dynamic> json) {
     return CastingLastBalanceResponse(
       metalType: json['metalType']?.toString() ?? 'Gold',
       lastClosingBalance:
+          (json['previousBalance'] as num?)?.toDouble() ??
           (json['closingBalance'] as num?)?.toDouble() ??
           (json['lastClosingBalance'] as num?)?.toDouble() ??
           (json['balance'] as num?)?.toDouble() ??
           0.0,
+      lastLotNumber: json['lastLotNumber']?.toString() ?? '',
     );
   }
 }
@@ -2677,7 +2780,7 @@ class CastingLastBalanceResponse {
 class FilingSubmitPayload {
   const FilingSubmitPayload({
     required this.craftsmanId,
-    this.orderPartId,
+    this.jobCode,
     required this.issueWeight,
     required this.fineReceivedWeight,
     required this.runnerReturnWeight,
@@ -2686,7 +2789,7 @@ class FilingSubmitPayload {
   });
 
   final String craftsmanId;
-  final String? orderPartId;
+  final String? jobCode;
   final double issueWeight;
   final double fineReceivedWeight;
   final double runnerReturnWeight;
@@ -2695,10 +2798,12 @@ class FilingSubmitPayload {
 
   Map<String, dynamic> toJson() => {
     'craftsmanId': craftsmanId,
-    if (orderPartId != null && orderPartId!.isNotEmpty)
-      'orderPartId': orderPartId,
+    if (jobCode != null && jobCode!.trim().isNotEmpty)
+      'jobCode': jobCode!.trim(),
     'issueWeight': issueWeight,
+    'fineReceived': fineReceivedWeight,
     'fineReceivedWeight': fineReceivedWeight,
+    'runnerReturn': runnerReturnWeight,
     'runnerReturnWeight': runnerReturnWeight,
     'wastageDifference': wastageDifference,
     if (notes.isNotEmpty) 'notes': notes,
@@ -2710,7 +2815,7 @@ class FilingLogResponse {
     required this.id,
     required this.craftsmanId,
     this.craftsmanName = '',
-    this.orderPartId,
+    this.jobCode,
     required this.issueWeight,
     required this.fineReceivedWeight,
     required this.runnerReturnWeight,
@@ -2722,7 +2827,7 @@ class FilingLogResponse {
   final String id;
   final String craftsmanId;
   final String craftsmanName;
-  final String? orderPartId;
+  final String? jobCode;
   final double issueWeight;
   final double fineReceivedWeight;
   final double runnerReturnWeight;
@@ -2735,15 +2840,20 @@ class FilingLogResponse {
     return FilingLogResponse(
       id: json['id']?.toString() ?? '',
       craftsmanId: json['craftsmanId']?.toString() ?? '',
-      craftsmanName: craftsmanMap?['name']?.toString() ??
+      craftsmanName:
+          craftsmanMap?['name']?.toString() ??
           json['craftsmanName']?.toString() ??
           '',
-      orderPartId: json['orderPartId']?.toString(),
+      jobCode: json['jobCode']?.toString(),
       issueWeight: (json['issueWeight'] as num?)?.toDouble() ?? 0.0,
       fineReceivedWeight:
-          (json['fineReceivedWeight'] as num?)?.toDouble() ?? 0.0,
+          (json['fineReceived'] as num?)?.toDouble() ??
+          (json['fineReceivedWeight'] as num?)?.toDouble() ??
+          0.0,
       runnerReturnWeight:
-          (json['runnerReturnWeight'] as num?)?.toDouble() ?? 0.0,
+          (json['runnerReturn'] as num?)?.toDouble() ??
+          (json['runnerReturnWeight'] as num?)?.toDouble() ??
+          0.0,
       wastageDifference: (json['wastageDifference'] as num?)?.toDouble() ?? 0.0,
       notes: json['notes']?.toString() ?? '',
       createdAt: json['createdAt']?.toString() ?? '',
@@ -2754,7 +2864,7 @@ class FilingLogResponse {
 class PolishingSubmitPayload {
   const PolishingSubmitPayload({
     required this.craftsmanId,
-    this.orderPartId,
+    this.jobCode,
     required this.directPcs,
     required this.indirectPcs,
     required this.filingPcs,
@@ -2764,7 +2874,7 @@ class PolishingSubmitPayload {
   });
 
   final String craftsmanId;
-  final String? orderPartId;
+  final String? jobCode;
   final int directPcs;
   final int indirectPcs;
   final int filingPcs;
@@ -2774,8 +2884,8 @@ class PolishingSubmitPayload {
 
   Map<String, dynamic> toJson() => {
     'craftsmanId': craftsmanId,
-    if (orderPartId != null && orderPartId!.isNotEmpty)
-      'orderPartId': orderPartId,
+    if (jobCode != null && jobCode!.trim().isNotEmpty)
+      'jobCode': jobCode!.trim(),
     'directPcs': directPcs,
     'indirectPcs': indirectPcs,
     'filingPcs': filingPcs,
@@ -2790,7 +2900,7 @@ class PolishingLogResponse {
     required this.id,
     required this.craftsmanId,
     this.craftsmanName = '',
-    this.orderPartId,
+    this.jobCode,
     required this.directPcs,
     required this.indirectPcs,
     required this.filingPcs,
@@ -2803,7 +2913,7 @@ class PolishingLogResponse {
   final String id;
   final String craftsmanId;
   final String craftsmanName;
-  final String? orderPartId;
+  final String? jobCode;
   final int directPcs;
   final int indirectPcs;
   final int filingPcs;
@@ -2817,10 +2927,11 @@ class PolishingLogResponse {
     return PolishingLogResponse(
       id: json['id']?.toString() ?? '',
       craftsmanId: json['craftsmanId']?.toString() ?? '',
-      craftsmanName: craftsmanMap?['name']?.toString() ??
+      craftsmanName:
+          craftsmanMap?['name']?.toString() ??
           json['craftsmanName']?.toString() ??
           '',
-      orderPartId: json['orderPartId']?.toString(),
+      jobCode: json['jobCode']?.toString(),
       directPcs: (json['directPcs'] as num?)?.toInt() ?? 0,
       indirectPcs: (json['indirectPcs'] as num?)?.toInt() ?? 0,
       filingPcs: (json['filingPcs'] as num?)?.toInt() ?? 0,
@@ -2835,7 +2946,7 @@ class PolishingLogResponse {
 class HandSettingSubmitPayload {
   const HandSettingSubmitPayload({
     required this.craftsmanId,
-    this.orderPartId,
+    this.jobCode,
     required this.stoneType,
     required this.shape,
     required this.color,
@@ -2847,7 +2958,7 @@ class HandSettingSubmitPayload {
   });
 
   final String craftsmanId;
-  final String? orderPartId;
+  final String? jobCode;
   final String stoneType;
   final String shape;
   final String color;
@@ -2857,19 +2968,64 @@ class HandSettingSubmitPayload {
   final bool replacementRequested;
   final String notes;
 
-  Map<String, dynamic> toJson() => {
-    'craftsmanId': craftsmanId,
-    if (orderPartId != null && orderPartId!.isNotEmpty)
-      'orderPartId': orderPartId,
-    'stoneType': stoneType,
-    'shape': shape,
-    'color': color,
-    'size': size,
-    'usedStonesCount': usedStonesCount,
-    'brokenStonesCount': brokenStonesCount,
-    'replacementRequested': replacementRequested,
-    if (notes.isNotEmpty) 'notes': notes,
-  };
+  Map<String, dynamic> toJson() {
+    final usedItem = {
+      'size': size,
+      'color': color,
+      'stoneType': stoneType,
+      'shape': shape,
+      'usedQty': usedStonesCount,
+      'quantity': usedStonesCount,
+      'count': usedStonesCount,
+      'pieces': usedStonesCount,
+      'stonesCount': usedStonesCount,
+      'used': usedStonesCount,
+    };
+    final brokenItem = {
+      'size': size,
+      'color': color,
+      'stoneType': stoneType,
+      'shape': shape,
+      'brokenQty': brokenStonesCount,
+      'quantity': brokenStonesCount,
+      'count': brokenStonesCount,
+      'pieces': brokenStonesCount,
+      'brokenCount': brokenStonesCount,
+      'broken': brokenStonesCount,
+      'reason': notes.isNotEmpty ? notes : 'Workshop floor breakage',
+    };
+
+    return {
+      'craftsmanId': craftsmanId,
+      if (jobCode != null && jobCode!.trim().isNotEmpty)
+        'jobCode': jobCode!.trim(),
+      'stoneType': stoneType,
+      'shape': shape,
+      'color': color,
+      'size': size,
+      // Array structures expected by backend
+      'openStonesUsed': usedStonesCount > 0 ? [usedItem] : [],
+      'crashedStones': brokenStonesCount > 0 ? [brokenItem] : [],
+      // Flat fields for backwards/alternative backend compatibility
+      'openStonesUsedCount': usedStonesCount,
+      'crashedStonesCount': brokenStonesCount,
+      'usedStonesCount': usedStonesCount,
+      'openStonesCount': usedStonesCount,
+      'stonesSet': usedStonesCount,
+      'usedStones': usedStonesCount,
+      'openStones': usedStonesCount,
+      'stonesCount': usedStonesCount,
+      'pieces': usedStonesCount,
+      'count': usedStonesCount,
+      'quantity': usedStonesCount,
+      'brokenStonesCount': brokenStonesCount,
+      'brokenStones': brokenStonesCount,
+      'stonesBroken': brokenStonesCount,
+      'brokenCount': brokenStonesCount,
+      'replacementRequested': replacementRequested,
+      if (notes.isNotEmpty) 'notes': notes,
+    };
+  }
 }
 
 class HandSettingLogResponse {
@@ -2877,7 +3033,9 @@ class HandSettingLogResponse {
     required this.id,
     required this.craftsmanId,
     this.craftsmanName = '',
-    this.orderPartId,
+    this.craftsmanPhone = '',
+    this.recordedByName = '',
+    this.jobCode,
     required this.stoneType,
     required this.shape,
     required this.color,
@@ -2887,12 +3045,16 @@ class HandSettingLogResponse {
     this.replacementRequested = false,
     this.notes = '',
     this.createdAt = '',
+    this.openStonesUsed = const [],
+    this.crashedStones = const [],
   });
 
   final String id;
   final String craftsmanId;
   final String craftsmanName;
-  final String? orderPartId;
+  final String craftsmanPhone;
+  final String recordedByName;
+  final String? jobCode;
   final String stoneType;
   final String shape;
   final String color;
@@ -2902,25 +3064,129 @@ class HandSettingLogResponse {
   final bool replacementRequested;
   final String notes;
   final String createdAt;
+  final List<dynamic> openStonesUsed;
+  final List<dynamic> crashedStones;
+
+  String get displayWorkerName {
+    if (craftsmanName.trim().isNotEmpty && craftsmanName.length < 28) {
+      return craftsmanName.trim();
+    }
+    final short = craftsmanId.replaceAll('-', '');
+    final tag = short.length >= 4 ? short.substring(0, 4).toUpperCase() : 'SETTER';
+    return 'Setter #$tag';
+  }
 
   factory HandSettingLogResponse.fromJson(Map<String, dynamic> json) {
     final craftsmanMap = json['craftsman'] as Map<String, dynamic>?;
+    final recordedByMap = json['recordedBy'] as Map<String, dynamic>?;
+
+    final openList = (json['openStonesUsed'] as List?) ??
+        (json['openStones'] as List?) ??
+        (json['stonesUsed'] as List?);
+    final crashedList = (json['crashedStones'] as List?) ??
+        (json['brokenStones'] as List?);
+
+    int calculatedUsed = (json['usedStonesCount'] as num?)?.toInt() ??
+        (json['openStonesUsedCount'] as num?)?.toInt() ??
+        (json['openStonesCount'] as num?)?.toInt() ??
+        (json['stonesSet'] as num?)?.toInt() ??
+        (json['usedStones'] as num?)?.toInt() ??
+        (json['openStones'] as num?)?.toInt() ??
+        (json['stonesCount'] as num?)?.toInt() ??
+        (json['pieces'] as num?)?.toInt() ??
+        (json['count'] as num?)?.toInt() ??
+        (json['quantity'] as num?)?.toInt() ??
+        0;
+
+    if (calculatedUsed == 0 && openList != null && openList.isNotEmpty) {
+      for (final item in openList) {
+        if (item is Map) {
+          final c = (item['usedQty'] as num?)?.toInt() ??
+              (item['quantity'] as num?)?.toInt() ??
+              (item['count'] as num?)?.toInt() ??
+              (item['pieces'] as num?)?.toInt() ??
+              (item['used'] as num?)?.toInt() ??
+              (item['stonesCount'] as num?)?.toInt() ??
+              0;
+          calculatedUsed += c;
+        } else if (item is num) {
+          calculatedUsed += item.toInt();
+        }
+      }
+      if (calculatedUsed == 0) calculatedUsed = openList.length;
+    }
+
+    int calculatedBroken = (json['brokenStonesCount'] as num?)?.toInt() ??
+        (json['crashedStonesCount'] as num?)?.toInt() ??
+        (json['brokenStones'] as num?)?.toInt() ??
+        (json['stonesBroken'] as num?)?.toInt() ??
+        (json['brokenCount'] as num?)?.toInt() ??
+        (json['broken'] as num?)?.toInt() ??
+        0;
+
+    if (calculatedBroken == 0 && crashedList != null && crashedList.isNotEmpty) {
+      for (final item in crashedList) {
+        if (item is Map) {
+          final c = (item['brokenQty'] as num?)?.toInt() ??
+              (item['quantity'] as num?)?.toInt() ??
+              (item['count'] as num?)?.toInt() ??
+              (item['pieces'] as num?)?.toInt() ??
+              (item['broken'] as num?)?.toInt() ??
+              (item['brokenCount'] as num?)?.toInt() ??
+              0;
+          calculatedBroken += c;
+        } else if (item is num) {
+          calculatedBroken += item.toInt();
+        }
+      }
+      if (calculatedBroken == 0) calculatedBroken = crashedList.length;
+    }
+
+    Map? firstStoneMap;
+    if (openList != null && openList.isNotEmpty && openList.first is Map) {
+      firstStoneMap = openList.first as Map;
+    } else if (crashedList != null && crashedList.isNotEmpty && crashedList.first is Map) {
+      firstStoneMap = crashedList.first as Map;
+    }
+
+    final sType = json['stoneType']?.toString() ??
+        firstStoneMap?['stoneType']?.toString() ??
+        firstStoneMap?['type']?.toString() ??
+        '';
+    final sShape = json['shape']?.toString() ??
+        firstStoneMap?['shape']?.toString() ??
+        (sType.isNotEmpty ? sType : '');
+    final sColor = json['color']?.toString() ??
+        firstStoneMap?['color']?.toString() ??
+        '';
+    final sSize = json['size']?.toString() ??
+        firstStoneMap?['size']?.toString() ??
+        '';
+
+    final rawCraftsmanName = craftsmanMap?['name']?.toString() ??
+        json['craftsmanName']?.toString() ??
+        '';
+
     return HandSettingLogResponse(
       id: json['id']?.toString() ?? '',
       craftsmanId: json['craftsmanId']?.toString() ?? '',
-      craftsmanName: craftsmanMap?['name']?.toString() ??
-          json['craftsmanName']?.toString() ??
+      craftsmanName: rawCraftsmanName,
+      craftsmanPhone: craftsmanMap?['phone']?.toString() ?? '',
+      recordedByName: recordedByMap?['name']?.toString() ??
+          json['recordedByName']?.toString() ??
           '',
-      orderPartId: json['orderPartId']?.toString(),
-      stoneType: json['stoneType']?.toString() ?? '',
-      shape: json['shape']?.toString() ?? '',
-      color: json['color']?.toString() ?? '',
-      size: json['size']?.toString() ?? '',
-      usedStonesCount: (json['usedStonesCount'] as num?)?.toInt() ?? 0,
-      brokenStonesCount: (json['brokenStonesCount'] as num?)?.toInt() ?? 0,
+      jobCode: json['jobCode']?.toString(),
+      stoneType: sType,
+      shape: sShape,
+      color: sColor,
+      size: sSize,
+      usedStonesCount: calculatedUsed,
+      brokenStonesCount: calculatedBroken,
       replacementRequested: json['replacementRequested'] as bool? ?? false,
       notes: json['notes']?.toString() ?? '',
       createdAt: json['createdAt']?.toString() ?? '',
+      openStonesUsed: openList != null ? List<dynamic>.from(openList) : const [],
+      crashedStones: crashedList != null ? List<dynamic>.from(crashedList) : const [],
     );
   }
 }
@@ -3043,13 +3309,16 @@ class StoneMatrixItem {
       size: json['size']?.toString() ?? '',
       color: json['color']?.toString() ?? '',
       stoneType: json['stoneType']?.toString() ?? 'Round',
-      quantity: (json['quantity'] as num?)?.toInt() ??
+      quantity:
+          (json['quantity'] as num?)?.toInt() ??
           (json['count'] as num?)?.toInt() ??
           (json['total'] as num?)?.toInt() ??
           0,
-      availableQuantity: (json['availableQuantity'] as num?)?.toInt() ??
+      availableQuantity:
+          (json['availableQuantity'] as num?)?.toInt() ??
           (json['available'] as num?)?.toInt(),
-      reservedQuantity: (json['reservedQuantity'] as num?)?.toInt() ??
+      reservedQuantity:
+          (json['reservedQuantity'] as num?)?.toInt() ??
           (json['reserved'] as num?)?.toInt(),
     );
   }
@@ -3077,9 +3346,7 @@ class StoneMatrixResponse {
     if (json is List) {
       for (final raw in json) {
         if (raw is Map) {
-          final item = StoneMatrixItem.fromJson(
-            Map<String, dynamic>.from(raw),
-          );
+          final item = StoneMatrixItem.fromJson(Map<String, dynamic>.from(raw));
           items.add(item);
           if (item.size.isNotEmpty) sizeSet.add(item.size);
           if (item.color.isNotEmpty) colorSet.add(item.color);
@@ -3150,58 +3417,120 @@ class CraftsmanLedgerJobSheet {
     required this.id,
     this.date = '',
     this.department = '',
+    this.jobCode = '',
     this.orderNumber = '',
     this.partName = '',
     this.issueWeight = 0.0,
     this.fineWeight = 0.0,
     this.runnerReturnWeight = 0.0,
     this.wastageWeight = 0.0,
+    this.directPcs = 0,
+    this.indirectPcs = 0,
+    this.filingPcs = 0,
+    this.beltPcs = 0,
     this.pieces = 0,
+    this.stoneType = '',
+    this.stoneSize = '',
     this.stonesSet = 0,
     this.stonesBroken = 0,
+    this.replacementRequested = false,
     this.notes = '',
+    this.recordedByName = '',
   });
 
   final String id;
   final String date;
   final String department;
+  final String jobCode;
   final String orderNumber;
   final String partName;
   final double issueWeight;
   final double fineWeight;
   final double runnerReturnWeight;
   final double wastageWeight;
+  final int directPcs;
+  final int indirectPcs;
+  final int filingPcs;
+  final int beltPcs;
   final int pieces;
+  final String stoneType;
+  final String stoneSize;
   final int stonesSet;
   final int stonesBroken;
+  final bool replacementRequested;
   final String notes;
+  final String recordedByName;
 
   factory CraftsmanLedgerJobSheet.fromJson(Map<String, dynamic> json) {
+    final recBy = json['recordedBy'] is Map ? json['recordedBy'] as Map : null;
+    final jCode =
+        json['jobCode']?.toString() ?? json['orderNumber']?.toString() ?? '';
+
+    final d = (json['directPcs'] as num?)?.toInt() ?? 0;
+    final i = (json['indirectPcs'] as num?)?.toInt() ?? 0;
+    final f = (json['filingPcs'] as num?)?.toInt() ?? 0;
+    final b = (json['beltPcs'] as num?)?.toInt() ?? 0;
+    final totPcs =
+        (json['totalPcs'] as num?)?.toInt() ??
+        (json['pieces'] as num?)?.toInt() ??
+        (d + i + f + b);
+
     return CraftsmanLedgerJobSheet(
       id: json['id']?.toString() ?? '',
       date: json['date']?.toString() ?? json['createdAt']?.toString() ?? '',
       department: json['department']?.toString() ?? '',
-      orderNumber: json['orderNumber']?.toString() ?? '',
+      jobCode: jCode,
+      orderNumber: jCode,
       partName: json['partName']?.toString() ?? '',
       issueWeight: (json['issueWeight'] as num?)?.toDouble() ?? 0.0,
-      fineWeight: (json['fineWeight'] as num?)?.toDouble() ??
+      fineWeight:
+          (json['fineReceived'] as num?)?.toDouble() ??
+          (json['fineWeight'] as num?)?.toDouble() ??
           (json['fineReceivedWeight'] as num?)?.toDouble() ??
           0.0,
       runnerReturnWeight:
-          (json['runnerReturnWeight'] as num?)?.toDouble() ?? 0.0,
-      wastageWeight: (json['wastageWeight'] as num?)?.toDouble() ??
-          (json['wastageDifference'] as num?)?.toDouble() ??
+          (json['runnerReturn'] as num?)?.toDouble() ??
+          (json['runnerReturnWeight'] as num?)?.toDouble() ??
           0.0,
-      pieces: (json['pieces'] as num?)?.toInt() ??
-          (json['totalPcs'] as num?)?.toInt() ??
-          0,
-      stonesSet: (json['stonesSet'] as num?)?.toInt() ??
+      wastageWeight:
+          (json['wastageDifference'] as num?)?.toDouble() ??
+          (json['wastageWeight'] as num?)?.toDouble() ??
+          0.0,
+      directPcs: d,
+      indirectPcs: i,
+      filingPcs: f,
+      beltPcs: b,
+      pieces: totPcs,
+      stoneType:
+          json['stoneType']?.toString() ??
+          json['type']?.toString() ??
+          json['stone']?.toString() ??
+          json['stoneName']?.toString() ??
+          '',
+      stoneSize:
+          json['size']?.toString() ?? json['stoneSize']?.toString() ?? '',
+      stonesSet:
           (json['usedStonesCount'] as num?)?.toInt() ??
+          (json['openStonesCount'] as num?)?.toInt() ??
+          (json['stonesSet'] as num?)?.toInt() ??
+          (json['usedStones'] as num?)?.toInt() ??
+          (json['openStones'] as num?)?.toInt() ??
+          (json['stonesCount'] as num?)?.toInt() ??
+          (json['pieces'] as num?)?.toInt() ??
+          (json['count'] as num?)?.toInt() ??
+          (json['quantity'] as num?)?.toInt() ??
           0,
-      stonesBroken: (json['stonesBroken'] as num?)?.toInt() ??
+      stonesBroken:
           (json['brokenStonesCount'] as num?)?.toInt() ??
+          (json['brokenStones'] as num?)?.toInt() ??
+          (json['stonesBroken'] as num?)?.toInt() ??
+          (json['brokenCount'] as num?)?.toInt() ??
+          (json['damagedCount'] as num?)?.toInt() ??
+          (json['broken'] as num?)?.toInt() ??
           0,
+      replacementRequested: json['replacementRequested'] as bool? ?? false,
       notes: json['notes']?.toString() ?? '',
+      recordedByName: recBy?['name']?.toString() ?? '',
     );
   }
 }
@@ -3209,36 +3538,98 @@ class CraftsmanLedgerJobSheet {
 class CraftsmanDeptSummary {
   const CraftsmanDeptSummary({
     required this.department,
+    this.totalJobs = 0,
     this.gramsHandled = 0.0,
     this.fineReceived = 0.0,
     this.runnerReturn = 0.0,
     this.wastageGrams = 0.0,
+    this.directPcs = 0,
+    this.indirectPcs = 0,
+    this.filingPcs = 0,
+    this.beltPcs = 0,
     this.pieces = 0,
     this.stonesHandled = 0,
+    this.stonesBroken = 0,
+    this.replacementRequests = 0,
   });
 
   final String department;
+  final int totalJobs;
   final double gramsHandled;
   final double fineReceived;
   final double runnerReturn;
   final double wastageGrams;
+  final int directPcs;
+  final int indirectPcs;
+  final int filingPcs;
+  final int beltPcs;
   final int pieces;
   final int stonesHandled;
+  final int stonesBroken;
+  final int replacementRequests;
 
   factory CraftsmanDeptSummary.fromJson(Map<String, dynamic> json) {
     return CraftsmanDeptSummary(
       department: json['department']?.toString() ?? '',
-      gramsHandled: (json['gramsHandled'] as num?)?.toDouble() ??
+      totalJobs: (json['totalJobs'] as num?)?.toInt() ?? 0,
+      gramsHandled:
+          (json['gramsHandled'] as num?)?.toDouble() ??
           (json['issueWeight'] as num?)?.toDouble() ??
+          (json['totalIssueWeight'] as num?)?.toDouble() ??
           0.0,
-      fineReceived: (json['fineReceived'] as num?)?.toDouble() ?? 0.0,
-      runnerReturn: (json['runnerReturn'] as num?)?.toDouble() ?? 0.0,
-      wastageGrams: (json['wastageGrams'] as num?)?.toDouble() ?? 0.0,
-      pieces: (json['pieces'] as num?)?.toInt() ??
+      fineReceived:
+          (json['fineReceived'] as num?)?.toDouble() ??
+          (json['totalFineReceived'] as num?)?.toDouble() ??
+          0.0,
+      runnerReturn:
+          (json['runnerReturn'] as num?)?.toDouble() ??
+          (json['totalRunnerReturn'] as num?)?.toDouble() ??
+          0.0,
+      wastageGrams:
+          (json['wastageGrams'] as num?)?.toDouble() ??
+          (json['wastageDifference'] as num?)?.toDouble() ??
+          (json['totalWastageDifference'] as num?)?.toDouble() ??
+          0.0,
+      directPcs:
+          (json['directPcs'] as num?)?.toInt() ??
+          (json['totalDirectPcs'] as num?)?.toInt() ??
+          0,
+      indirectPcs:
+          (json['indirectPcs'] as num?)?.toInt() ??
+          (json['totalIndirectPcs'] as num?)?.toInt() ??
+          0,
+      filingPcs:
+          (json['filingPcs'] as num?)?.toInt() ??
+          (json['totalFilingPcs'] as num?)?.toInt() ??
+          0,
+      beltPcs:
+          (json['beltPcs'] as num?)?.toInt() ??
+          (json['totalBeltPcs'] as num?)?.toInt() ??
+          0,
+      pieces:
+          (json['pieces'] as num?)?.toInt() ??
+          (json['totalPcsPolished'] as num?)?.toInt() ??
           (json['totalPcs'] as num?)?.toInt() ??
           0,
-      stonesHandled: (json['stonesHandled'] as num?)?.toInt() ??
+      stonesHandled:
+          (json['stonesHandled'] as num?)?.toInt() ??
+          (json['totalOpenStonesCount'] as num?)?.toInt() ??
           (json['usedStonesCount'] as num?)?.toInt() ??
+          (json['totalUsedStones'] as num?)?.toInt() ??
+          (json['totalStonesSet'] as num?)?.toInt() ??
+          (json['openStonesCount'] as num?)?.toInt() ??
+          (json['stonesSet'] as num?)?.toInt() ??
+          0,
+      stonesBroken:
+          (json['stonesBroken'] as num?)?.toInt() ??
+          (json['totalBrokenStonesCount'] as num?)?.toInt() ??
+          (json['brokenStonesCount'] as num?)?.toInt() ??
+          (json['totalStonesBroken'] as num?)?.toInt() ??
+          (json['brokenStones'] as num?)?.toInt() ??
+          0,
+      replacementRequests:
+          (json['replacementRequests'] as num?)?.toInt() ??
+          (json['replacementRequestsCount'] as num?)?.toInt() ??
           0,
     );
   }
@@ -3275,9 +3666,299 @@ class CraftsmanMonthlyLedger {
   final List<CraftsmanDeptSummary> departmentSummaries;
   final List<CraftsmanLedgerJobSheet> jobSheets;
 
-  factory CraftsmanMonthlyLedger.fromJson(Map<String, dynamic> json) {
+  static int _parseSafeInt(dynamic val) {
+    if (val == null) return 0;
+    if (val is num) return val.toInt();
+    if (val is String) {
+      final d = double.tryParse(val.trim());
+      if (d != null) return d.toInt();
+    }
+    if (val is List) {
+      if (val.isEmpty) return 0;
+      int sum = 0;
+      for (final item in val) {
+        if (item is num) {
+          sum += item.toInt();
+        } else if (item is Map) {
+          final count = (item['quantity'] as num?)?.toInt() ??
+              (item['count'] as num?)?.toInt() ??
+              (item['pieces'] as num?)?.toInt() ??
+              (item['used'] as num?)?.toInt() ??
+              (item['broken'] as num?)?.toInt() ??
+              (item['stonesCount'] as num?)?.toInt() ??
+              (item['brokenCount'] as num?)?.toInt() ??
+              0;
+          sum += count;
+        }
+      }
+      return sum > 0 ? sum : val.length;
+    }
+    return 0;
+  }
+
+  static int _extractFieldInt(Map m, List<String> keys) {
+    for (final k in keys) {
+      if (m.containsKey(k) && m[k] != null) {
+        final v = _parseSafeInt(m[k]);
+        if (v != 0) return v;
+      }
+    }
+    // Check case-insensitive and snake-insensitive matching in m
+    for (final k in keys) {
+      final lowerK = k.toLowerCase().replaceAll('_', '');
+      for (final entry in m.entries) {
+        final entryKey = entry.key.toString().toLowerCase().replaceAll('_', '');
+        if (entryKey == lowerK && entry.value != null) {
+          final v = _parseSafeInt(entry.value);
+          if (v != 0) return v;
+        }
+      }
+    }
+    // Check nested maps & lists: 'openStonesUsed', 'crashedStones', 'stone', 'details', 'metadata', 'stoneDetails', 'data'
+    for (final sub in [
+      'openStonesUsed',
+      'crashedStones',
+      'stone',
+      'details',
+      'metadata',
+      'stoneDetails',
+      'data',
+    ]) {
+      if (m[sub] is List && (m[sub] as List).isNotEmpty) {
+        final v = _parseSafeInt(m[sub]);
+        if (v != 0) return v;
+      }
+      if (m[sub] is Map) {
+        final subMap = m[sub] as Map;
+        for (final k in keys) {
+          if (subMap.containsKey(k) && subMap[k] != null) {
+            final v = _parseSafeInt(subMap[k]);
+            if (v != 0) return v;
+          }
+        }
+      }
+    }
+    return 0;
+  }
+
+  static String _extractFieldString(Map m, List<String> keys) {
+    for (final k in keys) {
+      if (m.containsKey(k) && m[k] != null) {
+        final str = m[k].toString().trim();
+        if (str.isNotEmpty && str.toLowerCase() != 'null') return str;
+      }
+    }
+    for (final k in keys) {
+      final lowerK = k.toLowerCase().replaceAll('_', '');
+      for (final entry in m.entries) {
+        final entryKey = entry.key.toString().toLowerCase().replaceAll('_', '');
+        if (entryKey == lowerK && entry.value != null) {
+          final str = entry.value.toString().trim();
+          if (str.isNotEmpty && str.toLowerCase() != 'null') return str;
+        }
+      }
+    }
+    for (final sub in [
+      'openStonesUsed',
+      'crashedStones',
+      'stone',
+      'details',
+      'metadata',
+      'stoneDetails',
+      'data',
+    ]) {
+      if (m[sub] is List && (m[sub] as List).isNotEmpty) {
+        final first = (m[sub] as List).first;
+        if (first is Map) {
+          for (final k in keys) {
+            if (first.containsKey(k) && first[k] != null) {
+              final str = first[k].toString().trim();
+              if (str.isNotEmpty && str.toLowerCase() != 'null') return str;
+            }
+          }
+          final lowerKeys =
+              keys.map((k) => k.toLowerCase().replaceAll('_', '')).toSet();
+          for (final entry in first.entries) {
+            final entryKey =
+                entry.key.toString().toLowerCase().replaceAll('_', '');
+            if (lowerKeys.contains(entryKey) && entry.value != null) {
+              final str = entry.value.toString().trim();
+              if (str.isNotEmpty && str.toLowerCase() != 'null') return str;
+            }
+          }
+        }
+      }
+      if (m[sub] is Map) {
+        final subMap = m[sub] as Map;
+        for (final k in keys) {
+          if (subMap.containsKey(k) && subMap[k] != null) {
+            final str = subMap[k].toString().trim();
+            if (str.isNotEmpty && str.toLowerCase() != 'null') return str;
+          }
+        }
+      }
+    }
+    return '';
+  }
+
+  factory CraftsmanMonthlyLedger.fromJson(Map<String, dynamic> rawJson) {
+    final json = (rawJson['data'] is Map<String, dynamic>)
+        ? rawJson['data'] as Map<String, dynamic>
+        : (rawJson['data'] is Map
+              ? Map<String, dynamic>.from(rawJson['data'])
+              : rawJson);
+
+    final craftsmanMap = json['craftsman'] is Map
+        ? Map<String, dynamic>.from(json['craftsman'] as Map)
+        : null;
+    final craftsmanId =
+        json['craftsmanId']?.toString() ??
+        craftsmanMap?['id']?.toString() ??
+        '';
+    final craftsmanName =
+        json['craftsmanName']?.toString() ??
+        craftsmanMap?['name']?.toString() ??
+        '';
+    final yearMonth = json['yearMonth']?.toString() ?? '';
+
+    // 1. Filing Section
+    final filingMap = json['filing'] is Map
+        ? Map<String, dynamic>.from(json['filing'] as Map)
+        : null;
+    final filingSummary = filingMap?['summary'] is Map
+        ? Map<String, dynamic>.from(filingMap!['summary'] as Map)
+        : null;
+    final filingLogs = filingMap?['logs'] as List?;
+
+    final filingJobs = (filingSummary?['totalJobs'] as num?)?.toInt() ?? 0;
+    final filingIssue =
+        (filingSummary?['totalIssueWeight'] as num?)?.toDouble() ?? 0.0;
+    final filingFine =
+        (filingSummary?['totalFineReceived'] as num?)?.toDouble() ?? 0.0;
+    final filingRunner =
+        (filingSummary?['totalRunnerReturn'] as num?)?.toDouble() ?? 0.0;
+    final filingWastage =
+        (filingSummary?['totalWastageDifference'] as num?)?.toDouble() ?? 0.0;
+
+    // 2. Polishing Section
+    final polishingMap = json['polishing'] is Map
+        ? Map<String, dynamic>.from(json['polishing'] as Map)
+        : null;
+    final polishingSummary = polishingMap?['summary'] is Map
+        ? Map<String, dynamic>.from(polishingMap!['summary'] as Map)
+        : null;
+    final polishingLogs = polishingMap?['logs'] as List?;
+
+    final polishingJobs =
+        (polishingSummary?['totalJobs'] as num?)?.toInt() ?? 0;
+    final polishingDirect =
+        (polishingSummary?['totalDirectPcs'] as num?)?.toInt() ?? 0;
+    final polishingIndirect =
+        (polishingSummary?['totalIndirectPcs'] as num?)?.toInt() ?? 0;
+    final polishingFiling =
+        (polishingSummary?['totalFilingPcs'] as num?)?.toInt() ?? 0;
+    final polishingBelt =
+        (polishingSummary?['totalBeltPcs'] as num?)?.toInt() ?? 0;
+    final polishingTotalPcs =
+        (polishingSummary?['totalPcsPolished'] as num?)?.toInt() ?? 0;
+
+    // 3. Hand Setting Section
+    final settingMap =
+        (json['handSetting'] is Map
+            ? Map<String, dynamic>.from(json['handSetting'] as Map)
+            : null) ??
+        (json['hand_setting'] is Map
+            ? Map<String, dynamic>.from(json['hand_setting'] as Map)
+            : null) ??
+        (json['hand-setting'] is Map
+            ? Map<String, dynamic>.from(json['hand-setting'] as Map)
+            : null) ??
+        (json['setting'] is Map
+            ? Map<String, dynamic>.from(json['setting'] as Map)
+            : null) ??
+        (json['stoneSetting'] is Map
+            ? Map<String, dynamic>.from(json['stoneSetting'] as Map)
+            : null);
+    final settingSummary = settingMap?['summary'] is Map
+        ? Map<String, dynamic>.from(settingMap!['summary'] as Map)
+        : null;
+    final settingLogs =
+        (settingMap?['logs'] as List?) ??
+        (settingMap?['jobSheets'] as List?) ??
+        (settingMap?['entries'] as List?) ??
+        (json['handSettingLogs'] as List?) ??
+        (json['hand_setting_logs'] as List?);
+
+    final settingJobs = (settingSummary?['totalJobs'] as num?)?.toInt() ?? 0;
+    final settingOpenStones =
+        (settingSummary?['totalOpenStonesCount'] as num?)?.toInt() ??
+        (settingSummary?['totalUsedStones'] as num?)?.toInt() ??
+        (settingSummary?['totalStonesSet'] as num?)?.toInt() ??
+        (settingSummary?['openStonesCount'] as num?)?.toInt() ??
+        (settingSummary?['usedStonesCount'] as num?)?.toInt() ??
+        (settingSummary?['totalStones'] as num?)?.toInt() ??
+        0;
+    final settingBrokenStones =
+        (settingSummary?['totalBrokenStonesCount'] as num?)?.toInt() ??
+        (settingSummary?['totalStonesBroken'] as num?)?.toInt() ??
+        (settingSummary?['brokenStonesCount'] as num?)?.toInt() ??
+        (settingSummary?['totalBrokenStones'] as num?)?.toInt() ??
+        (settingSummary?['brokenStones'] as num?)?.toInt() ??
+        0;
+    final settingReplacements =
+        (settingSummary?['replacementRequestsCount'] as num?)?.toInt() ??
+        (settingSummary?['replacementRequests'] as num?)?.toInt() ??
+        0;
+
+    // Department summaries list (only show active departments)
     final summaries = <CraftsmanDeptSummary>[];
-    if (json['departmentSummaries'] is List) {
+    if (filingJobs > 0 ||
+        filingIssue > 0 ||
+        (filingLogs != null && filingLogs.isNotEmpty)) {
+      summaries.add(
+        CraftsmanDeptSummary(
+          department: 'Filing',
+          totalJobs: filingJobs > 0 ? filingJobs : (filingLogs?.length ?? 0),
+          gramsHandled: filingIssue,
+          fineReceived: filingFine,
+          runnerReturn: filingRunner,
+          wastageGrams: filingWastage,
+        ),
+      );
+    }
+    if (polishingJobs > 0 ||
+        polishingTotalPcs > 0 ||
+        (polishingLogs != null && polishingLogs.isNotEmpty)) {
+      summaries.add(
+        CraftsmanDeptSummary(
+          department: 'Polishing',
+          totalJobs: polishingJobs > 0
+              ? polishingJobs
+              : (polishingLogs?.length ?? 0),
+          directPcs: polishingDirect,
+          indirectPcs: polishingIndirect,
+          filingPcs: polishingFiling,
+          beltPcs: polishingBelt,
+          pieces: polishingTotalPcs,
+        ),
+      );
+    }
+    if (settingJobs > 0 ||
+        settingOpenStones > 0 ||
+        (settingLogs != null && settingLogs.isNotEmpty)) {
+      summaries.add(
+        CraftsmanDeptSummary(
+          department: 'Hand Setting',
+          totalJobs: settingJobs > 0 ? settingJobs : (settingLogs?.length ?? 0),
+          stonesHandled: settingOpenStones,
+          stonesBroken: settingBrokenStones,
+          replacementRequests: settingReplacements,
+        ),
+      );
+    }
+
+    // If explicit departmentSummaries list was sent by backend
+    if (summaries.isEmpty && json['departmentSummaries'] is List) {
       for (final s in json['departmentSummaries'] as List) {
         if (s is Map) {
           summaries.add(
@@ -3287,44 +3968,265 @@ class CraftsmanMonthlyLedger {
       }
     }
 
+    // Build Job Sheets from department logs
     final jobs = <CraftsmanLedgerJobSheet>[];
-    final rawJobs = json['jobSheets'] ?? json['logs'] ?? json['entries'];
-    if (rawJobs is List) {
-      for (final j in rawJobs) {
-        if (j is Map) {
+
+    // Filing logs
+    if (filingLogs != null) {
+      for (final raw in filingLogs) {
+        if (raw is Map) {
+          final m = Map<String, dynamic>.from(raw);
+          final recBy = m['recordedBy'] is Map ? m['recordedBy'] as Map : null;
+          final jCode = m['jobCode']?.toString() ?? '';
           jobs.add(
-            CraftsmanLedgerJobSheet.fromJson(Map<String, dynamic>.from(j)),
+            CraftsmanLedgerJobSheet(
+              id: m['id']?.toString() ?? '',
+              date: m['createdAt']?.toString() ?? '',
+              department: 'Filing',
+              jobCode: jCode,
+              orderNumber: jCode,
+              issueWeight: (m['issueWeight'] as num?)?.toDouble() ?? 0.0,
+              fineWeight:
+                  (m['fineReceived'] as num?)?.toDouble() ??
+                  (m['fineReceivedWeight'] as num?)?.toDouble() ??
+                  0.0,
+              runnerReturnWeight:
+                  (m['runnerReturn'] as num?)?.toDouble() ??
+                  (m['runnerReturnWeight'] as num?)?.toDouble() ??
+                  0.0,
+              wastageWeight:
+                  (m['wastageDifference'] as num?)?.toDouble() ??
+                  (m['wastageWeight'] as num?)?.toDouble() ??
+                  0.0,
+              notes: m['notes']?.toString() ?? '',
+              recordedByName: recBy?['name']?.toString() ?? '',
+            ),
           );
         }
       }
     }
 
-    final grams = (json['totalGramsHandled'] as num?)?.toDouble() ??
-        (json['totalGrams'] as num?)?.toDouble() ??
-        0.0;
-    final wastage = (json['totalWastageGrams'] as num?)?.toDouble() ??
-        (json['totalWastage'] as num?)?.toDouble() ??
-        0.0;
+    // Polishing logs
+    if (polishingLogs != null) {
+      for (final raw in polishingLogs) {
+        if (raw is Map) {
+          final m = Map<String, dynamic>.from(raw);
+          final recBy = m['recordedBy'] is Map ? m['recordedBy'] as Map : null;
+          final jCode = m['jobCode']?.toString() ?? '';
+          final d = (m['directPcs'] as num?)?.toInt() ?? 0;
+          final i = (m['indirectPcs'] as num?)?.toInt() ?? 0;
+          final f = (m['filingPcs'] as num?)?.toInt() ?? 0;
+          final b = (m['beltPcs'] as num?)?.toInt() ?? 0;
+          final tot = (m['totalPcs'] as num?)?.toInt() ?? (d + i + f + b);
+          jobs.add(
+            CraftsmanLedgerJobSheet(
+              id: m['id']?.toString() ?? '',
+              date: m['createdAt']?.toString() ?? '',
+              department: 'Polishing',
+              jobCode: jCode,
+              orderNumber: jCode,
+              directPcs: d,
+              indirectPcs: i,
+              filingPcs: f,
+              beltPcs: b,
+              pieces: tot,
+              notes: m['notes']?.toString() ?? '',
+              recordedByName: recBy?['name']?.toString() ?? '',
+            ),
+          );
+        }
+      }
+    }
+
+    // Hand Setting logs
+    if (settingLogs != null) {
+      for (final raw in settingLogs) {
+        if (raw is Map) {
+          final m = Map<String, dynamic>.from(raw);
+          final recBy = m['recordedBy'] is Map ? m['recordedBy'] as Map : null;
+          final jCode = _extractFieldString(m, [
+            'jobCode',
+            'job_code',
+            'tag',
+            'code',
+            'job',
+            'pouchRef',
+            'pouch_ref',
+          ]);
+          final used = _extractFieldInt(m, [
+            'openStonesUsed',
+            'open_stones_used',
+            'openStonesUsedCount',
+            'open_stones_used_count',
+            'usedStonesCount',
+            'used_stones_count',
+            'openStonesCount',
+            'open_stones_count',
+            'stonesSet',
+            'stones_set',
+            'usedStones',
+            'used_stones',
+            'openStones',
+            'open_stones',
+            'stonesCount',
+            'stoneCount',
+            'stones_count',
+            'stone_count',
+            'stonesUsed',
+            'stones_used',
+            'pieces',
+            'count',
+            'quantity',
+            'qty',
+            'used',
+            'total',
+            'stones',
+          ]);
+          final broken = _extractFieldInt(m, [
+            'crashedStones',
+            'crashed_stones',
+            'crashedStonesCount',
+            'crashed_stones_count',
+            'brokenStonesCount',
+            'broken_stones_count',
+            'brokenStones',
+            'broken_stones',
+            'stonesBroken',
+            'stones_broken',
+            'brokenCount',
+            'broken_count',
+            'damagedCount',
+            'damaged_count',
+            'damagedStones',
+            'damaged_stones',
+            'broken',
+            'damage',
+            'damaged',
+          ]);
+          final repl =
+              m['replacementRequested'] as bool? ??
+              (m['replacement'] as bool?) ??
+              false;
+          final stoneType = _extractFieldString(m, [
+            'stoneType',
+            'stone_type',
+            'type',
+            'stone',
+            'stoneName',
+            'stone_name',
+            'name',
+            'gemType',
+            'gem_type',
+            'material',
+          ]);
+          final stoneSize = _extractFieldString(m, [
+            'size',
+            'stoneSize',
+            'stone_size',
+            'dimension',
+            'dimensions',
+            'mm',
+          ]);
+          final logId = _extractFieldString(m, ['id', '_id']);
+          final logDate = _extractFieldString(m, [
+            'createdAt',
+            'created_at',
+            'date',
+            'updatedAt',
+            'updated_at',
+          ]);
+
+          debugPrint(
+            '💎 [HAND SETTING LOG PARSED]: id=$logId, tag=$jCode, used=$used, broken=$broken, type="$stoneType", size="$stoneSize" | rawKeys=${m.keys.toList()}',
+          );
+
+          jobs.add(
+            CraftsmanLedgerJobSheet(
+              id: logId,
+              date: logDate,
+              department: 'Hand Setting',
+              jobCode: jCode,
+              orderNumber: jCode,
+              stoneType: stoneType,
+              stoneSize: stoneSize,
+              stonesSet: used,
+              stonesBroken: broken,
+              replacementRequested: repl,
+              notes: m['notes']?.toString() ?? '',
+              recordedByName: recBy?['name']?.toString() ?? '',
+            ),
+          );
+        }
+      }
+    }
+
+    // Legacy fallback
+    if (jobs.isEmpty) {
+      final rawJobs = json['jobSheets'] ?? json['logs'] ?? json['entries'];
+      if (rawJobs is List) {
+        for (final j in rawJobs) {
+          if (j is Map) {
+            jobs.add(
+              CraftsmanLedgerJobSheet.fromJson(Map<String, dynamic>.from(j)),
+            );
+          }
+        }
+      }
+    }
+
+    // Sort logs descending by date
+    jobs.sort((a, b) => b.date.compareTo(a.date));
+
+    // Overall Totals
+    final grams = filingIssue > 0
+        ? filingIssue
+        : ((json['totalGramsHandled'] as num?)?.toDouble() ??
+              (json['totalGrams'] as num?)?.toDouble() ??
+              0.0);
+    final fine = filingFine > 0
+        ? filingFine
+        : ((json['totalFineReceived'] as num?)?.toDouble() ?? 0.0);
+    final runner = filingRunner > 0
+        ? filingRunner
+        : ((json['totalRunnerScrap'] as num?)?.toDouble() ??
+              (json['totalRunnerReturn'] as num?)?.toDouble() ??
+              0.0);
+    final wastage = (filingSummary != null)
+        ? filingWastage
+        : ((json['totalWastageGrams'] as num?)?.toDouble() ??
+              (json['totalWastage'] as num?)?.toDouble() ??
+              0.0);
     final calculatedPercent = grams > 0 ? (wastage / grams) * 100 : 0.0;
 
+    final pieces = polishingTotalPcs > 0
+        ? polishingTotalPcs
+        : ((json['totalPiecesDone'] as num?)?.toInt() ??
+              (json['totalPieces'] as num?)?.toInt() ??
+              0);
+    final stones = settingOpenStones > 0
+        ? settingOpenStones
+        : ((json['totalStonesSet'] as num?)?.toInt() ??
+              (json['totalOpenStonesCount'] as num?)?.toInt() ??
+              (json['totalUsedStones'] as num?)?.toInt() ??
+              0);
+    final stonesBroken = settingBrokenStones > 0
+        ? settingBrokenStones
+        : ((json['totalStonesBroken'] as num?)?.toInt() ??
+              (json['totalBrokenStonesCount'] as num?)?.toInt() ??
+              0);
+
     return CraftsmanMonthlyLedger(
-      craftsmanId: json['craftsmanId']?.toString() ?? '',
-      craftsmanName: json['craftsmanName']?.toString() ??
-          json['craftsman']?['name']?.toString() ??
-          '',
-      yearMonth: json['yearMonth']?.toString() ?? '',
+      craftsmanId: craftsmanId,
+      craftsmanName: craftsmanName,
+      yearMonth: yearMonth,
       totalGramsHandled: grams,
-      totalFineReceived:
-          (json['totalFineReceived'] as num?)?.toDouble() ?? 0.0,
-      totalRunnerScrap: (json['totalRunnerScrap'] as num?)?.toDouble() ?? 0.0,
+      totalFineReceived: fine,
+      totalRunnerScrap: runner,
       totalWastageGrams: wastage,
-      wastagePercentage: (json['wastagePercentage'] as num?)?.toDouble() ??
-          calculatedPercent,
-      totalPiecesDone: (json['totalPiecesDone'] as num?)?.toInt() ??
-          (json['totalPieces'] as num?)?.toInt() ??
-          0,
-      totalStonesSet: (json['totalStonesSet'] as num?)?.toInt() ?? 0,
-      totalStonesBroken: (json['totalStonesBroken'] as num?)?.toInt() ?? 0,
+      wastagePercentage: calculatedPercent,
+      totalPiecesDone: pieces,
+      totalStonesSet: stones,
+      totalStonesBroken: stonesBroken,
       departmentSummaries: summaries,
       jobSheets: jobs,
     );
@@ -3338,11 +4240,17 @@ class ApiMasterAttribute {
     required this.id,
     required this.name,
     this.code = '',
+    this.hexCode = '',
+    this.description = '',
+    this.isActive = true,
   });
 
   final String id;
   final String name;
   final String code;
+  final String hexCode;
+  final String description;
+  final bool isActive;
 
   factory ApiMasterAttribute.fromJson(dynamic json) {
     if (json is String) {
@@ -3353,9 +4261,11 @@ class ApiMasterAttribute {
         id: json['id']?.toString() ?? json['name']?.toString() ?? '',
         name: json['name']?.toString() ?? json['label']?.toString() ?? '',
         code: json['code']?.toString() ?? json['value']?.toString() ?? '',
+        hexCode: json['hexCode']?.toString() ?? '',
+        description: json['description']?.toString() ?? '',
+        isActive: json['isActive'] is bool ? json['isActive'] as bool : true,
       );
     }
     return const ApiMasterAttribute(id: '', name: '');
   }
 }
-

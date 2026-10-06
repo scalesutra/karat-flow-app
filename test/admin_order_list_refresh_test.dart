@@ -154,6 +154,7 @@ void main() {
     final pending = refresh.onRefresh().then((_) => finished = true);
     admin.controller.add(const AdminLoading());
     await tester.pump(const Duration(seconds: 1));
+
     expect(finished, isFalse);
     expect(scrollable, findsOneWidget);
     expect(store.orders, hasLength(12));

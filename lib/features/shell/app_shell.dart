@@ -105,17 +105,10 @@ class _AppShellState extends State<AppShell> {
 
         final safeIndex = _selectedIndex < pages.length ? _selectedIndex : 0;
 
-        final body = CommonRefreshIndicator(
-          // The admin dashboard handles its own refresh without a list overlay.
-          enabled: !(widget.role == AppRole.admin && safeIndex == 0),
-          theme: _indicatorTheme(widget.role),
-          showIndicator: false,
-          onRefresh: _refreshApiData,
-          child: IndexedStack(
-            key: ValueKey(widget.role.name),
-            index: safeIndex,
-            children: pages,
-          ),
+        final body = IndexedStack(
+          key: ValueKey(widget.role.name),
+          index: safeIndex,
+          children: pages,
         );
 
         return Scaffold(

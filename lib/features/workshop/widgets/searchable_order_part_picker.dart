@@ -5,6 +5,19 @@ import 'package:jewellery_ops_mobile/data/mappers/api_domain_mapper.dart';
 import 'package:jewellery_ops_mobile/data/repositories/karatflow_api_repository.dart';
 import 'package:jewellery_ops_mobile/domain/models.dart';
 
+/// Result returned by SearchableOrderPartPickerSheet containing the database UUID and friendly label.
+class PickedOrderPartResult {
+  const PickedOrderPartResult({
+    required this.partId,
+    required this.displayLabel,
+    this.orderNumber = '',
+  });
+
+  final String partId;
+  final String displayLabel;
+  final String orderNumber;
+}
+
 /// Searchable Bottom Sheet for selecting Order / Order Part / Pouch Ref.
 /// Supports live search across Order #, customer firm name, design codes & part IDs,
 /// as well as custom manual reference entry.
@@ -18,12 +31,12 @@ class SearchableOrderPartPickerSheet extends StatefulWidget {
   final String? currentOrderPartId;
   final List<CustomerOrder> initialOrders;
 
-  static Future<String?> show(
+  static Future<PickedOrderPartResult?> show(
     BuildContext context, {
     String? currentOrderPartId,
     List<CustomerOrder> initialOrders = const [],
   }) {
-    return showModalBottomSheet<String>(
+    return showModalBottomSheet<PickedOrderPartResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -249,7 +262,44 @@ class _SearchableOrderPartPickerSheetState
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: InkWell(
-                onTap: () => Navigator.of(context).pop(_query),
+                onTap: () {
+                  final trimmed = _query.trim();
+                  if (KaratFlowApiRepository.isValidUuid(trimmed)) {
+                    Navigator.of(context).pop(
+                      PickedOrderPartResult(
+                        partId: trimmed,
+                        displayLabel: trimmed,
+                      ),
+                    );
+                    return;
+                  }
+                  final matched = _orders.where((o) {
+                    final ordNum = ApiDomainMapper.formatOrderNumber(o.id);
+                    return ordNum.toLowerCase() == trimmed.toLowerCase() ||
+                        o.id.toLowerCase() == trimmed.toLowerCase();
+                  }).firstOrNull;
+                  if (matched != null) {
+                    final partId = matched.designs.isNotEmpty &&
+                            matched.designs.first.partId.isNotEmpty
+                        ? matched.designs.first.partId
+                        : matched.apiId;
+                    final ordNum = ApiDomainMapper.formatOrderNumber(matched.id);
+                    Navigator.of(context).pop(
+                      PickedOrderPartResult(
+                        partId: partId,
+                        displayLabel: '$ordNum • ${matched.clientFirmName}',
+                        orderNumber: ordNum,
+                      ),
+                    );
+                    return;
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please select an order from the list to get its valid ID.'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -354,7 +404,23 @@ class _SearchableOrderPartPickerSheetState
                               color: Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
                               child: InkWell(
-                                onTap: () => Navigator.of(context).pop(orderNum),
+                                onTap: () {
+                                  final partId = order.designs.isNotEmpty &&
+                                          order.designs.first.partId.isNotEmpty
+                                      ? order.designs.first.partId
+                                      : order.apiId;
+                                  final displayLabel = order.designs.isNotEmpty &&
+                                          order.designs.first.designNumber.isNotEmpty
+                                      ? '$orderNum • ${order.designs.first.designNumber}'
+                                      : '$orderNum • $clientName';
+                                  Navigator.of(context).pop(
+                                    PickedOrderPartResult(
+                                      partId: partId,
+                                      displayLabel: displayLabel,
+                                      orderNumber: orderNum,
+                                    ),
+                                  );
+                                },
                                 borderRadius: BorderRadius.circular(10),
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -462,7 +528,20 @@ class _SearchableOrderPartPickerSheetState
                                         widget.currentOrderPartId == partRef;
 
                                     return InkWell(
-                                      onTap: () => Navigator.of(context).pop(partRef),
+                                      onTap: () {
+                                        final partId = design.partId.isNotEmpty
+                                            ? design.partId
+                                            : order.apiId;
+                                        final displayLabel =
+                                            '$orderNum • ${design.designNumber.isNotEmpty ? design.designNumber : (design.designName.isNotEmpty ? design.designName : 'Part')}';
+                                        Navigator.of(context).pop(
+                                          PickedOrderPartResult(
+                                            partId: partId,
+                                            displayLabel: displayLabel,
+                                            orderNumber: orderNum,
+                                          ),
+                                        );
+                                      },
                                       borderRadius: BorderRadius.circular(6),
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(

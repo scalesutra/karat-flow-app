@@ -873,9 +873,19 @@ abstract final class ApiDomainMapper {
             _ => value.role.replaceAll('_', ' '),
           };
 
+    String displayName = value.name.trim();
+    if (displayName.isEmpty ||
+        (displayName.length >= 28 &&
+            RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}').hasMatch(displayName))) {
+      final idClean = value.id.replaceAll('-', '');
+      final shortTag =
+          idClean.length >= 4 ? idClean.substring(0, 4).toUpperCase() : '01';
+      displayName = '$readableRole #$shortTag';
+    }
+
     return TeamMember(
       id: value.id,
-      name: value.name,
+      name: displayName,
       craft: readableRole,
       shift: rawRole,
       activeLotsCount: value.workerAssignmentsCount,
@@ -1178,13 +1188,28 @@ abstract final class ApiDomainMapper {
         ? parsedSplitQty
         : totalPieces;
 
+    final isLotIdUuid = lotId.length >= 28 &&
+        RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}').hasMatch(lotId);
+    final friendlyLotTag = isLotIdUuid
+        ? 'Lot #${lotId.replaceAll('-', '').substring(0, (lotId.replaceAll('-', '').length >= 5 ? 5 : lotId.replaceAll('-', '').length)).toUpperCase()}'
+        : (lotId.isNotEmpty ? 'Lot #$lotId' : 'Order Part');
+
+    final cleanTitle = designTitle.isNotEmpty &&
+            !designTitle.startsWith(RegExp(r'[0-9a-fA-F]{8}-'))
+        ? designTitle
+        : (designNumber.isNotEmpty &&
+                !designNumber.startsWith(RegExp(r'[0-9a-fA-F]{8}-'))
+            ? designNumber
+            : (orderId.isNotEmpty &&
+                    !orderId.startsWith(RegExp(r'[0-9a-fA-F]{8}-'))
+                ? 'Order #$orderId'
+                : friendlyLotTag));
+
     return WorkshopLot(
       id: lotId,
       orderId: orderId,
       designCode: designNumber,
-      productTitle: designTitle.isNotEmpty
-          ? designTitle
-          : (designNumber.isNotEmpty ? designNumber : 'Order Part'),
+      productTitle: cleanTitle,
       stage: stageName.isEmpty
           ? (stageId.isNotEmpty ? stage(stageId) : WorkshopStage.inQueue)
           : stage(stageName),

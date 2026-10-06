@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:jewellery_ops_mobile/core/constants/app_colors.dart';
 import 'package:jewellery_ops_mobile/core/network/api_error_handler.dart';
 import 'package:jewellery_ops_mobile/core/widgets/common_app_bar.dart';
@@ -63,11 +64,7 @@ class _CraftsmanMonthlyLedgerPageState
     _initCraftsmanAndData();
   }
 
-  String get _currentYearMonth {
-    final y = _selectedDate.year.toString();
-    final m = _selectedDate.month.toString().padLeft(2, '0');
-    return '$y-$m';
-  }
+  String get _currentYearMonth => DateFormat('yyyy-MM').format(_selectedDate);
 
   Future<void> _initCraftsmanAndData() async {
     final authState = context.read<AuthBloc>().state;
@@ -142,9 +139,15 @@ class _CraftsmanMonthlyLedgerPageState
     });
 
     try {
+      debugPrint(
+        '🔍 [LEDGER PAGE] Requesting ledger: craftsmanId=$_selectedCraftsmanId, month=$_currentYearMonth',
+      );
       final ledger = await _repo.getCraftsmanMonthlyLedger(
         craftsmanId: _selectedCraftsmanId!,
         yearMonth: _currentYearMonth,
+      );
+      debugPrint(
+        '📊 [LEDGER PAGE DATA]: Craftsman: "${ledger.craftsmanName}" | Handled: ${ledger.totalGramsHandled}g | Wastage: ${ledger.totalWastageGrams}g (${ledger.wastagePercentage}%) | Pcs: ${ledger.totalPiecesDone} | Stones Set: ${ledger.totalStonesSet} (Broken: ${ledger.totalStonesBroken}) | Depts: ${ledger.departmentSummaries.length} | Job Sheets: ${ledger.jobSheets.length}',
       );
       if (mounted) {
         setState(() {
@@ -156,6 +159,7 @@ class _CraftsmanMonthlyLedgerPageState
         });
       }
     } catch (e) {
+      debugPrint('❌ [LEDGER PAGE ERROR]: $e');
       if (mounted) {
         setState(() {
           _errorMessage = ApiErrorHandler.parseMessage(e);
@@ -190,15 +194,10 @@ class _CraftsmanMonthlyLedgerPageState
   Future<void> _showMonthYearPicker() async {
     final now = DateTime.now();
     final minYear = 2023;
-    final maxYear = now.year < 2024 ? 2026 : now.year;
+    final maxYear = now.year; // Dynamically expands as years advance (e.g. 2026, 2031...)
 
-    int tempYear = _selectedDate.year;
+    int tempYear = _selectedDate.year.clamp(minYear, maxYear);
     int tempMonth = _selectedDate.month;
-
-    final monthNames = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
 
     await showModalBottomSheet<void>(
       context: context,
@@ -281,7 +280,7 @@ class _CraftsmanMonthlyLedgerPageState
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: List.generate(
-                              (maxYear - minYear + 1).clamp(1, 10),
+                              maxYear - minYear + 1,
                               (idx) {
                                 final yr = minYear + idx;
                                 final isSel = yr == tempYear;
@@ -321,7 +320,7 @@ class _CraftsmanMonthlyLedgerPageState
                     ],
                   ),
                   const SizedBox(height: 14),
-                  // Months Grid
+                  // Months Grid using intl DateFormat
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -334,7 +333,9 @@ class _CraftsmanMonthlyLedgerPageState
                     itemCount: 12,
                     itemBuilder: (context, idx) {
                       final m = idx + 1;
-                      final isFuture = (tempYear == now.year && m > now.month) || tempYear > now.year;
+                      final monthDate = DateTime(tempYear, m);
+                      final monthLabel = DateFormat.MMM().format(monthDate);
+                      final isFuture = (tempYear == now.year && m > now.month) || (tempYear > now.year);
                       final isSelected = m == tempMonth && tempYear == _selectedDate.year;
 
                       return InkWell(
@@ -354,23 +355,27 @@ class _CraftsmanMonthlyLedgerPageState
                             color: isSelected
                                 ? AppColors.emerald
                                 : (isFuture
-                                    ? AppColors.canvas.withValues(alpha: 0.5)
+                                    ? AppColors.canvas.withValues(alpha: 0.4)
                                     : AppColors.canvas),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: isSelected
                                   ? AppColors.emerald
-                                  : AppColors.outlineLight,
+                                  : (isFuture
+                                      ? AppColors.outlineLight.withValues(alpha: 0.4)
+                                      : AppColors.outlineLight),
                             ),
                           ),
                           child: Text(
-                            monthNames[idx],
+                            monthLabel,
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                               color: isSelected
                                   ? Colors.white
-                                  : (isFuture ? AppColors.muted.withValues(alpha: 0.4) : AppColors.ink),
+                                  : (isFuture
+                                      ? AppColors.muted.withValues(alpha: 0.35)
+                                      : AppColors.ink),
                             ),
                           ),
                         ),
@@ -409,13 +414,13 @@ class _CraftsmanMonthlyLedgerPageState
             _buildMonthSelectorBar(),
             const SizedBox(height: 12),
 
-            // Karigar Dropdown (For Admin / Production Manager)
+            // Worker Dropdown (For Admin / Production Manager)
             if (!isCraftsman) ...[
-              _buildKarigarSelector(),
+              _buildWorkerSelector(),
               const SizedBox(height: 16),
             ],
 
-            if (_isLoadingLedger)
+            if (_isLoadingLedger && _ledger == null)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 40),
                 child: Center(
@@ -455,7 +460,7 @@ class _CraftsmanMonthlyLedgerPageState
       appBar: CommonAppBar(
         title: _selectedCraftsmanName.isNotEmpty
             ? '$_selectedCraftsmanName • Monthly Ledger'
-            : 'Karigar Monthly Ledger',
+            : 'Worker Monthly Ledger',
         subtitle: 'Zero Currency • Weights (g) & Pieces (pcs) Only',
         leading: widget.isEmbeddedView
             ? null
@@ -470,12 +475,7 @@ class _CraftsmanMonthlyLedgerPageState
 
   // ── Month Selector ────────────────────────────────────────────────────────
   Widget _buildMonthSelectorBar() {
-    final monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    final displayMonth =
-        '${monthNames[_selectedDate.month - 1]} ${_selectedDate.year}';
+    final displayMonth = DateFormat.yMMMM().format(_selectedDate);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -544,14 +544,14 @@ class _CraftsmanMonthlyLedgerPageState
     );
   }
 
-  // ── Karigar Selector ──────────────────────────────────────────────────────
-  Widget _buildKarigarSelector() {
+  // ── Worker Selector ───────────────────────────────────────────────────────
+  Widget _buildWorkerSelector() {
     final currentCraftsman =
         _craftsmen.where((c) => c.id == _selectedCraftsmanId).firstOrNull;
     final displayName = currentCraftsman?.name ??
         (_selectedCraftsmanName.isNotEmpty
             ? _selectedCraftsmanName
-            : 'Select Craftsman...');
+            : 'Select Worker...');
     final displayRole = currentCraftsman?.role;
 
     return InkWell(
@@ -586,7 +586,7 @@ class _CraftsmanMonthlyLedgerPageState
             ),
             const SizedBox(width: 8),
             const Text(
-              'Karigar:',
+              'Worker:',
               style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w700,
@@ -653,27 +653,28 @@ class _CraftsmanMonthlyLedgerPageState
 
   // ── KPI Metrics Grid ──────────────────────────────────────────────────────
   Widget _buildKpiMetricsGrid(CraftsmanMonthlyLedger ledger) {
+    final isSurplus = ledger.totalWastageGrams <= 0;
     return Column(
       children: [
         Row(
           children: [
             Expanded(
               child: _buildMetricCard(
-                title: 'Total Handled',
-                value: '${ledger.totalGramsHandled.toStringAsFixed(2)} g',
+                title: 'Metal Issued',
+                value: '${ledger.totalGramsHandled.toStringAsFixed(3)} g',
                 icon: Icons.scale_rounded,
                 color: AppColors.goldDark,
-                subtitle: 'Metal Issued & Worked',
+                subtitle: 'Raw Issue Weight',
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: _buildMetricCard(
-                title: 'Total Wastage',
-                value: '${ledger.totalWastageGrams.toStringAsFixed(3)} g',
-                icon: Icons.delete_sweep_rounded,
-                color: ledger.wastagePercentage > 3.0 ? Colors.red : AppColors.gold,
-                subtitle: '${ledger.wastagePercentage.toStringAsFixed(2)}% of metal',
+                title: 'Fine Received',
+                value: '${ledger.totalFineReceived.toStringAsFixed(3)} g',
+                icon: Icons.check_circle_outline_rounded,
+                color: AppColors.emerald,
+                subtitle: 'Clean Metal Received',
               ),
             ),
           ],
@@ -683,11 +684,35 @@ class _CraftsmanMonthlyLedgerPageState
           children: [
             Expanded(
               child: _buildMetricCard(
-                title: 'Pieces Done',
+                title: 'Runner Scrap',
+                value: '${ledger.totalRunnerScrap.toStringAsFixed(3)} g',
+                icon: Icons.recycling_rounded,
+                color: AppColors.goldDark,
+                subtitle: 'Scrap Returned',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Wastage Diff',
+                value: '${ledger.totalWastageGrams.toStringAsFixed(3)} g',
+                icon: Icons.difference_rounded,
+                color: isSurplus ? AppColors.emerald : Colors.red,
+                subtitle: isSurplus ? 'Metal Recovery / Gain' : '${ledger.wastagePercentage.toStringAsFixed(2)}% Metal Loss',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Polished Output',
                 value: '${ledger.totalPiecesDone} pcs',
-                icon: Icons.check_circle_outline_rounded,
+                icon: Icons.auto_awesome_rounded,
                 color: AppColors.emerald,
-                subtitle: 'Polished & Bench Output',
+                subtitle: 'Piece-Rate Total',
               ),
             ),
             const SizedBox(width: 8),
@@ -741,7 +766,7 @@ class _CraftsmanMonthlyLedgerPageState
           Text(
             value,
             style: TextStyle(
-              fontSize: 14.5,
+              fontSize: 13.5,
               fontWeight: FontWeight.w900,
               color: color,
             ),
@@ -789,61 +814,198 @@ class _CraftsmanMonthlyLedgerPageState
             )
           else
             ...ledger.departmentSummaries.map((dept) {
+              final isFiling = dept.department.toLowerCase().contains('filing');
+              final isPolishing = dept.department.toLowerCase().contains('polish');
+              final isSetting = dept.department.toLowerCase().contains('setting') ||
+                  dept.department.toLowerCase().contains('stone');
+
               return Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: AppColors.canvas,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColors.outlineLight),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      dept.department,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.ink,
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        if (dept.gramsHandled > 0)
-                          Text(
-                            '${dept.gramsHandled.toStringAsFixed(2)}g (Loss: ${dept.wastageGrams.toStringAsFixed(2)}g)',
+                        Row(
+                          children: [
+                            Icon(
+                              isFiling
+                                  ? Icons.handyman_rounded
+                                  : (isPolishing
+                                      ? Icons.auto_awesome_rounded
+                                      : Icons.diamond_outlined),
+                              size: 14,
+                              color: isFiling
+                                  ? AppColors.goldDark
+                                  : (isPolishing
+                                      ? AppColors.emerald
+                                      : const Color(0xFF3B82F6)),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              dept.department,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: AppColors.paper,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: AppColors.outlineLight),
+                          ),
+                          child: Text(
+                            '${dept.totalJobs} logs',
                             style: const TextStyle(
-                              fontSize: 10.5,
+                              fontSize: 9.5,
                               fontWeight: FontWeight.w700,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (isFiling) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Issue Wt',
+                              value: '${dept.gramsHandled.toStringAsFixed(3)}g',
                               color: AppColors.goldDark,
                             ),
                           ),
-                        if (dept.pieces > 0)
-                          Text(
-                            '${dept.pieces} pcs output',
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Fine Recd',
+                              value: '${dept.fineReceived.toStringAsFixed(3)}g',
                               color: AppColors.emerald,
                             ),
                           ),
-                        if (dept.stonesHandled > 0)
-                          Text(
-                            '${dept.stonesHandled} stones set',
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF3B82F6),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Runner Return',
+                              value: '${dept.runnerReturn.toStringAsFixed(3)}g',
+                              color: AppColors.ink,
                             ),
                           ),
-                      ],
-                    ),
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Wastage Diff',
+                              value: '${dept.wastageGrams.toStringAsFixed(3)}g',
+                              color: dept.wastageGrams <= 0 ? AppColors.emerald : Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else if (isPolishing) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Total Polished',
+                              value: '${dept.pieces} pcs',
+                              color: AppColors.emerald,
+                            ),
+                          ),
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Direct / Indirect',
+                              value: '${dept.directPcs} / ${dept.indirectPcs} pcs',
+                              color: AppColors.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Filing Pcs',
+                              value: '${dept.filingPcs} pcs',
+                              color: AppColors.muted,
+                            ),
+                          ),
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Belt Pcs',
+                              value: '${dept.beltPcs} pcs',
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else if (isSetting) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Stones Set',
+                              value: '${dept.stonesHandled} pcs',
+                              color: const Color(0xFF3B82F6),
+                            ),
+                          ),
+                          Expanded(
+                            child: _buildMiniStat(
+                              label: 'Broken Stones',
+                              value: '${dept.stonesBroken} pcs',
+                              color: dept.stonesBroken > 0 ? Colors.red : AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               );
             }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStat({
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.paper,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 9, color: AppColors.muted, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            value,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color),
+          ),
         ],
       ),
     );
@@ -906,105 +1068,231 @@ class _CraftsmanMonthlyLedgerPageState
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: ledger.jobSheets.length,
-              separatorBuilder: (_, _) => const Divider(height: 10, color: AppColors.outlineLight),
+              separatorBuilder: (_, _) => const Divider(height: 12, color: AppColors.outlineLight),
               itemBuilder: (ctx, i) {
                 final job = ledger.jobSheets[i];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Row(
+                final isFiling = job.department.toLowerCase().contains('filing');
+                final isPolishing = job.department.toLowerCase().contains('polish');
+                final isSetting = job.department.toLowerCase().contains('setting') ||
+                    job.department.toLowerCase().contains('stone');
+
+                Color deptColor = AppColors.emerald;
+                IconData deptIcon = Icons.precision_manufacturing_rounded;
+                if (isFiling) {
+                  deptColor = AppColors.goldDark;
+                  deptIcon = Icons.handyman_rounded;
+                } else if (isPolishing) {
+                  deptColor = AppColors.emerald;
+                  deptIcon = Icons.auto_awesome_rounded;
+                } else if (isSetting) {
+                  deptColor = const Color(0xFF3B82F6);
+                  deptIcon = Icons.diamond_outlined;
+                }
+
+                // Format timestamp
+                String formattedDate = job.date;
+                if (job.date.isNotEmpty) {
+                  try {
+                    final dt = DateTime.parse(job.date).toLocal();
+                    formattedDate =
+                        DateFormat('dd MMM yyyy, hh:mm a').format(dt);
+                  } catch (_) {}
+                }
+
+                return Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.canvas.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.outlineLight),
+                  ),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: AppColors.emerald.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          job.department.isNotEmpty ? job.department[0] : 'J',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 10.5,
-                            color: AppColors.emerald,
+                      // Header Row
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: deptColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(deptIcon, size: 11, color: deptColor),
+                                const SizedBox(width: 4),
+                                Text(
+                                  job.department,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 10,
+                                    color: deptColor,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          if (job.jobCode.isNotEmpty) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.paper,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: AppColors.outlineLight),
+                              ),
+                              child: Text(
+                                'Tag: ${job.jobCode}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          const Spacer(),
+                          Text(
+                            formattedDate,
+                            style: const TextStyle(
+                              fontSize: 9.5,
+                              color: AppColors.muted,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(height: 6),
+
+                      // Department Specific Register Data
+                      if (isFiling) ...[
+                        Row(
                           children: [
-                            Text(
-                              job.department.isNotEmpty ? job.department : 'Workshop Task',
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Issue',
+                                value: '${job.issueWeight.toStringAsFixed(3)}g',
+                                color: AppColors.goldDark,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Fine Recd',
+                                value: '${job.fineWeight.toStringAsFixed(3)}g',
+                                color: AppColors.emerald,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Runner',
+                                value: '${job.runnerReturnWeight.toStringAsFixed(3)}g',
                                 color: AppColors.ink,
                               ),
                             ),
-                            if (job.orderNumber.isNotEmpty || job.partName.isNotEmpty)
-                              Text(
-                                '${job.orderNumber} • ${job.partName}',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: AppColors.muted,
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Diff',
+                                value: '${job.wastageWeight.toStringAsFixed(3)}g',
+                                color: job.wastageWeight <= 0 ? AppColors.emerald : Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else if (isPolishing) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Total Output',
+                                value: '${job.pieces} pcs',
+                                color: AppColors.emerald,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Direct / Indirect',
+                                value: '${job.directPcs} / ${job.indirectPcs} pcs',
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Filing / Belt',
+                                value: '${job.filingPcs} / ${job.beltPcs} pcs',
+                                color: AppColors.muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else if (isSetting) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Stone Ref',
+                                value: '${job.stoneType} ${job.stoneSize}'.trim().isNotEmpty
+                                    ? '${job.stoneType} ${job.stoneSize}'.trim()
+                                    : 'Stones',
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Stones Set',
+                                value: '${job.stonesSet} pcs',
+                                color: const Color(0xFF3B82F6),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildMiniStat(
+                                label: 'Broken',
+                                value: '${job.stonesBroken} pcs',
+                                color: job.stonesBroken > 0 ? Colors.red : AppColors.muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+
+                      if (job.notes.isNotEmpty || job.recordedByName.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            if (job.notes.isNotEmpty)
+                              Expanded(
+                                child: Text(
+                                  'Note: ${job.notes}',
+                                  style: const TextStyle(
+                                    fontSize: 9.5,
+                                    fontStyle: FontStyle.italic,
+                                    color: AppColors.muted,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                            if (job.notes.isNotEmpty)
+                            if (job.recordedByName.isNotEmpty)
                               Text(
-                                job.notes,
+                                'By: ${job.recordedByName}',
                                 style: const TextStyle(
-                                  fontSize: 9.5,
-                                  fontStyle: FontStyle.italic,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
                                   color: AppColors.muted,
                                 ),
                               ),
                           ],
                         ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          if (job.issueWeight > 0)
-                            Text(
-                              '${job.issueWeight.toStringAsFixed(2)}g',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.goldDark,
-                              ),
-                            ),
-                          if (job.wastageWeight > 0)
-                            Text(
-                              'Loss: ${job.wastageWeight.toStringAsFixed(2)}g',
-                              style: const TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.red,
-                              ),
-                            ),
-                          if (job.pieces > 0)
-                            Text(
-                              '${job.pieces} pcs',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.emerald,
-                              ),
-                            ),
-                          if (job.stonesSet > 0)
-                            Text(
-                              '${job.stonesSet} stones',
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF3B82F6),
-                              ),
-                            ),
-                        ],
-                      ),
+                      ],
                     ],
                   ),
                 );
@@ -1052,7 +1340,7 @@ class _CraftsmanMonthlyLedgerPageState
             Icon(Icons.inventory_2_outlined, size: 36, color: AppColors.muted),
             SizedBox(height: 10),
             Text(
-              'Select a Karigar and Month to view the physical ledger.',
+              'Select a Worker and Month to view the physical ledger.',
               style: TextStyle(fontSize: 13, color: AppColors.muted),
             ),
           ],

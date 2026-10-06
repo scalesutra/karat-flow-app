@@ -135,6 +135,9 @@ abstract final class ApiEndpoints {
       '/departments/casting/last-balance?metalType=${Uri.encodeComponent(metalType)}';
   static const String departmentFilingSubmit = '/departments/filing/submit';
   static const String departmentPolishingSubmit = '/departments/polishing/submit';
+  static const String handSettingLogs = '/hand-setting/logs';
+  static const String departmentHandSettingLogs =
+      '/departments/hand-setting/logs';
   static const String departmentHandSettingSubmit =
       '/departments/hand-setting/submit';
   static String departmentCraftsmanMonthlyLedger({

@@ -28,13 +28,27 @@ class _TeamWorkloadPageState extends State<TeamWorkloadPage> {
 
         // Build dynamic list of team members with current assignment from store
         final dynamicArtisans = widget.store.team.map((member) {
-          final assignedLots = allLots
-              .where(
-                (l) =>
-                    l.assignedEmployee.trim().toLowerCase() ==
-                    member.name.trim().toLowerCase(),
-              )
-              .toList();
+          final assignedLots = allLots.where((l) {
+            if (l.assignedEmployee.trim().isEmpty) return false;
+            final assigned = l.assignedEmployee.trim().toLowerCase();
+            final name = member.name.trim().toLowerCase();
+            final id = member.id.trim().toLowerCase();
+            return assigned == name ||
+                assigned == id ||
+                (name.isNotEmpty && assigned.contains(name)) ||
+                (id.isNotEmpty && assigned.contains(id));
+          }).toList();
+
+          String displayName = member.name.trim();
+          final isNameUuid = displayName.length >= 28 &&
+              RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}').hasMatch(displayName);
+          if (displayName.isEmpty || isNameUuid) {
+            final idClean = member.id.replaceAll('-', '');
+            final shortTag = idClean.length >= 4
+                ? idClean.substring(0, 4).toUpperCase()
+                : '01';
+            displayName = '${member.craft} #$shortTag';
+          }
 
           final String taskText;
           final String statusText;
@@ -42,19 +56,36 @@ class _TeamWorkloadPageState extends State<TeamWorkloadPage> {
 
           if (assignedLots.isNotEmpty) {
             final firstLot = assignedLots.first;
+            final isOrderUuid = firstLot.orderId.length >= 28 &&
+                RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}').hasMatch(firstLot.orderId);
+            final cleanOrder = isOrderUuid
+                ? 'Order #${firstLot.orderId.replaceAll('-', '').substring(0, (firstLot.orderId.replaceAll('-', '').length >= 5 ? 5 : firstLot.orderId.replaceAll('-', '').length)).toUpperCase()}'
+                : (firstLot.orderId.isNotEmpty ? 'Order #${firstLot.orderId}' : '');
+
+            final isProductUuid = firstLot.productTitle.length >= 28 &&
+                RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}').hasMatch(firstLot.productTitle);
+            final cleanProduct = isProductUuid
+                ? 'Lot #${firstLot.productTitle.replaceAll('-', '').substring(0, (firstLot.productTitle.replaceAll('-', '').length >= 5 ? 5 : firstLot.productTitle.replaceAll('-', '').length)).toUpperCase()}'
+                : firstLot.productTitle;
+
+            final lotLabel = firstLot.designCode.isNotEmpty &&
+                    !firstLot.designCode.startsWith(RegExp(r'[0-9a-fA-F]{8}-'))
+                ? firstLot.designCode
+                : (cleanProduct.isNotEmpty ? cleanProduct : cleanOrder);
+
             taskText =
-                '${firstLot.stage.label} · ${firstLot.orderId} (${firstLot.productTitle})';
-            statusText = 'Working';
+                '${firstLot.stage.label} · $lotLabel (${firstLot.pieces} pcs)';
+            statusText = 'Working (${assignedLots.length} Lots)';
             statusColor = AppColors.emerald;
           } else {
-            taskText = 'No active lot';
+            taskText = 'No active lot assigned (Available)';
             statusText = 'Free';
             statusColor = AppColors.muted;
           }
 
           return {
             'member': member,
-            'name': member.name,
+            'name': displayName,
             'craft': member.craft,
             'task': taskText,
             'status': statusText,

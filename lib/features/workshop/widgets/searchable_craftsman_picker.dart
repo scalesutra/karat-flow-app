@@ -157,7 +157,7 @@ class _SearchableCraftsmanPickerSheetState
                     ),
                     SizedBox(width: 8),
                     Text(
-                      'Select Craftsman (Karigar)',
+                      'Select Worker',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
@@ -190,7 +190,7 @@ class _SearchableCraftsmanPickerSheetState
               ),
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
-                hintText: 'Search karigar by name, role, phone...',
+                hintText: 'Search worker by name, role, phone...',
                 hintStyle: const TextStyle(
                   fontSize: 12,
                   color: AppColors.subtle,
@@ -271,8 +271,8 @@ class _SearchableCraftsmanPickerSheetState
                           const SizedBox(height: 8),
                           Text(
                             _query.isEmpty
-                                ? 'No craftsmen available'
-                                : 'No karigar matching "$_query"',
+                                ? 'No workers available'
+                                : 'No worker matching "$_query"',
                             style: const TextStyle(
                               fontSize: 12,
                               color: AppColors.muted,

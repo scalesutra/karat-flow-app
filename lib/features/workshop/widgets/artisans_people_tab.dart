@@ -29,6 +29,17 @@ class ArtisansPeopleTab extends StatelessWidget {
                 (id.isNotEmpty && assigned.contains(id));
           }).toList();
 
+          String displayName = member.name.trim();
+          final isNameUuid = displayName.length >= 28 &&
+              RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}').hasMatch(displayName);
+          if (displayName.isEmpty || isNameUuid) {
+            final idClean = member.id.replaceAll('-', '');
+            final shortTag = idClean.length >= 4
+                ? idClean.substring(0, 4).toUpperCase()
+                : '01';
+            displayName = '${member.craft} #$shortTag';
+          }
+
           final int totalPieces = assignedLots.fold(
             0,
             (sum, l) => sum + l.pieces,
@@ -46,8 +57,27 @@ class ArtisansPeopleTab extends StatelessWidget {
             stagesStr = stagesSet;
             final lotSummary = assignedLots
                 .map(
-                  (l) =>
-                      '${l.productTitle} (${l.pieces} pcs in ${l.stage.label})',
+                  (l) {
+                    final isProductUuid = l.productTitle.length >= 28 &&
+                        RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}')
+                            .hasMatch(l.productTitle);
+                    final isOrderUuid = l.orderId.length >= 28 &&
+                        RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}')
+                            .hasMatch(l.orderId);
+                    final cleanTitle = l.designCode.isNotEmpty &&
+                            !l.designCode.startsWith(RegExp(r'[0-9a-fA-F]{8}-'))
+                        ? l.designCode
+                        : (!isProductUuid &&
+                                l.productTitle.isNotEmpty &&
+                                !l.productTitle
+                                    .toLowerCase()
+                                    .startsWith('order part')
+                            ? l.productTitle
+                            : (!isOrderUuid && l.orderId.isNotEmpty
+                                ? 'Order #${l.orderId}'
+                                : 'Lot #${l.id.replaceAll('-', '').substring(0, (l.id.replaceAll('-', '').length >= 5 ? 5 : l.id.replaceAll('-', '').length)).toUpperCase()}'));
+                    return '$cleanTitle (${l.pieces} pcs in ${l.stage.label})';
+                  },
                 )
                 .join(' · ');
             taskText =
@@ -63,7 +93,7 @@ class ArtisansPeopleTab extends StatelessWidget {
 
           return {
             'member': member,
-            'name': member.name,
+            'name': displayName,
             'craft': member.craft,
             'lotsCount': assignedLots.length,
             'totalPieces': totalPieces,

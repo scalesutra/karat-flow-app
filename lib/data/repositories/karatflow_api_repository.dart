@@ -1824,69 +1824,161 @@ class KaratFlowApiRepository {
   Future<CastingLogResponse> submitCastingLog(
     CastingSubmitPayload payload,
   ) async {
-    final response = await _api.post(
-      ApiEndpoints.departmentCastingSubmit,
-      data: payload.toJson(),
+    debugPrint(
+      '🎬 [DEPARTMENT LOGS API] POST ${ApiEndpoints.departmentCastingSubmit} -> Submitting Casting Log...',
     );
-    final data = _dataMap(response.data);
-    return CastingLogResponse.fromJson(data);
+    debugPrint('   Payload: ${payload.toJson()}');
+    try {
+      final response = await _api.post(
+        ApiEndpoints.departmentCastingSubmit,
+        data: payload.toJson(),
+      );
+      debugPrint(
+        '📥 [DEPARTMENT LOGS API] POST ${ApiEndpoints.departmentCastingSubmit} -> Status: ${response.statusCode}',
+      );
+      debugPrint('📦 [DEPARTMENT LOGS CASTING API DATA]: ${response.data}');
+      final data = _dataMap(response.data);
+      return CastingLogResponse.fromJson(data);
+    } on DioException catch (e) {
+      debugPrint('❌ [DEPARTMENT LOGS CASTING API ERROR]: ${e.response?.statusCode} -> ${e.response?.data}');
+      rethrow;
+    }
   }
 
   Future<CastingLastBalanceResponse> getCastingLastBalance(
     String metalType,
   ) async {
-    final response = await _api.get(
-      ApiEndpoints.departmentCastingLastBalance(metalType),
+    final endpoint = ApiEndpoints.departmentCastingLastBalance(metalType);
+    debugPrint(
+      '🎬 [DEPARTMENT LOGS API] GET $endpoint -> Fetching Casting Last Balance for metal: $metalType...',
     );
-    final data = _dataMap(response.data);
-    return CastingLastBalanceResponse.fromJson(data);
+    try {
+      final response = await _api.get(endpoint);
+      debugPrint(
+        '📥 [DEPARTMENT LOGS API] GET $endpoint -> Status: ${response.statusCode}',
+      );
+      debugPrint(
+        '📦 [DEPARTMENT LOGS CASTING LAST BALANCE API DATA]: ${response.data}',
+      );
+      final data = _dataMap(response.data);
+      return CastingLastBalanceResponse.fromJson(data);
+    } on DioException catch (e) {
+      debugPrint('❌ [DEPARTMENT LOGS CASTING BALANCE API ERROR]: ${e.response?.statusCode} -> ${e.response?.data}');
+      rethrow;
+    }
   }
 
   Future<FilingLogResponse> submitFilingLog(
     FilingSubmitPayload payload,
   ) async {
-    final response = await _api.post(
-      ApiEndpoints.departmentFilingSubmit,
-      data: payload.toJson(),
+    debugPrint(
+      '🎬 [DEPARTMENT LOGS API] POST ${ApiEndpoints.departmentFilingSubmit} -> Submitting Filing Log...',
     );
-    final data = _dataMap(response.data);
-    return FilingLogResponse.fromJson(data);
+    debugPrint('   Payload: ${payload.toJson()}');
+    try {
+      final response = await _api.post(
+        ApiEndpoints.departmentFilingSubmit,
+        data: payload.toJson(),
+      );
+      debugPrint(
+        '📥 [DEPARTMENT LOGS API] POST ${ApiEndpoints.departmentFilingSubmit} -> Status: ${response.statusCode}',
+      );
+      debugPrint('📦 [DEPARTMENT LOGS FILING API DATA]: ${response.data}');
+      final data = _dataMap(response.data);
+      return FilingLogResponse.fromJson(data);
+    } on DioException catch (e) {
+      debugPrint('❌ [DEPARTMENT LOGS FILING API ERROR]: ${e.response?.statusCode} -> ${e.response?.data}');
+      rethrow;
+    }
   }
 
   Future<PolishingLogResponse> submitPolishingLog(
     PolishingSubmitPayload payload,
   ) async {
-    final response = await _api.post(
-      ApiEndpoints.departmentPolishingSubmit,
-      data: payload.toJson(),
+    debugPrint(
+      '🎬 [DEPARTMENT LOGS API] POST ${ApiEndpoints.departmentPolishingSubmit} -> Submitting Polishing Log...',
     );
-    final data = _dataMap(response.data);
-    return PolishingLogResponse.fromJson(data);
+    debugPrint('   Payload: ${payload.toJson()}');
+    try {
+      final response = await _api.post(
+        ApiEndpoints.departmentPolishingSubmit,
+        data: payload.toJson(),
+      );
+      debugPrint(
+        '📥 [DEPARTMENT LOGS API] POST ${ApiEndpoints.departmentPolishingSubmit} -> Status: ${response.statusCode}',
+      );
+      debugPrint('📦 [DEPARTMENT LOGS POLISHING API DATA]: ${response.data}');
+      final data = _dataMap(response.data);
+      return PolishingLogResponse.fromJson(data);
+    } on DioException catch (e) {
+      debugPrint('❌ [DEPARTMENT LOGS POLISHING API ERROR]: ${e.response?.statusCode} -> ${e.response?.data}');
+      rethrow;
+    }
   }
 
   Future<HandSettingLogResponse> submitHandSettingLog(
     HandSettingSubmitPayload payload,
   ) async {
-    final response = await _api.post(
-      ApiEndpoints.departmentHandSettingSubmit,
-      data: payload.toJson(),
-    );
-    final data = _dataMap(response.data);
-    return HandSettingLogResponse.fromJson(data);
+    final candidateEndpoints = [
+      ApiEndpoints.departmentHandSettingSubmit, // '/departments/hand-setting/submit'
+      ApiEndpoints.departmentHandSettingLogs, // '/departments/hand-setting/logs'
+      ApiEndpoints.handSettingLogs, // '/hand-setting/logs'
+    ];
+
+    DioException? lastError;
+    for (final endpoint in candidateEndpoints) {
+      debugPrint(
+        '🎬 [HAND SETTING API] POST $endpoint -> Submitting Hand Setting Log...',
+      );
+      debugPrint('   Payload: ${payload.toJson()}');
+      try {
+        final response = await _api.post(
+          endpoint,
+          data: payload.toJson(),
+        );
+        debugPrint(
+          '📥 [HAND SETTING API] POST $endpoint -> Status: ${response.statusCode}',
+        );
+        debugPrint('📦 [HAND SETTING API RESPONSE DATA]: ${response.data}');
+        final data = _dataMap(response.data);
+        return HandSettingLogResponse.fromJson(data);
+      } on DioException catch (e) {
+        lastError = e;
+        if (e.response?.statusCode == 404) {
+          debugPrint('⚠️ [HAND SETTING API] $endpoint returned 404, trying next candidate endpoint...');
+          continue;
+        }
+        debugPrint('❌ [HAND SETTING API ERROR]: ${e.response?.statusCode} -> ${e.response?.data}');
+        rethrow;
+      }
+    }
+    if (lastError != null) throw lastError;
+    throw Exception('Failed to submit hand setting log to any endpoint');
   }
 
   Future<CraftsmanMonthlyLedger> getCraftsmanMonthlyLedger({
     required String craftsmanId,
     required String yearMonth,
   }) async {
-    final response = await _api.get(
-      ApiEndpoints.departmentCraftsmanMonthlyLedger(
-        craftsmanId: craftsmanId,
-        yearMonth: yearMonth,
-      ),
+    final endpoint = ApiEndpoints.departmentCraftsmanMonthlyLedger(
+      craftsmanId: craftsmanId,
+      yearMonth: yearMonth,
     );
-    final data = _dataMap(response.data);
-    return CraftsmanMonthlyLedger.fromJson(data);
+    debugPrint(
+      '🎬 [LEDGER API] GET $endpoint -> Fetching Craftsman Monthly Ledger for craftsmanId: $craftsmanId, yearMonth: $yearMonth...',
+    );
+    try {
+      final response = await _api.get(endpoint);
+      debugPrint(
+        '📥 [LEDGER API] GET $endpoint -> Status: ${response.statusCode}',
+      );
+      debugPrint('📦 [LEDGER API DATA]: ${response.data}');
+      final data = _dataMap(response.data);
+      return CraftsmanMonthlyLedger.fromJson(data);
+    } on DioException catch (e) {
+      debugPrint('❌ [LEDGER API ERROR]: ${e.response?.statusCode} -> ${e.response?.data}');
+      rethrow;
+    }
   }
 
   // ── SECTION 17: Physical Stone Inventory & Matrix (Strictly Zero Currency) ─
@@ -1920,26 +2012,82 @@ class KaratFlowApiRepository {
 
   Future<List<ApiMasterAttribute>> getMasterColors() async {
     try {
+      debugPrint('🎨 [MASTER COLORS API] GET /colors -> Fetching stone & product colors...');
       final response = await _api.get(ApiEndpoints.colors);
+      debugPrint('📥 [MASTER COLORS API] Status: ${response.statusCode}');
       final raw = response.data;
       final list = raw is Map && raw['data'] is List
           ? raw['data'] as List
           : (raw is List ? raw : []);
-      return list.map((item) => ApiMasterAttribute.fromJson(item)).toList();
-    } catch (_) {
+      final parsed = list
+          .map((item) => ApiMasterAttribute.fromJson(item))
+          .where((item) => item.isActive && item.name.trim().isNotEmpty)
+          .toList();
+      debugPrint(
+        '📦 [MASTER COLORS LOADED]: ${parsed.length} items (${parsed.map((c) => c.name).join(', ')})',
+      );
+      return parsed;
+    } catch (e) {
+      debugPrint('❌ [MASTER COLORS API ERROR]: $e');
       return [];
     }
   }
 
   Future<List<ApiMasterAttribute>> getMasterShapes() async {
     try {
+      debugPrint('💎 [MASTER SHAPES API] GET /shapes -> Fetching available stone shapes...');
       final response = await _api.get(ApiEndpoints.shapes);
+      debugPrint('📥 [MASTER SHAPES API] Status: ${response.statusCode}');
       final raw = response.data;
       final list = raw is Map && raw['data'] is List
           ? raw['data'] as List
           : (raw is List ? raw : []);
-      return list.map((item) => ApiMasterAttribute.fromJson(item)).toList();
-    } catch (_) {
+      final parsed = list
+          .map((item) => ApiMasterAttribute.fromJson(item))
+          .where((item) => item.isActive && item.name.trim().isNotEmpty)
+          .toList();
+      debugPrint(
+        '📦 [MASTER SHAPES LOADED]: ${parsed.length} items (${parsed.map((s) => s.name).join(', ')})',
+      );
+      return parsed;
+    } catch (e) {
+      debugPrint('❌ [MASTER SHAPES API ERROR]: $e');
+      return [];
+    }
+  }
+
+  /// List recorded hand setting logs with pagination and optional craftsman filter
+  Future<List<HandSettingLogResponse>> getHandSettingLogs({
+    String? craftsmanId,
+    int limit = 50,
+  }) async {
+    debugPrint(
+      '🎬 [HAND SETTING LOGS API] GET ${ApiEndpoints.departmentHandSettingLogs} (craftsmanId: $craftsmanId, limit: $limit)...',
+    );
+    try {
+      final queryParams = <String, dynamic>{
+        'limit': limit,
+        if (craftsmanId != null && craftsmanId.trim().isNotEmpty)
+          'craftsmanId': craftsmanId.trim(),
+      };
+      final response = await _api.get(
+        ApiEndpoints.departmentHandSettingLogs,
+        queryParameters: queryParams,
+      );
+      debugPrint('📥 [HAND SETTING LOGS API] Status: ${response.statusCode}');
+      final raw = response.data;
+      final list = raw is Map && raw['data'] is List
+          ? raw['data'] as List
+          : (raw is List ? raw : []);
+      final parsed = list
+          .map((item) => HandSettingLogResponse.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ))
+          .toList();
+      debugPrint('📦 [HAND SETTING LOGS API DATA]: ${parsed.length} logs retrieved');
+      return parsed;
+    } catch (e) {
+      debugPrint('❌ [HAND SETTING LOGS API ERROR]: $e');
       return [];
     }
   }
